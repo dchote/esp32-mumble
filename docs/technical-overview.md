@@ -223,13 +223,13 @@ components/
     mumble_varint.h      # Varint encode/decode
 ```
 
-The component is loaded as an ESPHome external component. Connection settings can be inline or referenced from text/number entities (editable in the HA UI, persisted to NVS). Use the `mumble.ptt_press` action for a Push to Talk button in HA (toggle: press to start, press again to stop).
+The component is loaded as an ESPHome external component. Connection settings (server, port, username, password, channel) can be inline or referenced from text/number entities; mode (always_on / push_to_talk) can be set in YAML or via an optional select entity. All HA-linked values are editable in the HA UI and persisted to NVS. Use the `mumble.ptt_press` action for a Push to Talk button in HA (toggle: press to start, press again to stop).
 
 ```yaml
 external_components:
   - source: { type: local, path: components }
 
-# Optional: text/number entities for HA-editable settings (restore_value: true)
+# Optional: text/number/select entities for HA-editable settings (restore_value: true)
 text:
   - platform: template
     id: mumble_server_host
@@ -248,6 +248,14 @@ number:
     min_value: 1
     max_value: 65535
     step: 1
+select:
+  - platform: template
+    id: mumble_mode
+    name: "Mumble Mode"
+    optimistic: true
+    restore_value: true
+    initial_option: "always_on"
+    options: ["always_on", "push_to_talk"]
 button:
   - platform: template
     name: "Mumble Push to Talk"
@@ -264,6 +272,7 @@ mumble:
   server_text_id: mumble_server_host
   port_number_id: mumble_server_port
   # username_text_id, password_text_id, channel_text_id ...
+  mode_select_id: mumble_mode   # optional; use select entity for HA-editable mode
   mode: always_on
   mute_pin: GPIO38        # optional hardware mute switch
 ```
@@ -277,7 +286,8 @@ mumble:
 | `username` | string | optional | Username to authenticate with (or use `username_text_id`) |
 | `password` | string | `""` | Server or user password |
 | `channel` | string | `""` | Channel to join after connect (empty = root) |
-| `mode` | enum | `always_on` | `always_on` or `push_to_talk` |
+| `mode_select_id` | id | none | Select entity for mode (options: `always_on`, `push_to_talk`; overrides `mode` when set) |
+| `mode` | enum | `always_on` | `always_on` or `push_to_talk` (fallback when no `mode_select_id`) |
 | `server_text_id` | id | none | Text entity for server host (overrides `server` when set) |
 | `port_number_id` | id | none | Number entity for port |
 | `username_text_id` | id | none | Text entity for username |
@@ -295,6 +305,7 @@ mumble:
 |-----------|----------|-------------|
 | `text.mumble_server_host` | `text` | Server hostname or IP |
 | `number.mumble_server_port` | `number` | Server port |
+| `select.mumble_mode` | `select` | Mode: `always_on` or `push_to_talk` |
 | `text.mumble_username` | `text` | Username |
 | `text.mumble_password` | `text` | Password (mode: password) |
 | `text.mumble_default_channel` | `text` | Channel to join on connect |

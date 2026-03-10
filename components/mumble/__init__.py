@@ -1,11 +1,17 @@
-"""ESPHome Mumble client component for ESP32-S3."""
+"""ESPHome Mumble client component for ESP32-S3.
+
+Configuration: server, port, username, password, channel, mode, crypto (inline).
+Optional HA-editable entities: server_text_id, port_number_id, username_text_id,
+password_text_id, channel_text_id, mode_select_id (values persisted to NVS).
+Optional hardware: ptt_pin, mute_pin.
+"""
 
 from esphome import automation
 from esphome.automation import maybe_simple_id
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome import pins
-from esphome.components import number, text
+from esphome.components import number, select, text
 from esphome.const import CONF_ID, CONF_PORT, CONF_PASSWORD, CONF_CHANNEL
 
 CODEOWNERS = ["@esphome"]
@@ -23,6 +29,7 @@ CONF_PORT_NUMBER = "port_number_id"
 CONF_USERNAME_TEXT = "username_text_id"
 CONF_PASSWORD_TEXT = "password_text_id"
 CONF_CHANNEL_TEXT = "channel_text_id"
+CONF_MODE_SELECT = "mode_select_id"
 
 CONF_ALWAYS_ON = "always_on"
 CONF_PUSH_TO_TALK = "push_to_talk"
@@ -69,6 +76,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_USERNAME_TEXT): cv.use_id(text.Text),
             cv.Optional(CONF_PASSWORD_TEXT): cv.use_id(text.Text),
             cv.Optional(CONF_CHANNEL_TEXT): cv.use_id(text.Text),
+            cv.Optional(CONF_MODE_SELECT): cv.use_id(select.Select),
             cv.Optional(CONF_MODE, default=CONF_ALWAYS_ON): cv.enum(
                 MUMBLE_MODE, lower=True
             ),
@@ -110,6 +118,9 @@ async def to_code(config):
     if CONF_CHANNEL_TEXT in config:
         channel_text = await cg.get_variable(config[CONF_CHANNEL_TEXT])
         cg.add(var.set_channel_text(channel_text))
+    if CONF_MODE_SELECT in config:
+        mode_select = await cg.get_variable(config[CONF_MODE_SELECT])
+        cg.add(var.set_mode_select(mode_select))
 
     if CONF_PTT_PIN in config:
         pin = await cg.gpio_pin_expression(config[CONF_PTT_PIN])

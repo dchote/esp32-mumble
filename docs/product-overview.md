@@ -22,7 +22,7 @@ Multiple ESP32-Mumble devices join the same Mumble server, each in an assigned c
 
 ### Home Assistant Integration
 
-Each device appears in Home Assistant as an ESPHome node with configurable entities for server connection, mute state, volume, active channel, and talking status. Automations can mute devices on a schedule, switch channels in response to events, or trigger notifications when someone begins talking.
+Each device appears in Home Assistant as an ESPHome node with configurable entities for server connection, operating mode (always-on / push-to-talk), mute state, volume, active channel, and talking status. Automations can mute devices on a schedule, switch channels in response to events, or trigger notifications when someone begins talking.
 
 ## Target Hardware
 
@@ -79,6 +79,7 @@ The following settings are exposed as Home Assistant entities and can be changed
 | Username | Text | Mumble username for this device |
 | Password | Text | Server or user password |
 | Default Channel | Text | Channel to join on connect |
+| Mumble Mode | Select | **Always on** or **Push to talk** (persisted across reboots) |
 
 ### Home Assistant Runtime Entities
 

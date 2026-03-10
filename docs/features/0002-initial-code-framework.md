@@ -12,7 +12,7 @@ The project had documentation (0001) but no source code. A skeletal but complete
 
 ### 1. ESPHome External Component (`components/mumble/`)
 
-- `__init__.py` — Component registration, YAML schema (server, port, username, password, channel, mode, ptt_pin, mute_pin, crypto)
+- `__init__.py` — Component registration, YAML schema (server, port, username, password, channel, mode; optional entity IDs: server_text_id, port_number_id, username_text_id, password_text_id, channel_text_id, mode_select_id; ptt_pin, mute_pin, crypto)
 - `mumble_component.h` / `.cpp` — Main component; setup, loop, dump_config
 - `mumble_protocol.h` / `.cpp` — TCP framing (6-byte header), message type constants
 - `mumble_varint.h` / `.cpp` — Mumble custom varint (UDP voice); port of go-mumble-server varint.go
@@ -33,7 +33,7 @@ The project had documentation (0001) but no source code. A skeletal but complete
 
 ### 4. CI
 
-- `.github/workflows/build.yml` — Builds both configs on push/PR to main/master via esphome/workflows
+- `.github/workflows/build.yml` — Builds both configs when run manually (workflow_dispatch) via esphome/workflows
 
 ### 5. Documentation
 

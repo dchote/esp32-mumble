@@ -45,6 +45,15 @@ std::string MumbleComponent::get_channel() const {
   return channel_;
 }
 
+uint8_t MumbleComponent::get_mode() const {
+  if (mode_select_ != nullptr && !mode_select_->state.empty()) {
+    const std::string &s = mode_select_->state;
+    if (s == "push_to_talk") return 1;
+    if (s == "always_on") return 0;
+  }
+  return mode_;
+}
+
 void MumbleComponent::trigger_ptt() {
   ptt_active_ = !ptt_active_;
   ESP_LOGD(TAG, "PTT %s", ptt_active_ ? "on" : "off");
@@ -62,7 +71,7 @@ void MumbleComponent::setup() {
   ESP_LOGCONFIG(TAG, "Setting up Mumble client");
   log_connection_config();
   ESP_LOGCONFIG(TAG, "  Mode: %s",
-                mode_ == 0 ? "always_on" : "push_to_talk");
+                get_mode() == 0 ? "always_on" : "push_to_talk");
   ESP_LOGCONFIG(TAG, "  Crypto: %s", crypto_ == 0 ? "lite" : "legacy");
 }
 

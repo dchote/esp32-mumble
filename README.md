@@ -17,7 +17,7 @@ The firmware runs as an [ESPHome](https://esphome.io/) external component, integ
 - **Opus** audio encoding/decoding at 16 kHz
 - **Full-duplex** simultaneous capture and playback
 - **Acoustic echo cancellation** for open-mic use
-- **Home Assistant** entities for server config, mute, volume, channel, and status
+- **Home Assistant** entities for server config, mode (always-on / PTT), mute, volume, channel, and status
 - **Multi-room** intercom via Mumble channels
 
 ## Supported Hardware
@@ -68,7 +68,7 @@ esphome run esphome/generic-esp32s3.yaml --device /dev/ttyUSB0
 
 See [docs/build.md](docs/build.md) for full build and flash instructions.
 
-Configure Mumble server, port, username, password, and channel from the Home Assistant UI after adding the device; values persist in NVS. Use the **Mumble Push to Talk** button in HA to toggle transmitting (press once to talk, press again to stop). Example config uses text/number entities and `server_text_id`, `port_number_id`, etc.; see `esphome/generic-esp32s3.yaml` for the full pattern.
+Configure Mumble server, port, username, password, channel, and mode (always-on / push-to-talk) from the Home Assistant UI after adding the device; values persist in NVS. Use the **Mumble Push to Talk** button in HA to toggle transmitting (press once to talk, press again to stop). Example config uses text, number, and select entities (`server_text_id`, `port_number_id`, `mode_select_id`, etc.); see `esphome/generic-esp32s3.yaml` for the full pattern.
 
 ## Project Structure
 

@@ -58,11 +58,11 @@ On macOS the port is typically `/dev/cu.usbmodem*`.
 ## Configuration
 
 - **Wi‑Fi**: Edit the `wifi` section in the YAML (`ssid` / `password`).
-- **Mumble**: Server host, port, username, password, and channel are exposed as text/number entities. Configure them in the Home Assistant UI after the device is added; values persist in NVS. You can also set `initial_value` on each template text/number in the YAML for first-time defaults.
+- **Mumble**: Server host, port, username, password, channel, and mode (always-on / push-to-talk) are exposed as text, number, and select entities. Configure them in the Home Assistant UI after the device is added; values persist in NVS. You can also set `initial_value` or `initial_option` in the YAML for first-time defaults.
 
 ## CI
 
-The [`.github/workflows/build.yml`](../.github/workflows/build.yml) workflow builds both configs on push and pull requests to `main` or `master`. It uses the [esphome/workflows](https://github.com/esphome/workflows) reusable workflow.
+The [`.github/workflows/build.yml`](../.github/workflows/build.yml) workflow builds both configs when run manually (Actions → Build → Run workflow). It uses the [esphome/workflows](https://github.com/esphome/workflows) reusable workflow.
 
 ## Troubleshooting
 

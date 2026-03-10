@@ -2,6 +2,7 @@
 
 #include "esphome/components/component.h"
 #include "esphome/components/number/number.h"
+#include "esphome/components/select/select.h"
 #include "esphome/components/text/text.h"
 #include "esphome/core/automation.h"
 #include "esphome/core/gpio.h"
@@ -27,12 +28,14 @@ class MumbleComponent : public Component {
   void set_username_text(text::Text *t) { username_text_ = t; }
   void set_password_text(text::Text *t) { password_text_ = t; }
   void set_channel_text(text::Text *t) { channel_text_ = t; }
+  void set_mode_select(select::Select *s) { mode_select_ = s; }
 
   std::string get_server() const;
   uint16_t get_port() const;
   std::string get_username() const;
   std::string get_password() const;
   std::string get_channel() const;
+  uint8_t get_mode() const;
 
   void trigger_ptt();
 
@@ -60,6 +63,7 @@ class MumbleComponent : public Component {
   text::Text *username_text_{nullptr};
   text::Text *password_text_{nullptr};
   text::Text *channel_text_{nullptr};
+  select::Select *mode_select_{nullptr};
 
   bool ptt_active_{false};
 };

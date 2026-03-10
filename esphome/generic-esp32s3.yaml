@@ -1,6 +1,6 @@
 ---
 # Generic ESP32-S3 minimal config for Mumble client
-# Configure server, username, etc. in Home Assistant UI (values persist in NVS)
+# Configure server, port, username, password, channel, and mode in Home Assistant UI (values persist in NVS)
 
 substitutions:
   name: esp32-mumble
@@ -33,7 +33,7 @@ api:
 
 ota:
 
-# Mumble connection settings (editable in Home Assistant, persisted to NVS)
+# Mumble connection and mode settings (editable in Home Assistant, persisted to NVS)
 text:
   - platform: template
     id: mumble_server_host
@@ -67,6 +67,18 @@ text:
     restore_value: true
     initial_value: ""
     max_length: 128
+
+# Mumble mode: always_on or push_to_talk (editable in HA)
+select:
+  - platform: template
+    id: mumble_mode
+    name: "Mumble Mode"
+    optimistic: true
+    restore_value: true
+    initial_option: "always_on"
+    options:
+      - "always_on"
+      - "push_to_talk"
 
 number:
   - platform: template
@@ -106,5 +118,6 @@ mumble:
   username_text_id: mumble_username
   password_text_id: mumble_password
   channel_text_id: mumble_default_channel
+  mode_select_id: mumble_mode
   mode: always_on
   crypto: lite
