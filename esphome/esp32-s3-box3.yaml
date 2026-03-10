@@ -1,0 +1,119 @@
+---
+# ESP32-S3 Box 3 board config for Mumble client
+# Uses I2S pins from docs/technical-overview.md Box 3 profile
+# Configure server, username, etc. in Home Assistant UI (values persist in NVS)
+
+substitutions:
+  name: esp32-mumble-box3
+
+esphome:
+  name: ${name}
+  name_add_mac_suffix: true
+  min_version: "2024.1.0"
+
+esp32:
+  board: esp32s3box3
+  flash_size: 16MB
+  cpu_frequency: 240MHz
+  framework:
+    type: esp-idf
+    sdkconfig_options:
+      CONFIG_ESP32S3_DEFAULT_CPU_FREQ_240: "y"
+      CONFIG_ESP32S3_DATA_CACHE_64KB: "y"
+      CONFIG_ESP32S3_DATA_CACHE_LINE_64B: "y"
+
+# PSRAM required for audio
+psram:
+  mode: octal
+  speed: 80MHz
+
+wifi:
+  networks:
+    - ssid: "YourWiFi"
+      password: "YourPassword"
+  ap:
+    ssid: "ESP32-Mumble-Box3"
+    password: "fallback123"
+
+logger:
+  hardware_uart: USB_SERIAL_JTAG
+
+api:
+
+ota:
+
+# Mumble connection settings (editable in Home Assistant, persisted to NVS)
+text:
+  - platform: template
+    id: mumble_server_host
+    name: "Mumble Server"
+    mode: text
+    optimistic: true
+    restore_value: true
+    initial_value: "192.168.1.100"
+    max_length: 253
+  - platform: template
+    id: mumble_username
+    name: "Mumble Username"
+    mode: text
+    optimistic: true
+    restore_value: true
+    initial_value: "box3-intercom"
+    max_length: 128
+  - platform: template
+    id: mumble_password
+    name: "Mumble Password"
+    mode: password
+    optimistic: true
+    restore_value: true
+    initial_value: ""
+    max_length: 128
+  - platform: template
+    id: mumble_default_channel
+    name: "Mumble Channel"
+    mode: text
+    optimistic: true
+    restore_value: true
+    initial_value: ""
+    max_length: 128
+
+number:
+  - platform: template
+    id: mumble_server_port
+    name: "Mumble Port"
+    optimistic: true
+    restore_value: true
+    initial_value: 64738
+    min_value: 1
+    max_value: 65535
+    step: 1
+
+# Push-to-talk button (press in HA to start/stop transmitting)
+button:
+  - platform: template
+    name: "Mumble Push to Talk"
+    id: mumble_ptt_button
+    icon: "mdi:microphone"
+    on_press:
+      - mumble.ptt_press: mumble_client
+
+external_components:
+  - source:
+      type: local
+      path: ../components
+
+mumble:
+  id: mumble_client
+  server: ""
+  port: 64738
+  username: ""
+  password: ""
+  channel: ""
+  server_text_id: mumble_server_host
+  port_number_id: mumble_server_port
+  username_text_id: mumble_username
+  password_text_id: mumble_password
+  channel_text_id: mumble_default_channel
+  mode: always_on
+  crypto: lite
+  # mute_pin: GPIO38  # Hardware mute switch if available

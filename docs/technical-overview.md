@@ -133,6 +133,14 @@ This client uses the **legacy binary format**; the server also supports a modern
 
 UDP connectivity is confirmed by a ping/echo exchange. The client sends a codec-type-1 packet; the server echoes it back. If no echo is received, the client falls back to tunneling voice over TCP using UDPTunnel (message type 1).
 
+### Protocol Reference
+
+The authoritative protocol documentation lives in `research/go-mumble-server/docs/protocol/`:
+
+- [control-messages.md](research/go-mumble-server/docs/protocol/control-messages.md) — TCP message catalog and framing
+- [voice-data.md](research/go-mumble-server/docs/protocol/voice-data.md) — UDP voice packet format and varint encoding
+- [security-modes.md](research/go-mumble-server/docs/protocol/security-modes.md) — Crypto modes (Lite, Legacy, Secure)
+
 ## Audio Pipeline
 
 ### Capture Path (Microphone to Network)
@@ -204,6 +212,8 @@ The pipeline order is: multi-channel capture → beamforming/downmix (to mono) �
 components/
   mumble/
     __init__.py          # ESPHome component registration, YAML schema
+    mumble_component.h   # Main component; settings, PTT action
+    mumble_component.cpp
     mumble_client.h      # MumbleClient C++ class (connection, protocol)
     mumble_client.cpp
     mumble_audio.h       # Audio pipeline (capture, playback, Opus)
@@ -213,35 +223,66 @@ components/
     mumble_varint.h      # Varint encode/decode
 ```
 
-The component is loaded as an ESPHome external component:
+The component is loaded as an ESPHome external component. Connection settings can be inline or referenced from text/number entities (editable in the HA UI, persisted to NVS). Use the `mumble.ptt_press` action for a Push to Talk button in HA (toggle: press to start, press again to stop).
 
 ```yaml
 external_components:
-  - source:
-      type: local
-      path: components
+  - source: { type: local, path: components }
+
+# Optional: text/number entities for HA-editable settings (restore_value: true)
+text:
+  - platform: template
+    id: mumble_server_host
+    name: "Mumble Server"
+    mode: text
+    optimistic: true
+    restore_value: true
+    initial_value: "192.168.1.100"
+number:
+  - platform: template
+    id: mumble_server_port
+    name: "Mumble Port"
+    optimistic: true
+    restore_value: true
+    initial_value: 64738
+    min_value: 1
+    max_value: 65535
+    step: 1
+button:
+  - platform: template
+    name: "Mumble Push to Talk"
+    on_press:
+      - mumble.ptt_press: mumble_client
 
 mumble:
-  server: "192.168.1.100"
+  id: mumble_client
+  server: ""              # or inline; if using entities use server_text_id
   port: 64738
-  username: "kitchen-intercom"
-  password: "secret"
-  channel: "Intercom"
-  mode: always_on         # or push_to_talk
-  ptt_pin: GPIO0          # only for push_to_talk mode
-  mute_pin: GPIO38        # hardware mute switch
+  username: ""
+  password: ""
+  channel: ""
+  server_text_id: mumble_server_host
+  port_number_id: mumble_server_port
+  # username_text_id, password_text_id, channel_text_id ...
+  mode: always_on
+  mute_pin: GPIO38        # optional hardware mute switch
 ```
 
 ### YAML Configuration
 
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
-| `server` | string | required | Mumble server hostname or IP |
+| `server` | string | optional | Mumble server hostname or IP (or use `server_text_id`) |
 | `port` | int | 64738 | Mumble server port |
-| `username` | string | required | Username to authenticate with |
+| `username` | string | optional | Username to authenticate with (or use `username_text_id`) |
 | `password` | string | `""` | Server or user password |
 | `channel` | string | `""` | Channel to join after connect (empty = root) |
 | `mode` | enum | `always_on` | `always_on` or `push_to_talk` |
+| `server_text_id` | id | none | Text entity for server host (overrides `server` when set) |
+| `port_number_id` | id | none | Number entity for port |
+| `username_text_id` | id | none | Text entity for username |
+| `password_text_id` | id | none | Text entity for password |
+| `channel_text_id` | id | none | Text entity for default channel |
 | `ptt_pin` | pin | none | GPIO for push-to-talk button (required if mode is push_to_talk) |
 | `mute_pin` | pin | none | GPIO for hardware mute switch |
 | `crypto` | enum | `lite` | Crypto mode: `lite` (recommended) or `legacy` (standard Mumble; optional, CPU-permitting) |
@@ -260,7 +301,7 @@ mumble:
 
 When a configuration entity is changed in HA, the new value is written to NVS and the client reconnects with the updated settings. YAML values serve as initial defaults that are overridden once HA values are set.
 
-**Runtime entities** -- reflect live state:
+**Runtime entities** -- reflect live state (planned; not yet implemented):
 
 | Entity ID | Platform | Description |
 |-----------|----------|-------------|

@@ -2,7 +2,7 @@
 
 An ESP32-S3 Mumble voice chat client for ESPHome, turning microcontroller boards into always-on intercoms and push-to-talk devices.
 
-> **Status: Early Development / Pre-Alpha** -- No buildable firmware yet. Project documentation and architecture are being established.
+> **Status: Early Development / Pre-Alpha** -- Initial framework builds; protocol and audio integration in progress.
 
 ## What Is This?
 
@@ -60,43 +60,35 @@ See the full documentation:
 
 ## Quick Start
 
-> Build and flash instructions will be added once the firmware is functional.
-
-The ESPHome configuration will look like:
-
-```yaml
-external_components:
-  - source:
-      type: local
-      path: components
-
-mumble:
-  server: "192.168.1.100"
-  port: 64738
-  username: "kitchen-intercom"
-  password: "secret"
-  channel: "Intercom"
-  mode: always_on
-  mute_pin: GPIO38
+```bash
+# Clone, then set Wi‑Fi in esphome/generic-esp32s3.yaml; optionally set initial_value for Mumble server/username
+esphome compile esphome/generic-esp32s3.yaml
+esphome run esphome/generic-esp32s3.yaml --device /dev/ttyUSB0
 ```
 
-Server connection, username, password, and channel can also be changed at runtime from the Home Assistant UI without reflashing.
+See [docs/build.md](docs/build.md) for full build and flash instructions.
+
+Configure Mumble server, port, username, password, and channel from the Home Assistant UI after adding the device; values persist in NVS. Use the **Mumble Push to Talk** button in HA to toggle transmitting (press once to talk, press again to stop). Example config uses text/number entities and `server_text_id`, `port_number_id`, etc.; see `esphome/generic-esp32s3.yaml` for the full pattern.
 
 ## Project Structure
 
 ```
 esp32-mumble/
-├── components/          # ESPHome external components (planned)
+├── components/          # ESPHome external components
 │   └── mumble/          # Mumble client component
 ├── docs/
+│   ├── build.md         # Build and flash instructions
 │   ├── features/
-│   │   └── 0001-initial-project-outline.md
+│   │   ├── 0001-initial-project-outline.md
+│   │   └── 0002-initial-code-framework.md
 │   ├── product-overview.md
 │   └── technical-overview.md
-├── research/            # Reference implementations (git-ignored)
-│   ├── go-mumble-server/
-│   ├── wake-word-voice-assistants/
-│   └── onju-voice-satellite/
+├── esphome/             # Example device configs
+│   ├── generic-esp32s3.yaml
+│   ├── esp32-s3-box3.yaml
+│   └── secrets.example.yaml
+├── scripts/             # Build and flash scripts
+├── .github/workflows/   # CI (build.yml)
 ├── README.md
 └── LICENSE
 ```

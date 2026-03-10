@@ -1,0 +1,110 @@
+---
+# Generic ESP32-S3 minimal config for Mumble client
+# Configure server, username, etc. in Home Assistant UI (values persist in NVS)
+
+substitutions:
+  name: esp32-mumble
+
+esphome:
+  name: ${name}
+  name_add_mac_suffix: true
+  min_version: "2024.1.0"
+
+esp32:
+  board: esp32-s3-devkitc-1
+  framework:
+    type: arduino
+
+# PSRAM required for audio buffers
+psram:
+  type: qspi
+
+wifi:
+  networks:
+    - ssid: "YourWiFi"
+      password: "YourPassword"
+  ap:
+    ssid: "ESP32-Mumble Fallback"
+    password: "fallback123"
+
+logger:
+
+api:
+
+ota:
+
+# Mumble connection settings (editable in Home Assistant, persisted to NVS)
+text:
+  - platform: template
+    id: mumble_server_host
+    name: "Mumble Server"
+    mode: text
+    optimistic: true
+    restore_value: true
+    initial_value: "192.168.1.100"
+    max_length: 253
+  - platform: template
+    id: mumble_username
+    name: "Mumble Username"
+    mode: text
+    optimistic: true
+    restore_value: true
+    initial_value: "esp32-intercom"
+    max_length: 128
+  - platform: template
+    id: mumble_password
+    name: "Mumble Password"
+    mode: password
+    optimistic: true
+    restore_value: true
+    initial_value: ""
+    max_length: 128
+  - platform: template
+    id: mumble_default_channel
+    name: "Mumble Channel"
+    mode: text
+    optimistic: true
+    restore_value: true
+    initial_value: ""
+    max_length: 128
+
+number:
+  - platform: template
+    id: mumble_server_port
+    name: "Mumble Port"
+    optimistic: true
+    restore_value: true
+    initial_value: 64738
+    min_value: 1
+    max_value: 65535
+    step: 1
+
+# Push-to-talk button (press in HA to start/stop transmitting)
+button:
+  - platform: template
+    name: "Mumble Push to Talk"
+    id: mumble_ptt_button
+    icon: "mdi:microphone"
+    on_press:
+      - mumble.ptt_press: mumble_client
+
+# Mumble client component (local external component)
+external_components:
+  - source:
+      type: local
+      path: ../components
+
+mumble:
+  id: mumble_client
+  server: ""
+  port: 64738
+  username: ""
+  password: ""
+  channel: ""
+  server_text_id: mumble_server_host
+  port_number_id: mumble_server_port
+  username_text_id: mumble_username
+  password_text_id: mumble_password
+  channel_text_id: mumble_default_channel
+  mode: always_on
+  crypto: lite

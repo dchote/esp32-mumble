@@ -14,7 +14,7 @@ The device listens and transmits continuously, acting as a room intercom. Audio 
 
 ### Push-to-Talk
 
-A button press activates the microphone and begins streaming audio to the server. Releasing the button stops transmission. Useful in environments where constant open-mic is undesirable.
+Push-to-talk can be triggered by a physical button (GPIO) or by the **Mumble Push to Talk** button in the Home Assistant UI. In HA, each press toggles transmission (press once to start talking, press again to stop). A physical PTT button can be wired for hold-to-talk (press and hold to talk, release to stop). Useful in environments where constant open-mic is undesirable.
 
 ### Multi-Room Intercom
 
@@ -81,6 +81,8 @@ The following settings are exposed as Home Assistant entities and can be changed
 | Default Channel | Text | Channel to join on connect |
 
 ### Home Assistant Runtime Entities
+
+The following runtime entities are planned (not yet implemented):
 
 | Entity | Type | Description |
 |---|---|---|
