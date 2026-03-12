@@ -1,5 +1,7 @@
 ---
 # Generic ESP32-S3 minimal config for Mumble client
+# Keep functionally in sync with esp32-s3-box.yaml (same entities/features; only pins/hardware differ).
+# No display or hardware buttons; I2S/speaker pins are placeholders—set for your board if using audio.
 # Configure server, port, username, password, channel, and mode in Home Assistant UI (values persist in NVS)
 
 substitutions:
@@ -9,15 +11,34 @@ esphome:
   name: ${name}
   name_add_mac_suffix: true
   min_version: "2024.1.0"
+  on_boot:
+    priority: -100
+    then:
+      - speaker.volume_set:
+          id: generic_speaker
+          volume: !lambda |-
+            float vol = id(mumble_speaker_volume).state;
+            if (isnan(vol)) vol = 80;
+            return vol / 100.0f;
+      - lambda: |-
+          if (id(mumble_microphone_enabled).state) {
+            id(mumble_client).set_microphone_enabled(true);
+          }
+  platformio_options:
+    build_flags:
+      - -Wno-cpp
+      - -Wno-stringop-overread
 
 esp32:
   board: esp32-s3-devkitc-1
   framework:
     type: arduino
+    sdkconfig_options: {}
 
 # PSRAM required for audio buffers
 psram:
-  type: qspi
+  mode: octal
+  speed: 80MHz
 
 wifi:
   networks:
@@ -29,6 +50,41 @@ logger:
 api:
 
 ota:
+  - platform: esphome
+
+# No hardware buttons on generic; Voice Received with config entities
+binary_sensor:
+  - platform: template
+    name: "Voice Received"
+    id: mumble_voice_active
+    icon: "mdi:microphone-message"
+    device_class: running
+    lambda: |-
+      return id(mumble_client).get_voice_active();
+  - platform: template
+    name: "Mumble Connected"
+    id: mumble_connected_sensor
+    icon: "mdi:connection"
+    entity_category: diagnostic
+    device_class: connectivity
+    lambda: |-
+      return id(mumble_client).is_connected();
+
+# Placeholder I2S/speaker for sync with other configs; set pins for your hardware
+i2s_audio:
+  - id: i2s_audio_bus
+    i2s_lrclk_pin: GPIO4
+    i2s_bclk_pin: GPIO5
+
+speaker:
+  - platform: i2s_audio
+    id: generic_speaker
+    i2s_dout_pin: GPIO6
+    dac_type: external
+    sample_rate: 16000
+    bits_per_sample: 16bit
+    channel: left
+    buffer_duration: 500ms
 
 # Mumble connection and mode settings (Configuration section; persisted to NVS)
 # Entity names use numeric prefixes for display order: server, port, username, password, channel, mode
@@ -96,6 +152,17 @@ select:
     options:
       - "always_on"
       - "push_to_talk"
+  - platform: template
+    id: mumble_crypto
+    name: "7. Crypto"
+    icon: "mdi:lock"
+    entity_category: config
+    optimistic: true
+    restore_value: true
+    initial_option: "legacy"
+    options:
+      - "legacy"
+      - "lite"
 
 # Diagnostics section (HA device page)
 button:
@@ -123,30 +190,39 @@ sensor:
     lambda: |-
       return id(mumble_client).get_ping_ms();
     update_interval: 5s
-binary_sensor:
+
+# Controls: speaker volume and microphone
+number:
   - platform: template
-    name: "Mumble Connected"
-    id: mumble_connected_sensor
-    icon: "mdi:connection"
-    entity_category: diagnostic
-    device_class: connectivity
-    lambda: |-
-      return id(mumble_client).is_connected();
+    name: "Speaker Volume"
+    id: mumble_speaker_volume
+    icon: "mdi:volume-high"
+    entity_category: config
+    optimistic: true
+    restore_value: true
+    min_value: 0
+    max_value: 100
+    step: 5
+    initial_value: 80
+    set_action:
+      - speaker.volume_set:
+          id: generic_speaker
+          volume: !lambda 'return x / 100.0;'
 
 # Microphone enabled/disabled (Controls section) - explicit on/off
+# Generic: no Speaker Power GPIO; add one if your board has a PA enable pin
 switch:
   - platform: template
     name: "Microphone Enabled"
     id: mumble_microphone_enabled
     icon: "mdi:microphone"
-    lambda: |-
-      return id(mumble_client).get_microphone_enabled();
+    optimistic: true
+    restore_mode: RESTORE_DEFAULT_OFF
     turn_on_action:
       - mumble.microphone_enable: mumble_client
     turn_off_action:
       - mumble.microphone_disable: mumble_client
 
-# Mumble client component (local external component)
 external_components:
   - source:
       type: local
@@ -165,6 +241,9 @@ mumble:
   password_text_id: mumble_password
   channel_text_id: mumble_channel
   mode_select_id: mumble_mode
+  crypto_select_id: mumble_crypto
   microphone_switch_id: mumble_microphone_enabled
+  speaker_id: generic_speaker
   mode: always_on
-  crypto: lite
+  crypto: legacy
+  # mute_pin: GPIO38  # Hardware mute switch if available

@@ -5,6 +5,7 @@
 #include <Arduino.h>
 #include <WiFiClientSecure.h>
 #include <cstdint>
+#include <functional>
 #include <string>
 #include <vector>
 
@@ -55,6 +56,12 @@ class MumbleClient {
 
   float get_ping_rtt_ms() const { return ping_rtt_ms_; }
   uint32_t get_session_id() const { return session_id_; }
+
+  bool has_crypt_setup() const { return crypt_setup_received_; }
+  const std::vector<uint8_t> &get_crypt_key() const { return crypt_key_; }
+  const std::vector<uint8_t> &get_crypt_client_nonce() const { return crypt_client_nonce_; }
+  const std::vector<uint8_t> &get_crypt_server_nonce() const { return crypt_server_nonce_; }
+  void clear_crypt_setup() { crypt_setup_received_ = false; }
   const std::vector<ChannelInfo> &get_channels() const { return channels_; }
   const std::vector<UserInfo> &get_users() const { return users_; }
   uint32_t find_channel_by_name(const std::string &name) const;
@@ -63,6 +70,14 @@ class MumbleClient {
   // Build channel options for select: "id:Name" (flat list). Fills out_strings and out_ids.
   void build_channel_tree_options(std::vector<std::string> &out_strings,
                                   std::vector<uint32_t> &out_ids) const;
+
+  // Send CryptSetup with only client_nonce to trigger server nonce resync
+  void send_crypt_resync(const uint8_t *encrypt_iv, size_t len);
+
+  using VoicePacketCallback = std::function<void(const uint8_t *data, size_t len)>;
+  void set_voice_packet_callback(VoicePacketCallback cb) {
+    voice_packet_callback_ = std::move(cb);
+  }
 
  private:
   bool send_message(uint16_t type, const uint8_t *payload, size_t payload_len);
@@ -83,6 +98,7 @@ class MumbleClient {
   void on_reject(const uint8_t *payload, size_t len);
   void on_codec_version(const uint8_t *payload, size_t len);
   void on_server_config(const uint8_t *payload, size_t len);
+  void on_udp_tunnel(const uint8_t *payload, size_t len);
 
   void update_channel(const MsgChannelState &m);
   void remove_channel(uint32_t id);
@@ -95,6 +111,12 @@ class MumbleClient {
   std::string password_;
   std::string channel_;
   uint8_t crypto_mode_{0};
+
+  // Crypto material from CryptSetup (stored until MumbleCryptState is initialized)
+  std::vector<uint8_t> crypt_key_;
+  std::vector<uint8_t> crypt_client_nonce_;
+  std::vector<uint8_t> crypt_server_nonce_;
+  bool crypt_setup_received_{false};
 
   WiFiClientSecure tls_client_;
   std::vector<uint8_t> recv_buf_;
@@ -123,6 +145,7 @@ class MumbleClient {
   static constexpr uint32_t CONNECT_TIMEOUT_MS = 10000;
   static constexpr uint32_t WIFI_STABILITY_DELAY_MS = 5000;  // Wait after WiFi before Mumble connect
   bool channel_join_sent_{false};
+  VoicePacketCallback voice_packet_callback_;
 };
 
 }  // namespace mumble

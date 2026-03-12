@@ -2,7 +2,7 @@
 
 An ESP32-S3 Mumble voice chat client for ESPHome, turning microcontroller boards into always-on intercoms and push-to-talk devices.
 
-> **Status: Early Development / Pre-Alpha** -- Initial framework builds; protocol and audio integration in progress.
+> **Status: Alpha** -- Receive/playback voice working; microphone input not yet implemented. Legacy/Lite crypto and HA integration working. Tested with go-mumble-server.
 
 ## What Is This?
 
@@ -12,10 +12,10 @@ The firmware runs as an [ESPHome](https://esphome.io/) external component, integ
 
 ### Key Capabilities
 
-- **Lite** (default) and optional **Legacy** (standard Mumble) crypto modes
+- **Legacy** (default) and **Lite** (cleartext UDP) crypto modes
 - **Always-on intercom** or **push-to-talk** operation
 - **Opus** audio encoding/decoding at 16 kHz
-- **Full-duplex** simultaneous capture and playback
+- **Receive-only voice** for now; microphone capture (transmit) not yet implemented
 - **Acoustic echo cancellation** for open-mic use
 - **Home Assistant** entities for server config, mode (always-on / PTT), mute, volume, channel, and status
 - **Multi-room** intercom via Mumble channels
@@ -39,8 +39,8 @@ ESP32-S3                              go-mumble-server
 ┌────────────────────┐               ┌──────────────────┐
 │ ESPHome Component  │──TCP/TLS────►│  Control (64738)  │
 │                    │               │                   │
-│ I2S Mic ► Opus Enc │──UDP (Lite/Legacy)──►│  Voice  (64738)   │
-│ Opus Dec ► I2S Spk │◄──UDP (Lite/Legacy)──│                   │
+│ Mic/encode: TBD    │               │  Voice  (64738)   │
+│ Opus Dec ► I2S Spk │◄──UDP voice (rx only)──│
 │                    │               └──────────────────┘
 │ HA Entities ◄─────►│ Home Assistant
 └────────────────────┘
@@ -68,7 +68,7 @@ esphome run esphome/generic-esp32s3.yaml --device /dev/ttyUSB0
 
 See [docs/build.md](docs/build.md) for full build and flash instructions.
 
-Configure Mumble server, port, username, password, channel, and mode from the Home Assistant UI after adding the device; values persist in NVS. Username defaults to `esp32-<MAC>`; you can overwrite it. Changing server, username, password, or channel forces a reconnect. Use the **Microphone Enabled** switch to enable or disable transmitting. The **Reset Config** button in Diagnostics restores all settings to defaults. See `esphome/generic-esp32s3.yaml` for the full pattern.
+Configure Mumble server, port, username, password, channel, mode, and crypto (Legacy/Lite) from the Home Assistant UI after adding the device; values persist in NVS and are restored on boot. Username defaults to `esp32-<MAC>`; you can overwrite it. Changing server, username, password, channel, or crypto forces a reconnect. Use **Speaker Volume** to adjust playback level and **Microphone Enabled** to enable or disable transmitting — both persist across reboots. On Box/Box-3, **Speaker Power** controls the hardware amplifier. Diagnostics show connection status, ping. **Voice Received** (Sensors) indicates when voice is being received. The **Reset Config** button restores all settings to defaults. See `esphome/generic-esp32s3.yaml` for the full pattern.
 
 ## Project Structure
 
@@ -76,16 +76,22 @@ Configure Mumble server, port, username, password, channel, and mode from the Ho
 esp32-mumble/
 ├── components/          # ESPHome external components
 │   └── mumble/          # Mumble client component
+├── lib/
+│   └── micro-opus/      # Local Opus codec (heap pseudostack, PSRAM, Xtensa; no submodules)
 ├── docs/
 │   ├── build.md         # Build and flash instructions
 │   ├── features/
 │   │   ├── 0001-initial-project-outline.md
-│   │   └── 0002-initial-code-framework.md
+│   │   ├── 0002-initial-code-framework.md
+│   │   ├── 0003-mumble-connection-protocol.md
+│   │   └── 0004-udp-voice-playback.md
 │   ├── product-overview.md
 │   └── technical-overview.md
 ├── esphome/             # Example device configs
-│   ├── generic-esp32s3.yaml
+│   ├── esp32-s3-box.yaml
 │   ├── esp32-s3-box3.yaml
+│   ├── generic-esp32s3.yaml
+│   ├── m5stack-atom-echo.yaml
 │   └── secrets.example.yaml
 ├── scripts/             # Build and flash scripts
 ├── .github/workflows/   # CI (build.yml)

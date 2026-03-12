@@ -2,8 +2,13 @@
 
 #include <cmath>
 #include "esphome/core/component.h"
+#include "mumble_audio.h"
 #include "mumble_client.h"
+#include "mumble_ocb2.h"
+#include "mumble_udp.h"
+#include "mumble_voice.h"
 #include "esphome/components/select/select.h"
+#include "esphome/components/speaker/speaker.h"
 #include "esphome/components/switch/switch.h"
 #include "esphome/components/text/text.h"
 #include "esphome/core/automation.h"
@@ -34,18 +39,22 @@ class MumbleComponent : public Component {
   void set_channel_text(text::Text *t) { channel_text_ = t; }
   void set_channel_select(MumbleChannelSelect *s) { channel_select_ = s; }
   void set_mode_select(select::Select *s) { mode_select_ = s; }
+  void set_crypto_select(select::Select *s) { crypto_select_ = s; }
   void set_microphone_switch(switch_::Switch *s) { microphone_switch_ = s; }
+  void set_speaker(speaker::Speaker *s) { speaker_ = s; }
 
   bool get_microphone_enabled() const { return microphone_enabled_; }
   void set_microphone_enabled(bool enabled);
   bool is_connected() const { return connected_; }
   float get_ping_ms() const { return ping_ms_; }
+  bool get_voice_active() const { return voice_active_; }
   std::string get_server() const;
   uint16_t get_port() const;
   std::string get_username() const;
   std::string get_password() const;
   std::string get_channel() const;
   uint8_t get_mode() const;
+  uint8_t get_crypto() const;
 
   void trigger_ptt();  // for ptt_pin: press-and-hold to talk (future)
   void join_channel_by_id(uint32_t channel_id);
@@ -77,7 +86,9 @@ class MumbleComponent : public Component {
   text::Text *channel_text_{nullptr};
   MumbleChannelSelect *channel_select_{nullptr};
   select::Select *mode_select_{nullptr};
+  select::Select *crypto_select_{nullptr};
   switch_::Switch *microphone_switch_{nullptr};
+  speaker::Speaker *speaker_{nullptr};
 
   bool microphone_enabled_{false};  // explicit on/off; distinct from PTT (press-and-hold)
   bool connected_{false};
@@ -89,7 +100,21 @@ class MumbleComponent : public Component {
   std::string last_username_;
   std::string last_password_;
   std::string last_channel_;
+  uint8_t last_crypto_{0xff};  // 0xff = not yet tracked
   bool config_tracked_{false};
+
+  MumbleUdp udp_;
+  MumbleCryptState crypt_state_;
+  bool crypt_initialized_{false};
+  OpusAudioDecoder opus_decoder_;
+  JitterBuffer jitter_buffer_;
+  EsphomeSpeakerSink speaker_sink_;
+  int16_t pcm_buf_[JitterBuffer::FRAME_SAMPLES];
+  uint64_t voice_frame_id_{0};
+  bool voice_active_{false};             // true while someone is talking (within idle timeout)
+  uint32_t last_voice_push_ms_{0};       // timestamp of last decoded frame pushed to jitter buffer
+  uint32_t voice_recv_count_{0};         // total voice packets received
+  static constexpr uint32_t VOICE_IDLE_TIMEOUT_MS = 500;
   std::vector<std::string> channel_option_strings_;
   std::vector<uint32_t> channel_option_ids_;
   FixedVector<const char *> channel_option_ptrs_;
@@ -100,6 +125,8 @@ class MumbleComponent : public Component {
   void seed_username_default_if_empty();
   void publish_empty_text_defaults();
   void update_channel_select();
+  void on_voice_packet(const uint8_t *data, size_t len);
+  void audio_playout();
 };
 
 template<typename... Ts>

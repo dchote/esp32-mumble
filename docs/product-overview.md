@@ -4,7 +4,7 @@
 
 ESP32-Mumble is an always-on intercom and push-to-talk voice client that runs on ESP32-S3 microcontrollers. It implements the Mumble voice chat protocol, connects to [go-mumble-server](https://github.com/dchote/go-mumble-server), and integrates with Home Assistant through ESPHome.
 
-The project targets LAN deployments, with Lite crypto mode (cleartext UDP voice) as the default for constrained hardware. Optional support for standard Mumble protocol (Legacy mode, OCB2-AES128) allows connectivity to any Mumble server (Murmur, go-mumble-server, etc.), though ESP32-S3 may lack CPU headroom for Legacy — support is conditional on benchmarks.
+The project targets LAN deployments. **Legacy mode** (OCB2-AES128 UDP encryption, standard Mumble protocol) is the default and works with any Mumble server (Murmur, go-mumble-server). **Lite mode** (cleartext UDP) is available for trusted LAN use when the server supports it.
 
 ## Use Cases
 
@@ -40,25 +40,25 @@ All targets require an ESP32-S3 with PSRAM and Wi-Fi. The S3's dual-core archite
 
 ### Audio
 
-- Opus encoding of microphone input (16 kHz, mono, ~16 kbps)
-- Opus decoding of received voice streams to speaker output
-- Full-duplex operation (simultaneous capture and playback)
+- Opus decoding of received voice streams to speaker output — **implemented**
+- Opus encoding of microphone input (16 kHz, mono, ~16 kbps) — **not yet implemented**
+- Full-duplex (simultaneous capture and playback) — **receive-only for now**
 - Acoustic echo cancellation (AEC) to prevent speaker output from feeding back into the microphone
 - Microphone array support with beamforming on boards with multi-channel ADCs (ES7210)
 
 ### Mumble Protocol
 
-- **Lite mode** (default): Connect with cleartext UDP voice, TLS control. Minimal CPU; go-mumble-server or compatible.
-- **Legacy mode** (optional): Standard Mumble protocol with OCB2-AES128 UDP encryption. Connects to Murmur, go-mumble-server, or any Mumble server. May exceed ESP32-S3 CPU; enable only if benchmarks allow.
+- **Legacy mode** (default): Standard Mumble protocol with OCB2-AES128 UDP encryption. Connects to Murmur, go-mumble-server, or any Mumble server.
+- **Lite mode** (optional): Cleartext UDP voice, TLS control. Minimal CPU; use on trusted LAN when the server supports it (e.g. go-mumble-server with Lite enabled).
 - Join a configured channel on connect
-- Transmit and receive Opus voice packets
+- Receive Opus voice packets; transmit not yet implemented
 - Channel changes via `UserState` (e.g. from HA channel select)
 - Respond to server pings to maintain connection
 - UDP voice with TCP fallback (UDPTunnel) if UDP is unreachable
 
 ### Controls and Indicators
 
-- **Microphone Enabled** switch in Home Assistant (explicit on/off)
+- **Microphone Enabled** switch (UI present; transmit pipeline not yet implemented)
 - Mute/unmute via hardware switch or button
 - Push-to-talk via physical button (`ptt_pin`; press-and-hold)
 - Volume control via touch surface, button, or Home Assistant
@@ -81,9 +81,12 @@ The following settings are exposed as Home Assistant entities and can be changed
 | Password | Text | Server or user password; no default |
 | Channel | Text | Channel to join on connect (empty = root; case-insensitive match) |
 | Mode | Select | **Always on** or **Push to talk** (persisted across reboots) |
+| Crypto | Select | **Legacy** (OCB2-AES128, default) or **Lite** (cleartext UDP for trusted LAN) |
+| Speaker Volume | Number | Playback volume level (0–100, default 80) |
+| Speaker Power | Switch | Hardware amplifier power on/off (Box/Box-3 only, GPIO46) |
 | Microphone Enabled | Switch | Explicitly enable or disable transmitting (Controls section) |
 
-Changing server, port, username, password, or channel forces an immediate reconnect to the Mumble server.
+All settings persist in NVS and are restored on boot — including speaker volume and microphone state. Changing server, port, username, password, channel, or crypto forces an immediate reconnect.
 
 ### Home Assistant Diagnostics
 
@@ -92,33 +95,35 @@ Changing server, port, username, password, or channel forces an immediate reconn
 | WiFi Signal | Sensor | WiFi RSSI in dBm |
 | Mumble Connected | Binary Sensor | Whether connected to the Mumble server |
 | Mumble Ping | Sensor | Round-trip ping time to server in ms |
-| Reset Config | Button | Restore server, port, username, password, channel, mode, and mic to defaults |
+| Voice Received | Binary Sensor | True while voice is being received and processed (Sensors) |
+| Reset Config | Button | Restore server, port, username, password, channel, mode, crypto, and mic to defaults |
 
 ### Home Assistant Runtime Entities
 
-The following runtime entities are planned (not yet implemented):
-
-| Entity | Type | Description |
-|---|---|---|
-| Mute | Switch | Microphone mute state |
-| Volume | Number | Speaker volume level |
-| Channel | Select | Active channel (options populated from server after connect) |
-| Talking | Binary Sensor | Whether the device is currently transmitting audio |
-| Connected | Binary Sensor | Whether the device is connected to the server |
+| Entity | Type | Status | Description |
+|---|---|---|---|
+| Microphone Enabled | Switch | Implemented | Enable or disable transmitting (persists across reboots) |
+| Speaker Volume | Number | Implemented | Speaker volume level 0–100 (persists across reboots) |
+| Speaker Power | Switch | Implemented | Hardware amplifier on/off, Box/Box-3 only (persists) |
+| Mumble Connected | Binary Sensor | Implemented | Connection status (Diagnostics) |
+| Voice Received | Binary Sensor | Implemented | Receiving voice (Sensors, with Microphone) |
+| Channel | Text | Implemented | Channel name to join (config) |
+| Channel Select | Select | Optional | Server-populated channel list (`channel_select_id`) |
+| Talking (TX) | Binary Sensor | Planned | Whether the device is transmitting audio |
 
 ## Server Requirements
 
-**Lite mode** (recommended):
+**Legacy mode** (default):
+
+- Any Mumble server (Murmur, go-mumble-server, etc.)
+- Standard Mumble protocol with OCB2-AES128
+- Opus codec enabled
+
+**Lite mode** (optional):
 
 - **go-mumble-server** or compatible with Lite crypto mode enabled
 - Trusted LAN deployment
 - TLS certificate (self-signed acceptable)
-- Opus codec enabled
-
-**Legacy mode** (optional, standard Mumble):
-
-- Any Mumble server (Murmur, go-mumble-server, etc.)
-- Standard Mumble protocol
 
 ## Non-Goals (v1)
 

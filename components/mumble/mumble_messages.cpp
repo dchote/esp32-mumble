@@ -125,6 +125,16 @@ void MsgAuthenticate::marshal(std::vector<uint8_t> &out) const {
 }
 
 // MsgCryptSetup
+void MsgCryptSetup::marshal(std::vector<uint8_t> &out) const {
+  out.clear();
+  if (!key.empty())
+    proto_append_bytes(out, 1, key.data(), key.size());
+  if (!client_nonce.empty())
+    proto_append_bytes(out, 2, client_nonce.data(), client_nonce.size());
+  if (!server_nonce.empty())
+    proto_append_bytes(out, 3, server_nonce.data(), server_nonce.size());
+}
+
 bool MsgCryptSetup::unmarshal(const uint8_t *data, size_t len) {
   const uint8_t *p = data;
   size_t rem = len;

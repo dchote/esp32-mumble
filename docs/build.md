@@ -66,14 +66,19 @@ On macOS the port is typically `/dev/cu.usbmodem*`.
 ## Configuration
 
 - **Wi‑Fi** (required before compile): Add `esphome/secrets.yaml` with `wifi_ssid` and `wifi_password`, or edit the `wifi` section in the YAML directly. The example configs use `!secret` references.
-- **Mumble**: Server host, port, username, password, channel, and mode (always-on / push-to-talk) are exposed as text and select entities in the Configuration section. Username defaults to `esp32-<MAC>` (user can overwrite); password has no default. Changing server, username, password, or channel forces an immediate reconnect. The **Microphone Enabled** switch in Controls turns transmitting on or off. Diagnostics show WiFi signal, Mumble connected status, ping time, and a **Reset Config** button to restore all connection settings to defaults. Values persist in NVS. You can set `initial_value` or `initial_option` in the YAML for first-time defaults.
+- **Mumble**: Server, port, username, password, channel, mode (always-on / push-to-talk), and crypto (Legacy / Lite) are exposed as config entities. Username defaults to `esp32-<MAC>`. Changing server, username, password, channel, or crypto forces a reconnect. **Speaker Volume** and **Microphone Enabled** control audio and persist across reboots. On Box/Box-3, **Speaker Power** toggles the hardware amplifier (GPIO46). Diagnostics include WiFi signal, Mumble connected, ping, and **Reset Config**. **Voice Received** appears under Sensors. All values persist in NVS and are restored on boot.
 
 ## CI
 
 The [`.github/workflows/build.yml`](../.github/workflows/build.yml) workflow builds both configs when run manually (Actions → Build → Run workflow). It uses the [esphome/workflows](https://github.com/esphome/workflows) reusable workflow.
 
+## Dependencies
+
+The Mumble component uses a **local vendored Opus library** (`lib/micro-opus/`) based on [esphome-libs/micro-opus](https://github.com/esphome-libs/micro-opus). It uses heap-based pseudostack allocation (PSRAM when available) and Xtensa DSP optimizations, avoiding the stack overflow issues of stack-based Opus builds. Do not remove or modify `lib/micro-opus/` — it is required for compilation.
+
 ## Troubleshooting
 
 - **Component not found**: Ensure `external_components` points to `../components` relative to the YAML file (configs are in `esphome/`).
-- **Board not found**: Use `esphome boards` to list available boards. For Box 3 use `esp32s3box3`.
-- **Compilation errors**: Ensure you have the correct ESPHome version (`esphome version`).
+- **Board not found**: Use `esphome boards` to list available boards. For Box 3 use `esp32s3box3`; for original Box use `esp32s3box`.
+- **Compilation errors**: Ensure you have the correct ESPHome version (`esphome version`). If Opus-related errors occur, verify `lib/micro-opus/` exists and is complete (no missing files).
+- **"UDP ping echo not received"**: On same-LAN setups this was historically caused by an OCB2 encryption mismatch; the implementation now matches grumble. If it persists, check NAT/firewall rules or try Lite crypto mode (cleartext UDP) to isolate networking vs. encryption.

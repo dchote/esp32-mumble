@@ -1,6 +1,7 @@
 ---
-# ESP32-S3 Box 3 board config for Mumble client
-# Uses I2S pins from docs/technical-overview.md Box 3 profile
+# ESP32-S3-BOX-3 board config for Mumble client
+# Keep functionally in sync with esp32-s3-box.yaml (same entities/features; only pins differ).
+# Pinout: backlight GPIO47, I2S LRCLK GPIO45 (original Box uses backlight 45, LRCLK 47).
 # Configure server, port, username, password, channel, and mode in Home Assistant UI (values persist in NVS)
 
 substitutions:
@@ -10,6 +11,26 @@ esphome:
   name: ${name}
   name_add_mac_suffix: true
   min_version: "2024.1.0"
+  on_boot:
+    - priority: 600
+      then:
+        - light.turn_off: screen_backlight
+    - priority: -100
+      then:
+        - speaker.volume_set:
+            id: box_speaker
+            volume: !lambda |-
+              float vol = id(mumble_speaker_volume).state;
+              if (isnan(vol)) vol = 80;
+              return vol / 100.0f;
+        - lambda: |-
+            if (id(mumble_microphone_enabled).state) {
+              id(mumble_client).set_microphone_enabled(true);
+            }
+  platformio_options:
+    build_flags:
+      - -Wno-cpp
+      - -Wno-stringop-overread
 
 esp32:
   board: esp32s3box
@@ -17,6 +38,8 @@ esp32:
   cpu_frequency: 240MHz
   framework:
     type: arduino
+    sdkconfig_options:
+      CONFIG_I2S_SUPPRESS_DEPRECATE_WARN: "y"
 
 # PSRAM required for audio
 psram:
@@ -30,6 +53,80 @@ wifi:
 
 logger:
   hardware_uart: USB_SERIAL_JTAG
+
+# Screen backlight: keep off by default (wake-word-voice-assistants uses GPIO47 for Box 3)
+output:
+  - platform: ledc
+    pin: GPIO47
+    id: backlight_output
+
+light:
+  - platform: monochromatic
+    id: screen_backlight
+    name: Screen
+    icon: "mdi:television"
+    entity_category: config
+    output: backlight_output
+    restore_mode: RESTORE_DEFAULT_OFF
+
+# ESP32-S3-Box-3 buttons: REC/LED button (GPIO1) = microphone (press/release). No volume button; use HA Speaker Volume.
+binary_sensor:
+  - platform: gpio
+    pin:
+      number: GPIO1
+      mode: INPUT_PULLUP
+      inverted: true
+    name: "Microphone"
+    id: button_microphone
+    on_press:
+      - mumble.microphone_enable: mumble_client
+    on_release:
+      - mumble.microphone_disable: mumble_client
+  - platform: template
+    name: "Voice Received"
+    id: mumble_voice_active
+    icon: "mdi:microphone-message"
+    device_class: running
+    lambda: |-
+      return id(mumble_client).get_voice_active();
+
+# Diagnostics
+  - platform: template
+    name: "Mumble Connected"
+    id: mumble_connected_sensor
+    icon: "mdi:connection"
+    entity_category: diagnostic
+    device_class: connectivity
+    lambda: |-
+      return id(mumble_client).is_connected();
+i2c:
+  scl: GPIO18
+  sda: GPIO8
+
+i2s_audio:
+  - id: i2s_audio_bus
+    i2s_lrclk_pin:
+      number: GPIO45
+      ignore_strapping_warning: true
+    i2s_bclk_pin: GPIO17
+    i2s_mclk_pin: GPIO2
+
+audio_dac:
+  - platform: es8311
+    id: es8311_dac
+    bits_per_sample: 16bit
+    sample_rate: 16000
+
+speaker:
+  - platform: i2s_audio
+    id: box_speaker
+    i2s_dout_pin: GPIO15
+    dac_type: external
+    sample_rate: 16000
+    bits_per_sample: 16bit
+    channel: left
+    audio_dac: es8311_dac
+    buffer_duration: 500ms
 
 api:
 
@@ -102,6 +199,17 @@ select:
     options:
       - "always_on"
       - "push_to_talk"
+  - platform: template
+    id: mumble_crypto
+    name: "7. Crypto"
+    icon: "mdi:lock"
+    entity_category: config
+    optimistic: true
+    restore_value: true
+    initial_option: "legacy"
+    options:
+      - "legacy"
+      - "lite"
 
 # Diagnostics section (HA device page)
 button:
@@ -129,24 +237,42 @@ sensor:
     lambda: |-
       return id(mumble_client).get_ping_ms();
     update_interval: 5s
-binary_sensor:
+
+# Controls: speaker volume and microphone
+number:
   - platform: template
-    name: "Mumble Connected"
-    id: mumble_connected_sensor
-    icon: "mdi:connection"
-    entity_category: diagnostic
-    device_class: connectivity
-    lambda: |-
-      return id(mumble_client).is_connected();
+    name: "Speaker Volume"
+    id: mumble_speaker_volume
+    icon: "mdi:volume-high"
+    entity_category: config
+    optimistic: true
+    restore_value: true
+    min_value: 0
+    max_value: 100
+    step: 5
+    initial_value: 80
+    set_action:
+      - speaker.volume_set:
+          id: box_speaker
+          volume: !lambda 'return x / 100.0;'
 
 # Microphone enabled/disabled (Controls section) - explicit on/off
+# Speaker Enable: Box-3 PA enable on GPIO46 (original Box may use same)
 switch:
+  - platform: gpio
+    name: "Speaker Power"
+    icon: "mdi:speaker"
+    pin:
+      number: GPIO46
+      ignore_strapping_warning: true
+    restore_mode: RESTORE_DEFAULT_ON
+    entity_category: config
   - platform: template
     name: "Microphone Enabled"
     id: mumble_microphone_enabled
     icon: "mdi:microphone"
-    lambda: |-
-      return id(mumble_client).get_microphone_enabled();
+    optimistic: true
+    restore_mode: RESTORE_DEFAULT_OFF
     turn_on_action:
       - mumble.microphone_enable: mumble_client
     turn_off_action:
@@ -170,7 +296,9 @@ mumble:
   password_text_id: mumble_password
   channel_text_id: mumble_channel
   mode_select_id: mumble_mode
+  crypto_select_id: mumble_crypto
   microphone_switch_id: mumble_microphone_enabled
+  speaker_id: box_speaker
   mode: always_on
-  crypto: lite
+  crypto: legacy
   # mute_pin: GPIO38  # Hardware mute switch if available

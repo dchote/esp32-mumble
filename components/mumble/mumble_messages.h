@@ -31,12 +31,13 @@ struct MsgAuthenticate {
   void marshal(std::vector<uint8_t> &out) const;
 };
 
-// MsgCryptSetup (type 15) - decode only
+// MsgCryptSetup (type 15) - encode (for nonce resync) and decode
 struct MsgCryptSetup {
   std::vector<uint8_t> key;
   std::vector<uint8_t> client_nonce;
   std::vector<uint8_t> server_nonce;
 
+  void marshal(std::vector<uint8_t> &out) const;
   bool unmarshal(const uint8_t *data, size_t len);
 };
 

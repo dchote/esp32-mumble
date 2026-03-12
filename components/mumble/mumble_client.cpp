@@ -62,6 +62,7 @@ void MumbleClient::disconnect() {
   users_.clear();
   session_id_ = 0;
   channel_join_sent_ = false;
+  crypt_setup_received_ = false;
   ESP_LOGD(TAG, "disconnect");
 }
 
@@ -206,6 +207,9 @@ void MumbleClient::handle_message(uint16_t type, const uint8_t *payload, size_t 
     case MSG_SERVER_CONFIG:
       on_server_config(payload, len);
       break;
+    case MSG_UDP_TUNNEL:
+      on_udp_tunnel(payload, len);
+      break;
     case MSG_PERMISSION_QUERY:
       ESP_LOGD(TAG, "Ignoring PermissionQuery (type 20)");
       break;
@@ -221,7 +225,7 @@ void MumbleClient::send_version() {
   v.release = "esp32-mumble";
   v.os = "ESP32";
   v.os_version = "1.0";
-  v.crypto_modes = (crypto_mode_ == 1) ? (CRYPTO_LITE | CRYPTO_LEGACY) : CRYPTO_LITE;
+  v.crypto_modes = (crypto_mode_ == 0) ? CRYPTO_LITE : CRYPTO_LEGACY;
 
   std::vector<uint8_t> buf;
   v.marshal(buf);
@@ -292,11 +296,26 @@ void MumbleClient::on_version(const uint8_t *payload, size_t len) {
 void MumbleClient::on_crypt_setup(const uint8_t *payload, size_t len) {
   MsgCryptSetup m;
   if (!m.unmarshal(payload, len)) return;
-  if (m.key.empty()) {
+
+  if (!m.key.empty() && m.key.size() == 16 &&
+      m.client_nonce.size() == 16 && m.server_nonce.size() == 16) {
+    crypt_key_ = std::move(m.key);
+    crypt_client_nonce_ = std::move(m.client_nonce);
+    crypt_server_nonce_ = std::move(m.server_nonce);
+    crypt_setup_received_ = true;
+    ESP_LOGI(TAG, "CryptSetup: Legacy (OCB2-AES128) key received");
+  } else if (m.key.empty() && !m.server_nonce.empty()) {
+    // Nonce resync: server updated its encrypt nonce (our decrypt IV)
+    crypt_server_nonce_ = std::move(m.server_nonce);
+    crypt_setup_received_ = true;
+    ESP_LOGI(TAG, "CryptSetup: server nonce resync (%u bytes)",
+             (unsigned) crypt_server_nonce_.size());
+  } else if (m.key.empty()) {
     ESP_LOGD(TAG, "CryptSetup: Lite mode (no UDP encryption)");
   } else {
-    ESP_LOGD(TAG, "CryptSetup: key=%u bytes (Legacy - key stored but not used yet)",
-             (unsigned) m.key.size());
+    ESP_LOGW(TAG, "CryptSetup: unexpected key=%u cn=%u sn=%u",
+             (unsigned) m.key.size(), (unsigned) m.client_nonce.size(),
+             (unsigned) m.server_nonce.size());
   }
 }
 
@@ -358,6 +377,16 @@ void MumbleClient::on_reject(const uint8_t *payload, size_t len) {
   disconnect();
 }
 
+void MumbleClient::send_crypt_resync(const uint8_t *encrypt_iv, size_t len) {
+  MsgCryptSetup cs;
+  cs.client_nonce.assign(encrypt_iv, encrypt_iv + len);
+  std::vector<uint8_t> buf;
+  cs.marshal(buf);
+  if (send_message(MSG_CRYPT_SETUP, buf.data(), buf.size())) {
+    ESP_LOGI(TAG, "Sent CryptSetup resync (client_nonce)");
+  }
+}
+
 void MumbleClient::on_codec_version(const uint8_t *payload, size_t len) {
   MsgCodecVersion m;
   if (!m.unmarshal(payload, len)) return;
@@ -371,6 +400,12 @@ void MumbleClient::on_server_config(const uint8_t *payload, size_t len) {
   if (!m.unmarshal(payload, len)) return;
   ESP_LOGD(TAG, "ServerConfig: max_bandwidth=%u, max_users=%u", (unsigned) m.max_bandwidth,
            (unsigned) m.max_users);
+}
+
+void MumbleClient::on_udp_tunnel(const uint8_t *payload, size_t len) {
+  if (voice_packet_callback_) {
+    voice_packet_callback_(payload, len);
+  }
 }
 
 void MumbleClient::update_channel(const MsgChannelState &m) {
