@@ -61,7 +61,7 @@ void MumbleUdp::loop() {
 
   int pkt_size = udp_.parsePacket();
   if (pkt_size <= 0) return;
-  if (pkt_size > (int) MAX_PACKET_SIZE + (int) OCB2_OVERHEAD) {
+  if (pkt_size > (int) (MAX_PACKET_SIZE + MAX_CRYPTO_OVERHEAD)) {
     while (udp_.available()) udp_.read();
     ESP_LOGW(TAG, "UDP packet too large: %d", pkt_size);
     return;
@@ -82,13 +82,14 @@ void MumbleUdp::process_packet(const uint8_t *data, size_t len) {
 
   // Decrypt if crypto is active
   if (crypt_state_ != nullptr && crypt_state_->is_valid()) {
-    if (len < OCB2_OVERHEAD) return;
+    size_t oh = crypt_state_->overhead();
+    if (len < oh) return;
     if (!crypt_state_->decrypt(data, crypt_buf_, len)) {
       ESP_LOGD(TAG, "Decrypt failed len=%u", (unsigned) len);
       return;
     }
     plain = crypt_buf_;
-    plain_len = len - OCB2_OVERHEAD;
+    plain_len = len - oh;
   }
 
   if (plain_len < 1) return;
@@ -111,7 +112,7 @@ void MumbleUdp::process_packet(const uint8_t *data, size_t len) {
 
 bool MumbleUdp::send_encrypted(const uint8_t *plain, size_t len) {
   if (crypt_state_ != nullptr && crypt_state_->is_valid()) {
-    size_t enc_len = len + OCB2_OVERHEAD;
+    size_t enc_len = len + crypt_state_->overhead();
     if (enc_len > sizeof(crypt_buf_)) return false;
     if (!crypt_state_->encrypt(plain, crypt_buf_, len)) return false;
     return send_raw(crypt_buf_, enc_len);
@@ -151,6 +152,7 @@ bool MumbleUdp::send_raw(const uint8_t *data, size_t len) {
   if (!udp_.endPacket() || wrote != len) {
     return false;
   }
+  udp_packets_sent_++;
   return true;
 }
 

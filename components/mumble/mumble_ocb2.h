@@ -4,6 +4,7 @@
 
 #pragma once
 
+#include "mumble_crypt.h"
 #include <cstddef>
 #include <cstdint>
 #include <mbedtls/aes.h>
@@ -16,30 +17,28 @@ static constexpr size_t AES_KEY_LEN = 16;
 static constexpr size_t OCB2_TAG_LEN = 3;
 static constexpr size_t OCB2_OVERHEAD = 1 + OCB2_TAG_LEN;  // nonce byte + truncated tag
 
-class MumbleCryptState {
+class MumbleCryptState : public MumbleCryptStateBase {
  public:
   MumbleCryptState();
   ~MumbleCryptState();
 
   bool set_key(const uint8_t *key, size_t key_len,
                const uint8_t *client_nonce, size_t cn_len,
-               const uint8_t *server_nonce, size_t sn_len);
+               const uint8_t *server_nonce, size_t sn_len) override;
 
-  bool set_decrypt_iv(const uint8_t *iv, size_t len);
-  const uint8_t *get_encrypt_iv() const { return encrypt_iv_; }
+  bool set_decrypt_iv(const uint8_t *iv, size_t len) override;
+  const uint8_t *get_encrypt_iv() const override { return encrypt_iv_; }
 
-  // Encrypt plaintext into dst. dst must have room for plain_len + OCB2_OVERHEAD bytes.
-  bool encrypt(const uint8_t *src, uint8_t *dst, size_t plain_len);
+  bool encrypt(const uint8_t *src, uint8_t *dst, size_t plain_len) override;
+  bool decrypt(const uint8_t *src, uint8_t *dst, size_t cipher_len) override;
 
-  // Decrypt ciphertext into dst. Returns false on auth failure or invalid packet.
-  bool decrypt(const uint8_t *src, uint8_t *dst, size_t cipher_len);
+  bool is_valid() const override { return initialized_; }
+  size_t overhead() const override { return OCB2_OVERHEAD; }
 
-  bool is_valid() const { return initialized_; }
-  size_t overhead() const { return OCB2_OVERHEAD; }
-
-  uint32_t good() const { return good_; }
-  uint32_t late() const { return late_; }
-  uint32_t lost() const { return lost_; }
+  uint32_t good() const override { return good_; }
+  uint32_t late() const override { return late_; }
+  uint32_t lost() const override { return lost_; }
+  uint32_t resync() const override { return resync_; }
 
  private:
   bool ocb_encrypt(const uint8_t *plain, uint8_t *encrypted, unsigned int len,
@@ -61,6 +60,7 @@ class MumbleCryptState {
   uint32_t good_{0};
   uint32_t late_{0};
   uint32_t lost_{0};
+  uint32_t resync_{0};
 };
 
 }  // namespace mumble

@@ -40,9 +40,10 @@ Implement the Mumble TCP/TLS control channel on ESP32: protobuf wire encoder/dec
 
 - Added `cg.add_library("WiFi", None)` and `cg.add_library("NetworkClientSecure", None)` for ESPHome 2026.2+ (Arduino libs disabled by default)
 
-## Not in Scope
+## Not in Scope (this feature)
 
 - UDP voice transport
 - Opus encode/decode
-- Legacy crypto (OCB2) — CryptSetup parsed but key not used
 - UDP ping and TCP voice fallback
+
+Crypto modes and CryptSetup are implemented in the UDP/voice layer: **Legacy** (default, OCB2-AES128), **Lite** (cleartext), and **Secure** (AES-256-GCM when server sends 32-byte key). CryptSetup key length indicates mode (0 / 16 / 32 bytes). See [0004-udp-voice-playback.md](0004-udp-voice-playback.md) and [technical-overview.md](../technical-overview.md) (Security modes).

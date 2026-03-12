@@ -25,6 +25,7 @@ CONF_MODE = "mode"
 CONF_PTT_PIN = "ptt_pin"
 CONF_MUTE_PIN = "mute_pin"
 CONF_CRYPTO = "crypto"
+CONF_CA_CERT = "ca_cert"
 CONF_SERVER_TEXT = "server_text_id"
 CONF_PORT_TEXT = "port_text_id"
 CONF_USERNAME_TEXT = "username_text_id"
@@ -102,6 +103,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_CRYPTO, default=CONF_LEGACY): cv.enum(
                 MUMBLE_CRYPTO, lower=True
             ),
+            cv.Optional(CONF_CA_CERT, default=""): cv.string,
         }
     ).extend(cv.COMPONENT_SCHEMA),
     _validate_connection_config,
@@ -126,6 +128,7 @@ async def to_code(config):
     cg.add(var.set_channel(config[CONF_CHANNEL]))
     cg.add(var.set_mode(MUMBLE_MODE[config[CONF_MODE]]))
     cg.add(var.set_crypto(MUMBLE_CRYPTO[config[CONF_CRYPTO]]))
+    cg.add(var.set_ca_cert(config.get(CONF_CA_CERT, "")))
 
     if CONF_SERVER_TEXT in config:
         server_text = await cg.get_variable(config[CONF_SERVER_TEXT])

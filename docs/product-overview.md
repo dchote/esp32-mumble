@@ -113,6 +113,8 @@ All settings persist in NVS and are restored on boot — including speaker volum
 
 ## Server Requirements
 
+The client uses **Legacy** crypto by default; **Lite** is optional for trusted LAN.
+
 **Legacy mode** (default):
 
 - Any Mumble server (Murmur, go-mumble-server, etc.)
@@ -132,7 +134,7 @@ The following are explicitly out of scope for the initial version:
 - Text messaging
 - ACL or permission management
 - Server administration from the device
-- Secure (AES-256-GCM) crypto mode
+- Client certificate / client-initiated Secure tier (server can negotiate Secure; client accepts it)
 - CELT or Speex codec support
 - Positional audio
 - Multiple simultaneous server connections

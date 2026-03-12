@@ -1,6 +1,7 @@
 #pragma once
 
-#include "mumble_ocb2.h"
+#include "mumble_crypt.h"
+#include "mumble_gcm.h"
 #include "mumble_varint.h"
 #include <WiFiUdp.h>
 #include <cstddef>
@@ -10,6 +11,9 @@
 
 namespace esphome {
 namespace mumble {
+
+// Max crypto overhead (Secure GCM) for receive buffer
+static constexpr size_t MAX_CRYPTO_OVERHEAD = GCM_OVERHEAD;
 
 class MumbleUdp {
  public:
@@ -31,7 +35,10 @@ class MumbleUdp {
   void send_ping();
   void send_audio(const uint8_t *data, size_t len);
 
-  void set_crypt_state(MumbleCryptState *cs) { crypt_state_ = cs; }
+  void set_crypt_state(MumbleCryptStateBase *cs) { crypt_state_ = cs; }
+  MumbleCryptStateBase *get_crypt_state() { return crypt_state_; }
+
+  uint32_t get_udp_packets_sent() const { return udp_packets_sent_; }
 
   using AudioCallback = std::function<void(const uint8_t *data, size_t len)>;
   void set_audio_callback(AudioCallback cb) { audio_callback_ = std::move(cb); }
@@ -49,9 +56,10 @@ class MumbleUdp {
   uint32_t last_ping_sent_ms_{0};
   uint64_t last_ping_timestamp_{0};
   uint32_t last_ping_timeout_log_ms_{0};  // rate-limit timeout warning
-  uint8_t recv_buf_[MAX_PACKET_SIZE];
-  uint8_t crypt_buf_[MAX_PACKET_SIZE + OCB2_OVERHEAD];
-  MumbleCryptState *crypt_state_{nullptr};
+  uint8_t recv_buf_[MAX_PACKET_SIZE + MAX_CRYPTO_OVERHEAD];
+  uint8_t crypt_buf_[MAX_PACKET_SIZE + MAX_CRYPTO_OVERHEAD];
+  MumbleCryptStateBase *crypt_state_{nullptr};
+  uint32_t udp_packets_sent_{0};
   AudioCallback audio_callback_;
 };
 

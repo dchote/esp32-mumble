@@ -4,6 +4,7 @@
 #include "esphome/core/component.h"
 #include "mumble_audio.h"
 #include "mumble_client.h"
+#include "mumble_gcm.h"
 #include "mumble_ocb2.h"
 #include "mumble_udp.h"
 #include "mumble_voice.h"
@@ -29,6 +30,8 @@ class MumbleComponent : public Component {
   void set_channel(const std::string &channel) { channel_ = channel; }
   void set_mode(uint8_t mode) { mode_ = mode; }
   void set_crypto(uint8_t crypto) { crypto_ = crypto; }
+  /** Optional: PEM of CA cert for server verification. When set, TLS verification is enabled. */
+  void set_ca_cert(const std::string &pem) { ca_cert_ = pem; }
   void set_ptt_pin(GPIOPin *pin) { ptt_pin_ = pin; }
   void set_mute_pin(GPIOPin *pin) { mute_pin_ = pin; }
 
@@ -62,6 +65,7 @@ class MumbleComponent : public Component {
 
   void setup() override;
   void loop() override;
+  void on_shutdown() override;
   void dump_config() override;
   void log_connection_config() const;
   float get_setup_priority() const override {
@@ -76,6 +80,7 @@ class MumbleComponent : public Component {
   std::string channel_;
   uint8_t mode_{0};
   uint8_t crypto_{0};
+  std::string ca_cert_;
   GPIOPin *ptt_pin_{nullptr};
   GPIOPin *mute_pin_{nullptr};
 
@@ -105,7 +110,9 @@ class MumbleComponent : public Component {
 
   MumbleUdp udp_;
   MumbleCryptState crypt_state_;
+  MumbleCryptStateGcm crypt_state_gcm_;
   bool crypt_initialized_{false};
+  bool legacy_resync_sent_{false};  // throttle proactive Legacy nonce resync
   OpusAudioDecoder opus_decoder_;
   JitterBuffer jitter_buffer_;
   EsphomeSpeakerSink speaker_sink_;

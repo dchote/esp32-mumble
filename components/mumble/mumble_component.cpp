@@ -121,6 +121,18 @@ void MumbleComponent::join_channel_by_id(uint32_t channel_id) {
   client_.join_channel_by_id(channel_id);
 }
 
+void MumbleComponent::on_shutdown() {
+  // Proactive disconnect before OTA/flash/reboot so the server can clean up the session
+  if (client_.is_connected() || udp_.is_started()) {
+    ESP_LOGI(TAG, "Shutdown: disconnecting from Mumble server");
+    client_.disconnect();
+    if (udp_.is_started()) {
+      udp_.stop();
+      udp_.set_crypt_state(nullptr);
+    }
+  }
+}
+
 void MumbleComponent::reset_config() {
   ESP_LOGI(TAG, "Resetting all configuration to defaults");
   // Space updates to give NVS time between writes (avoids bogus "too long" warnings)
@@ -222,22 +234,50 @@ void MumbleComponent::loop() {
   client_.set_password(password);
   client_.set_channel(channel);
   client_.set_crypto(crypto);
+  client_.set_ca_cert(ca_cert_);
+  // Feed UDP/crypto stats into client for Ping message
+  MumbleCryptStateBase *cs = udp_.get_crypt_state();
+  if (cs != nullptr) {
+    client_.set_udp_stats(cs->good(), cs->late(), cs->lost(), cs->resync(), udp_.get_udp_packets_sent());
+    // Proactive Legacy nonce resync before wrap (~256 packets)
+    if (cs == &crypt_state_) {
+      const uint8_t *iv = crypt_state_.get_encrypt_iv();
+      if (iv != nullptr && iv[0] >= 250 && !legacy_resync_sent_) {
+        client_.send_crypt_resync(iv, 16);
+        legacy_resync_sent_ = true;
+      } else if (iv != nullptr && iv[0] < 10) {
+        legacy_resync_sent_ = false;  // wrapped, allow next resync cycle
+      }
+    }
+  }
   client_.loop();
   connected_ = client_.is_connected();
 
   // Initialize crypto from CryptSetup once available
-  if (connected_ && client_.has_crypt_setup() && !crypt_initialized_) {
+  if (connected_ && client_.has_crypt_setup()) {
+    uint8_t mode = client_.get_crypt_negotiated_mode();
     const auto &key = client_.get_crypt_key();
     const auto &cn = client_.get_crypt_client_nonce();
     const auto &sn = client_.get_crypt_server_nonce();
-    if (!key.empty()) {
-      if (crypt_state_.set_key(key.data(), key.size(), cn.data(), cn.size(), sn.data(), sn.size())) {
-        udp_.set_crypt_state(&crypt_state_);
-        crypt_initialized_ = true;
-      }
-    } else if (!sn.empty()) {
-      // Nonce resync (server_nonce only)
+    if (key.empty() && !sn.empty()) {
+      // Nonce resync (Legacy only): server sent server_nonce only
       crypt_state_.set_decrypt_iv(sn.data(), sn.size());
+      legacy_resync_sent_ = false;  // allow next proactive resync
+    } else if (!crypt_initialized_) {
+      if (mode == 0) {
+        udp_.set_crypt_state(nullptr);
+        crypt_initialized_ = true;
+      } else if (mode == 1 && key.size() == 16 && cn.size() == 16 && sn.size() == 16) {
+        if (crypt_state_.set_key(key.data(), key.size(), cn.data(), cn.size(), sn.data(), sn.size())) {
+          udp_.set_crypt_state(&crypt_state_);
+          crypt_initialized_ = true;
+        }
+      } else if (mode == 2 && key.size() == 32) {
+        if (crypt_state_gcm_.set_key(key.data(), key.size(), cn.data(), cn.size(), sn.data(), sn.size())) {
+          udp_.set_crypt_state(&crypt_state_gcm_);
+          crypt_initialized_ = true;
+        }
+      }
     }
     client_.clear_crypt_setup();
   }

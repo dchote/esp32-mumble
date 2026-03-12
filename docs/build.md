@@ -66,7 +66,7 @@ On macOS the port is typically `/dev/cu.usbmodem*`.
 ## Configuration
 
 - **Wi‑Fi** (required before compile): Add `esphome/secrets.yaml` with `wifi_ssid` and `wifi_password`, or edit the `wifi` section in the YAML directly. The example configs use `!secret` references.
-- **Mumble**: Server, port, username, password, channel, mode (always-on / push-to-talk), and crypto (Legacy / Lite) are exposed as config entities. Username defaults to `esp32-<MAC>`. Changing server, username, password, channel, or crypto forces a reconnect. **Speaker Volume** and **Microphone Enabled** control audio and persist across reboots. On Box/Box-3, **Speaker Power** toggles the hardware amplifier (GPIO46). Diagnostics include WiFi signal, Mumble connected, ping, and **Reset Config**. **Voice Received** appears under Sensors. All values persist in NVS and are restored on boot.
+- **Mumble**: Server, port, username, password, channel, mode (always-on / push-to-talk), and crypto (default: **Legacy**; or **Lite** for trusted LAN) are exposed as config entities. Username defaults to `esp32-<MAC>`. Changing server, username, password, channel, or crypto forces a reconnect. **Speaker Volume** and **Microphone Enabled** control audio and persist across reboots. On Box/Box-3, **Speaker Power** toggles the hardware amplifier (GPIO46). Diagnostics include WiFi signal, Mumble connected, ping, and **Reset Config**. **Voice Received** appears under Sensors. All values persist in NVS and are restored on boot.
 
 ## CI
 

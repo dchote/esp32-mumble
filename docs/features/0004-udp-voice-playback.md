@@ -24,7 +24,9 @@ Implement UDP voice transport (send/receive), OCB2-AES128 encryption (Legacy mod
 
 ### 3. Crypto Mode Selection
 
-- **CryptoModes in Version message**: Client advertises only the user-selected mode (`CRYPTO_LITE = 0x01` or `CRYPTO_LEGACY = 0x02`) so the server negotiates the correct tier.
+Default crypto is **Legacy** (OCB2-AES128); **Lite** (cleartext UDP) is optional for trusted LAN.
+
+- **CryptoModes in Version message**: Client advertises the user-selected mode (`CRYPTO_LEGACY = 0x02` or `CRYPTO_LITE = 0x01`) so the server negotiates the correct tier.
 - **HA select entity** (`crypto_select_id`): "7. Crypto" with options `legacy` (default) and `lite`. Changing crypto forces a reconnect so the server re-negotiates.
 - **CryptSetup handling**: On Legacy, server sends 16-byte key + client/server nonces. `MumbleCryptState` initialized in `MumbleComponent::loop()` once CryptSetup is received. On Lite, CryptSetup has empty key; UDP packets flow unencrypted.
 - **Reset Config** also resets crypto to `legacy`.

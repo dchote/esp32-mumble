@@ -2,17 +2,17 @@
 
 An ESP32-S3 Mumble voice chat client for ESPHome, turning microcontroller boards into always-on intercoms and push-to-talk devices.
 
-> **Status: Alpha** -- Receive/playback voice working; microphone input not yet implemented. Legacy/Lite crypto and HA integration working. Tested with go-mumble-server.
+> **Status: Alpha** -- Receive/playback voice working; microphone input not yet implemented. Legacy (default) and Lite crypto and HA integration working. Tested with go-mumble-server.
 
 ## What Is This?
 
-ESP32-Mumble implements the [Mumble](https://www.mumble.info/) voice chat protocol on ESP32-S3 hardware. It supports **Lite mode** (cleartext UDP, minimal CPU) and optional **Legacy mode** (standard Mumble with OCB2-AES128) for connectivity to any Mumble server. Connects to [go-mumble-server](https://github.com/dchote/go-mumble-server) or Murmur.
+ESP32-Mumble implements the [Mumble](https://www.mumble.info/) voice chat protocol on ESP32-S3 hardware. **Default crypto is Legacy** (OCB2-AES128, standard Mumble); **Lite** (cleartext UDP, minimal CPU) is optional for trusted LAN. Connects to [go-mumble-server](https://github.com/dchote/go-mumble-server) or Murmur.
 
 The firmware runs as an [ESPHome](https://esphome.io/) external component, integrating with Home Assistant for configuration and control.
 
 ### Key Capabilities
 
-- **Legacy** (default) and **Lite** (cleartext UDP) crypto modes
+- **Crypto modes**: **Legacy** (default) — OCB2-AES128; **Lite** — cleartext UDP for trusted LAN; **Secure** — AES-256-GCM when server negotiates it (go-mumble-server)
 - **Always-on intercom** or **push-to-talk** operation
 - **Opus** audio encoding/decoding at 16 kHz
 - **Receive-only voice** for now; microphone capture (transmit) not yet implemented
@@ -68,7 +68,7 @@ esphome run esphome/generic-esp32s3.yaml --device /dev/ttyUSB0
 
 See [docs/build.md](docs/build.md) for full build and flash instructions.
 
-Configure Mumble server, port, username, password, channel, mode, and crypto (Legacy/Lite) from the Home Assistant UI after adding the device; values persist in NVS and are restored on boot. Username defaults to `esp32-<MAC>`; you can overwrite it. Changing server, username, password, channel, or crypto forces a reconnect. Use **Speaker Volume** to adjust playback level and **Microphone Enabled** to enable or disable transmitting — both persist across reboots. On Box/Box-3, **Speaker Power** controls the hardware amplifier. Diagnostics show connection status, ping. **Voice Received** (Sensors) indicates when voice is being received. The **Reset Config** button restores all settings to defaults. See `esphome/generic-esp32s3.yaml` for the full pattern.
+Configure Mumble server, port, username, password, channel, mode, and crypto from the Home Assistant UI after adding the device; **crypto defaults to Legacy** (OCB2-AES128). Values persist in NVS and are restored on boot. Username defaults to `esp32-<MAC>`; you can overwrite it. Changing server, username, password, channel, or crypto forces a reconnect. Use **Speaker Volume** to adjust playback level and **Microphone Enabled** to enable or disable transmitting — both persist across reboots. On Box/Box-3, **Speaker Power** controls the hardware amplifier. Diagnostics show connection status, ping. **Voice Received** (Sensors) indicates when voice is being received. The **Reset Config** button restores all settings to defaults. See `esphome/generic-esp32s3.yaml` for the full pattern.
 
 ## Project Structure
 

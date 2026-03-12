@@ -48,6 +48,8 @@ class MumbleClient {
   void set_password(const std::string &password) { password_ = password; }
   void set_channel(const std::string &channel) { channel_ = channel; }
   void set_crypto(uint8_t crypto) { crypto_mode_ = crypto; }
+  /** Optional: PEM of CA cert for server verification. When set, setInsecure() is not used. */
+  void set_ca_cert(const std::string &pem) { ca_cert_ = pem; }
 
   bool connect();
   void disconnect();
@@ -61,7 +63,12 @@ class MumbleClient {
   const std::vector<uint8_t> &get_crypt_key() const { return crypt_key_; }
   const std::vector<uint8_t> &get_crypt_client_nonce() const { return crypt_client_nonce_; }
   const std::vector<uint8_t> &get_crypt_server_nonce() const { return crypt_server_nonce_; }
-  void clear_crypt_setup() { crypt_setup_received_ = false; }
+  /** 0 = lite, 1 = legacy (OCB2), 2 = secure (GCM). Only valid after CryptSetup. */
+  uint8_t get_crypt_negotiated_mode() const { return crypt_negotiated_mode_; }
+  void clear_crypt_setup() {
+    crypt_setup_received_ = false;
+    crypt_negotiated_mode_ = 0;
+  }
   const std::vector<ChannelInfo> &get_channels() const { return channels_; }
   const std::vector<UserInfo> &get_users() const { return users_; }
   uint32_t find_channel_by_name(const std::string &name) const;
@@ -73,6 +80,15 @@ class MumbleClient {
 
   // Send CryptSetup with only client_nonce to trigger server nonce resync
   void send_crypt_resync(const uint8_t *encrypt_iv, size_t len);
+
+  /** Set UDP/crypto stats for next Ping message (good, late, lost, resync, udp_packets). */
+  void set_udp_stats(uint32_t good, uint32_t late, uint32_t lost, uint32_t resync, uint32_t udp_packets) {
+    ping_udp_good_ = good;
+    ping_udp_late_ = late;
+    ping_udp_lost_ = lost;
+    ping_udp_resync_ = resync;
+    ping_udp_packets_ = udp_packets;
+  }
 
   using VoicePacketCallback = std::function<void(const uint8_t *data, size_t len)>;
   void set_voice_packet_callback(VoicePacketCallback cb) {
@@ -111,12 +127,15 @@ class MumbleClient {
   std::string password_;
   std::string channel_;
   uint8_t crypto_mode_{0};
+  std::string ca_cert_;
 
-  // Crypto material from CryptSetup (stored until MumbleCryptState is initialized)
+  // Crypto material from CryptSetup (stored until crypt state is initialized)
   std::vector<uint8_t> crypt_key_;
   std::vector<uint8_t> crypt_client_nonce_;
   std::vector<uint8_t> crypt_server_nonce_;
   bool crypt_setup_received_{false};
+  uint8_t crypt_negotiated_mode_{0};  // 0=lite, 1=legacy, 2=secure
+  bool unknown_crypt_logged_{false};
 
   WiFiClientSecure tls_client_;
   std::vector<uint8_t> recv_buf_;
@@ -133,6 +152,11 @@ class MumbleClient {
   uint32_t last_ping_ms_{0};
   uint64_t last_ping_timestamp_{0};
   float ping_rtt_ms_{0};
+  uint32_t ping_udp_good_{0};
+  uint32_t ping_udp_late_{0};
+  uint32_t ping_udp_lost_{0};
+  uint32_t ping_udp_resync_{0};
+  uint32_t ping_udp_packets_{0};
   static constexpr uint32_t PING_INTERVAL_MS = 15000;
   static constexpr uint32_t PING_TIMEOUT_MS = 45000;
 

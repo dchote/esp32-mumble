@@ -60,7 +60,7 @@ bool MumbleCryptState::set_key(const uint8_t *key, size_t key_len,
   mbedtls_aes_setkey_enc(&aes_enc_, raw_key_, 128);
   mbedtls_aes_setkey_dec(&aes_dec_, raw_key_, 128);
 
-  good_ = late_ = lost_ = 0;
+  good_ = late_ = lost_ = resync_ = 0;
   initialized_ = true;
   ESP_LOGI(TAG, "CryptState initialized (OCB2-AES128)");
   return true;

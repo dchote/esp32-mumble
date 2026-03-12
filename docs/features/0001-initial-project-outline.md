@@ -67,7 +67,7 @@ No ordering dependencies between files, but logically:
 ## Risks and Open Questions
 
 - **Opus ESP-IDF port maturity**: Need to verify that libopus compiles and runs efficiently on ESP32-S3. May require custom build flags or assembly optimizations.
-- **Legacy crypto (OCB2-AES128)**: Standard Mumble support is desired but chipset may lack CPU headroom. Implement as optional; benchmark before enabling by default. Lite mode remains primary.
+- **Legacy crypto (OCB2-AES128)**: Standard Mumble support; Legacy is the default crypto mode. Lite mode is optional for trusted LAN.
 - **AEC effectiveness**: ESP-SR's AEC may not be sufficient for all hardware configurations. Always-on mode may need to fall back to push-to-talk on some boards.
 - **Full-duplex I2S**: Only proven on Onju Voice via gnumpi/esphome_audio ADF pipelines. Other boards may need different approaches.
 - **ESPHome component API stability**: External component interfaces may change across ESPHome versions.

@@ -66,16 +66,21 @@ ESP32                                         go-mumble-server
 
 ### Crypto Modes
 
-go-mumble-server negotiates security per client during the Version exchange. The ESP32 client advertises supported modes; the server selects the best mutual tier.
+go-mumble-server negotiates security per client during the Version exchange. The ESP32 client advertises supported modes; the server selects the best mutual tier. **Default crypto mode is Legacy** (OCB2-AES128).
 
 | Mode | CryptoModes bit | UDP treatment | Use case |
 |------|-----------------|---------------|----------|
 | **Legacy** | 0x02 | OCB2-AES128, 4-byte overhead | Standard Mumble (Murmur, go-mumble-server); **default** |
 | **Lite** | 0x01 | Cleartext, no per-packet crypto | Trusted LAN, minimal CPU; **optional** |
+| **Secure** | 0x04 | AES-256-GCM, 28-byte overhead | go-mumble-server Secure tier (TLS 1.3 + client cert required) |
 
 **Lite mode** — Client sends `CryptoModes = 0x01`. Server responds with CryptSetup (empty key). UDP voice is cleartext; TCP control remains TLS-encrypted. Suitable for trusted LAN deployments.
 
-**Legacy mode (standard Mumble)** — Client sends `CryptoModes = 0x02` only. Server responds with CryptSetup (16-byte key). UDP voice is encrypted with OCB2-AES128. Compatible with any standard Mumble server. Legacy is the default. Changing crypto in HA (Legacy ↔ Lite) forces a reconnect so the server negotiates the new mode.
+**Legacy mode (standard Mumble)** — Client sends `CryptoModes = 0x02` or `0x03` (Lite \| Legacy). Server responds with CryptSetup (16-byte key + 16-byte nonces). UDP voice is encrypted with OCB2-AES128. Compatible with any standard Mumble server. Legacy is the default. Changing crypto in HA (Legacy ↔ Lite) forces a reconnect so the server negotiates the new mode.
+
+**Secure mode** — Server sends CryptSetup with 32-byte key and 12-byte nonces. UDP voice uses AES-256-GCM (packet format: 12-byte nonce \|\| ciphertext \|\| 16-byte tag). go-mumble-server only negotiates Secure when the client advertises 0x04 and uses TLS 1.3 with a client certificate. This client accepts Secure CryptSetup when the server chooses it; use of Secure tier from the client (advertising 0x04) requires TLS 1.3 and client cert support (not yet implemented).
+
+**CryptSetup** — Key length indicates mode: 0 = Lite, 16 = Legacy, 32 = Secure. Legacy nonce resync: client may send CryptSetup with only `client_nonce`; server replies with `server_nonce`. The client triggers proactive resync before the Legacy nonce wraps (~256 packets).
 
 **OCB2 implementation** — The Legacy OCB2-AES128 codec (`mumble_ocb2.cpp`) is ported from [mumble-voip/grumble](https://github.com/mumble-voip/grumble) and must match its byte layout exactly for interoperability with go-mumble-server. Key requirements: GF(2^128) doubling uses block\[0\] as MSB (big-endian); partial-block length is encoded at bytes 14–15; polynomial 0x87 for reduction.
 
@@ -307,6 +312,7 @@ mumble:
 | `ptt_pin` | pin | none | GPIO for push-to-talk button (press-and-hold; required if mode is push_to_talk) |
 | `mute_pin` | pin | none | GPIO for hardware mute switch |
 | `crypto` | enum | `legacy` | Crypto mode: `legacy` (default, OCB2-AES128) or `lite` (cleartext UDP). Use `crypto_select_id` for HA entity. Changing crypto forces reconnect. |
+| `ca_cert` | string | (empty) | Optional PEM of CA certificate for server verification. When set, TLS verification is enabled; when empty, `setInsecure()` is used (trusted LAN only). |
 
 ### Home Assistant Entities
 
@@ -402,7 +408,7 @@ Board-specific details (pin assignments, codec I2C addresses, I2S parameters) ar
 | ESP-IDF | 5.x | SoC framework, FreeRTOS, I2S, Wi-Fi, mbedTLS |
 | ESPHome | 2024.x or later | Component framework, HA integration, OTA |
 | micro-opus | (local, `lib/micro-opus/`) | Opus audio codec; heap pseudostack, PSRAM, Xtensa DSP; based on esphome-libs/micro-opus |
-| mbedTLS | (bundled with ESP-IDF) | TLS for Mumble control channel; OCB2-AES128 for Legacy crypto |
+| mbedTLS | (bundled with ESP-IDF) | TLS for Mumble control channel; OCB2-AES128 for Legacy; AES-256-GCM for Secure |
 | ESP-ADF | optional | ADF pipeline for full-duplex I2S |
 | ESP-SR | optional | AEC, noise suppression, beamforming |
 
@@ -418,4 +424,4 @@ The build uses ESPHome/PlatformIO. The Opus library is **vendored locally** in `
 | RAM budget | Opus + TLS + ESPHome may exceed SRAM | Use PSRAM for audio buffers and Opus state. Optimize TLS buffer sizes. Target boards with 8 MB PSRAM. |
 | TLS handshake time | Slow reconnects | Cache TLS sessions. Use TLS 1.2 with minimal cipher suite. |
 | Wire format encoding | Compatibility with upstream Mumble | Hand-written encoder (field-tagged, no protobuf lib) matched to go-mumble-server's wire format. Integration test against live server. |
-| Legacy crypto (OCB2-AES128) | Compatibility with server | Implemented; ported from grumble. Byte layout and GF operations match go-mumble-server. Lite mode available for trusted LAN. |
+| Legacy crypto (OCB2-AES128) | Compatibility with server | Implemented; ported from grumble. Byte layout and GF operations match go-mumble-server. Lite and Secure (AES-256-GCM) supported; optional `ca_cert` for TLS verification. |

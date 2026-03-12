@@ -11,9 +11,10 @@ namespace mumble {
 
 static const char *const TAG = "mumble.client";
 
-// Crypto mode bits
+// Crypto mode bits (Version message CryptoModes field)
 static constexpr uint32_t CRYPTO_LITE = 0x01;
 static constexpr uint32_t CRYPTO_LEGACY = 0x02;
+static constexpr uint32_t CRYPTO_SECURE = 0x04;
 
 bool MumbleClient::connect() {
   if (server_.empty() || username_.empty()) {
@@ -21,9 +22,12 @@ bool MumbleClient::connect() {
     return false;
   }
   state_ = ConnectionState::CONNECTING;
-  // go-mumble-server requires TLS 1.2 (MinVersion: tls.VersionTLS12). ESP32 mbedTLS
-  // uses TLS 1.2 by default. setInsecure() skips cert verification for trusted LAN.
-  tls_client_.setInsecure();
+  // go-mumble-server requires TLS 1.2. When ca_cert_ is set, verify server; else trusted LAN (setInsecure).
+  if (!ca_cert_.empty()) {
+    tls_client_.setCACert(ca_cert_.c_str());
+  } else {
+    tls_client_.setInsecure();
+  }
   tls_client_.setTimeout(CONNECT_TIMEOUT_MS / 1000);
   tls_client_.setHandshakeTimeout(CONNECT_TIMEOUT_MS / 1000);
 
@@ -49,6 +53,7 @@ bool MumbleClient::connect() {
   recv_buf_.clear();
   recv_buf_.reserve(1024);
   channel_join_sent_ = false;
+  unknown_crypt_logged_ = false;
   state_ = ConnectionState::AUTHENTICATING;
   ESP_LOGI(TAG, "Connected to %s:%u, starting handshake", server_.c_str(), port_);
   return true;
@@ -63,6 +68,7 @@ void MumbleClient::disconnect() {
   session_id_ = 0;
   channel_join_sent_ = false;
   crypt_setup_received_ = false;
+  crypt_negotiated_mode_ = 0;
   ESP_LOGD(TAG, "disconnect");
 }
 
@@ -225,14 +231,15 @@ void MumbleClient::send_version() {
   v.release = "esp32-mumble";
   v.os = "ESP32";
   v.os_version = "1.0";
-  v.crypto_modes = (crypto_mode_ == 0) ? CRYPTO_LITE : CRYPTO_LEGACY;
+  // Advertise supported modes: 0x03 = Lite | Legacy so server can pick. Secure (0x04) when we have TLS 1.3 + client cert.
+  v.crypto_modes = (crypto_mode_ == 0) ? CRYPTO_LITE : (CRYPTO_LITE | CRYPTO_LEGACY);
 
   std::vector<uint8_t> buf;
   v.marshal(buf);
   if (!send_message(MSG_VERSION, buf.data(), buf.size())) {
     ESP_LOGW(TAG, "Failed to send Version");
   } else {
-    ESP_LOGD(TAG, "Sent Version (crypto=%u)", (unsigned) v.crypto_modes);
+    ESP_LOGD(TAG, "Sent Version (crypto=0x%x)", (unsigned) v.crypto_modes);
   }
 }
 
@@ -256,6 +263,11 @@ void MumbleClient::send_ping() {
   uint64_t ts = static_cast<uint64_t>(millis());
   MsgPing p;
   p.timestamp = ts;
+  p.good = ping_udp_good_;
+  p.late = ping_udp_late_;
+  p.lost = ping_udp_lost_;
+  p.resync = ping_udp_resync_;
+  p.udp_packets = ping_udp_packets_;
   p.tcp_packets = 1;
 
   std::vector<uint8_t> buf;
@@ -302,20 +314,34 @@ void MumbleClient::on_crypt_setup(const uint8_t *payload, size_t len) {
     crypt_key_ = std::move(m.key);
     crypt_client_nonce_ = std::move(m.client_nonce);
     crypt_server_nonce_ = std::move(m.server_nonce);
+    crypt_negotiated_mode_ = 1;  // Legacy
     crypt_setup_received_ = true;
     ESP_LOGI(TAG, "CryptSetup: Legacy (OCB2-AES128) key received");
+  } else if (!m.key.empty() && m.key.size() == 32 &&
+             m.client_nonce.size() == 12 && m.server_nonce.size() == 12) {
+    crypt_key_ = std::move(m.key);
+    crypt_client_nonce_ = std::move(m.client_nonce);
+    crypt_server_nonce_ = std::move(m.server_nonce);
+    crypt_negotiated_mode_ = 2;  // Secure
+    crypt_setup_received_ = true;
+    ESP_LOGI(TAG, "CryptSetup: Secure (AES-256-GCM) key received");
   } else if (m.key.empty() && !m.server_nonce.empty()) {
-    // Nonce resync: server updated its encrypt nonce (our decrypt IV)
+    // Nonce resync: server updated its encrypt nonce (our decrypt IV) — Legacy only
     crypt_server_nonce_ = std::move(m.server_nonce);
     crypt_setup_received_ = true;
     ESP_LOGI(TAG, "CryptSetup: server nonce resync (%u bytes)",
              (unsigned) crypt_server_nonce_.size());
   } else if (m.key.empty()) {
+    crypt_negotiated_mode_ = 0;  // Lite
+    crypt_setup_received_ = true;
     ESP_LOGD(TAG, "CryptSetup: Lite mode (no UDP encryption)");
   } else {
-    ESP_LOGW(TAG, "CryptSetup: unexpected key=%u cn=%u sn=%u",
-             (unsigned) m.key.size(), (unsigned) m.client_nonce.size(),
-             (unsigned) m.server_nonce.size());
+    if (!unknown_crypt_logged_) {
+      ESP_LOGD(TAG, "CryptSetup: unsupported key=%u cn=%u sn=%u, ignoring",
+               (unsigned) m.key.size(), (unsigned) m.client_nonce.size(),
+               (unsigned) m.server_nonce.size());
+      unknown_crypt_logged_ = true;
+    }
   }
 }
 
@@ -370,6 +396,9 @@ void MumbleClient::on_reject(const uint8_t *payload, size_t len) {
   MsgReject m;
   if (!m.unmarshal(payload, len)) return;
   reject_count_++;
+  if (m.type == REJECT_NO_CERTIFICATE) {
+    ESP_LOGE(TAG, "Rejected: server requires a client certificate (Secure tier). Configure a client cert to use Secure crypto.");
+  }
   ESP_LOGE(TAG, "Rejected (%u/%u): type=%u, reason=%s",
            (unsigned) reject_count_, (unsigned) MAX_REJECT_ATTEMPTS,
            (unsigned) m.type, m.reason.c_str());
