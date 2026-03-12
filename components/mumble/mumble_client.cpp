@@ -350,6 +350,7 @@ void MumbleClient::on_server_sync(const uint8_t *payload, size_t len) {
   max_bandwidth_ = m.max_bandwidth;
   welcome_text_ = m.welcome_text;
   state_ = ConnectionState::CONNECTED;
+  last_ping_ms_ = 0;  // Reset so (now - last_ping_ms_) doesn't immediately exceed PING_TIMEOUT_MS on reconnect
   reconnect_delay_ms_ = 1000;
   reject_count_ = 0;  // Successful auth resets reject counter
   ESP_LOGI(TAG, "ServerSync: session=%u, welcome=%s", (unsigned) session_id_,
