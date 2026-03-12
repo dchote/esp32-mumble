@@ -1,5 +1,5 @@
 #include "mumble_component.h"
-#include <cmath>
+#include <cstdlib>
 #include "esphome/core/log.h"
 
 namespace esphome {
@@ -15,10 +15,10 @@ std::string MumbleComponent::get_server() const {
 }
 
 uint16_t MumbleComponent::get_port() const {
-  if (port_number_ != nullptr && !std::isnan(port_number_->state)) {
-    float v = port_number_->state;
-    if (v < 1.0f) return 1;
-    if (v > 65535.0f) return 65535;
+  if (port_text_ != nullptr && !port_text_->state.empty()) {
+    int v = std::atoi(port_text_->state.c_str());
+    if (v < 1) return 1;
+    if (v > 65535) return 65535;
     return static_cast<uint16_t>(v);
   }
   return port_;
@@ -46,18 +46,26 @@ std::string MumbleComponent::get_channel() const {
 }
 
 uint8_t MumbleComponent::get_mode() const {
-  if (mode_select_ != nullptr && !mode_select_->state.empty()) {
-    const std::string &s = mode_select_->state;
+  if (mode_select_ != nullptr && !mode_select_->current_option().empty()) {
+    const std::string &s = mode_select_->current_option();
     if (s == "push_to_talk") return 1;
     if (s == "always_on") return 0;
   }
   return mode_;
 }
 
-void MumbleComponent::trigger_ptt() {
-  ptt_active_ = !ptt_active_;
-  ESP_LOGD(TAG, "PTT %s", ptt_active_ ? "on" : "off");
+void MumbleComponent::set_microphone_enabled(bool enabled) {
+  microphone_enabled_ = enabled;
+  ESP_LOGD(TAG, "Microphone %s", microphone_enabled_ ? "enabled" : "disabled");
+  if (microphone_switch_ != nullptr) {
+    microphone_switch_->publish_state(microphone_enabled_);
+  }
   // Stub: actual transmit enable when audio pipeline is implemented
+}
+
+void MumbleComponent::trigger_ptt() {
+  // PTT: press-and-hold to talk (future). For now, toggle mic when PTT pin triggers.
+  set_microphone_enabled(!microphone_enabled_);
 }
 
 void MumbleComponent::log_connection_config() const {

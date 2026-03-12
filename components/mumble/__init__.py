@@ -1,9 +1,9 @@
 """ESPHome Mumble client component for ESP32-S3.
 
 Configuration: server, port, username, password, channel, mode, crypto (inline).
-Optional HA-editable entities: server_text_id, port_number_id, username_text_id,
-password_text_id, channel_text_id, mode_select_id (values persisted to NVS).
-Optional hardware: ptt_pin, mute_pin.
+Optional HA-editable entities: server_text_id, port_text_id, username_text_id,
+password_text_id, channel_text_id, mode_select_id, microphone_switch_id (values persisted to NVS).
+Optional hardware: ptt_pin (press-and-hold PTT), mute_pin.
 """
 
 from esphome import automation
@@ -11,7 +11,7 @@ from esphome.automation import maybe_simple_id
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome import pins
-from esphome.components import number, select, text
+from esphome.components import select, switch, text
 from esphome.const import CONF_ID, CONF_PORT, CONF_PASSWORD, CONF_CHANNEL
 
 CODEOWNERS = ["@esphome"]
@@ -25,11 +25,12 @@ CONF_PTT_PIN = "ptt_pin"
 CONF_MUTE_PIN = "mute_pin"
 CONF_CRYPTO = "crypto"
 CONF_SERVER_TEXT = "server_text_id"
-CONF_PORT_NUMBER = "port_number_id"
+CONF_PORT_TEXT = "port_text_id"
 CONF_USERNAME_TEXT = "username_text_id"
 CONF_PASSWORD_TEXT = "password_text_id"
 CONF_CHANNEL_TEXT = "channel_text_id"
 CONF_MODE_SELECT = "mode_select_id"
+CONF_MICROPHONE_SWITCH = "microphone_switch_id"
 
 CONF_ALWAYS_ON = "always_on"
 CONF_PUSH_TO_TALK = "push_to_talk"
@@ -38,9 +39,6 @@ CONF_LEGACY = "legacy"
 
 mumble_ns = cg.esphome_ns.namespace("mumble")
 MumbleComponent = mumble_ns.class_("MumbleComponent", cg.Component)
-MumblePttPressAction = mumble_ns.class_(
-    "MumblePttPressAction", automation.Action
-)
 
 MUMBLE_MODE = {
     CONF_ALWAYS_ON: 0,
@@ -72,11 +70,12 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_PASSWORD, default=""): cv.string,
             cv.Optional(CONF_CHANNEL, default=""): cv.string,
             cv.Optional(CONF_SERVER_TEXT): cv.use_id(text.Text),
-            cv.Optional(CONF_PORT_NUMBER): cv.use_id(number.Number),
+            cv.Optional(CONF_PORT_TEXT): cv.use_id(text.Text),
             cv.Optional(CONF_USERNAME_TEXT): cv.use_id(text.Text),
             cv.Optional(CONF_PASSWORD_TEXT): cv.use_id(text.Text),
             cv.Optional(CONF_CHANNEL_TEXT): cv.use_id(text.Text),
             cv.Optional(CONF_MODE_SELECT): cv.use_id(select.Select),
+            cv.Optional(CONF_MICROPHONE_SWITCH): cv.use_id(switch.Switch),
             cv.Optional(CONF_MODE, default=CONF_ALWAYS_ON): cv.enum(
                 MUMBLE_MODE, lower=True
             ),
@@ -106,9 +105,9 @@ async def to_code(config):
     if CONF_SERVER_TEXT in config:
         server_text = await cg.get_variable(config[CONF_SERVER_TEXT])
         cg.add(var.set_server_text(server_text))
-    if CONF_PORT_NUMBER in config:
-        port_number = await cg.get_variable(config[CONF_PORT_NUMBER])
-        cg.add(var.set_port_number(port_number))
+    if CONF_PORT_TEXT in config:
+        port_text = await cg.get_variable(config[CONF_PORT_TEXT])
+        cg.add(var.set_port_text(port_text))
     if CONF_USERNAME_TEXT in config:
         username_text = await cg.get_variable(config[CONF_USERNAME_TEXT])
         cg.add(var.set_username_text(username_text))
@@ -121,6 +120,9 @@ async def to_code(config):
     if CONF_MODE_SELECT in config:
         mode_select = await cg.get_variable(config[CONF_MODE_SELECT])
         cg.add(var.set_mode_select(mode_select))
+    if CONF_MICROPHONE_SWITCH in config:
+        microphone_switch = await cg.get_variable(config[CONF_MICROPHONE_SWITCH])
+        cg.add(var.set_microphone_switch(microphone_switch))
 
     if CONF_PTT_PIN in config:
         pin = await cg.gpio_pin_expression(config[CONF_PTT_PIN])
@@ -130,18 +132,47 @@ async def to_code(config):
         cg.add(var.set_mute_pin(pin))
 
 
-MUMBLE_PTT_PRESS_ACTION_SCHEMA = maybe_simple_id(
+MUMBLE_ACTION_SCHEMA = maybe_simple_id(
     {
         cv.Required(CONF_ID): cv.use_id(MumbleComponent),
     }
 )
 
+MumbleMicrophoneEnableAction = mumble_ns.class_(
+    "MumbleMicrophoneEnableAction", automation.Action
+)
+MumbleMicrophoneDisableAction = mumble_ns.class_(
+    "MumbleMicrophoneDisableAction", automation.Action
+)
+MumblePttPressAction = mumble_ns.class_(
+    "MumblePttPressAction", automation.Action
+)
+
+
+@automation.register_action(
+    "mumble.microphone_enable",
+    MumbleMicrophoneEnableAction,
+    MUMBLE_ACTION_SCHEMA,
+)
+async def mumble_microphone_enable_to_code(config, action_id, template_arg, args):
+    var = await cg.get_variable(config[CONF_ID])
+    return cg.new_Pvariable(action_id, template_arg, var)
+
+
+@automation.register_action(
+    "mumble.microphone_disable",
+    MumbleMicrophoneDisableAction,
+    MUMBLE_ACTION_SCHEMA,
+)
+async def mumble_microphone_disable_to_code(config, action_id, template_arg, args):
+    var = await cg.get_variable(config[CONF_ID])
+    return cg.new_Pvariable(action_id, template_arg, var)
+
 
 @automation.register_action(
     "mumble.ptt_press",
     MumblePttPressAction,
-    MUMBLE_PTT_PRESS_ACTION_SCHEMA,
-    synchronous=True,
+    MUMBLE_ACTION_SCHEMA,
 )
 async def mumble_ptt_press_to_code(config, action_id, template_arg, args):
     var = await cg.get_variable(config[CONF_ID])

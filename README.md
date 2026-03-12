@@ -54,7 +54,7 @@ See the full documentation:
 ## Prerequisites
 
 - A Mumble server (e.g. [go-mumble-server](https://github.com/dchote/go-mumble-server) or Murmur) on your LAN
-- [ESPHome](https://esphome.io/) 2024.x or later
+- [ESPHome](https://esphome.io/) 2024.x or later — on macOS: `brew install esphome`
 - [Home Assistant](https://www.home-assistant.io/) (optional, for configuration and control UI)
 - One of the supported ESP32-S3 boards listed above
 
@@ -68,7 +68,7 @@ esphome run esphome/generic-esp32s3.yaml --device /dev/ttyUSB0
 
 See [docs/build.md](docs/build.md) for full build and flash instructions.
 
-Configure Mumble server, port, username, password, channel, and mode (always-on / push-to-talk) from the Home Assistant UI after adding the device; values persist in NVS. Use the **Mumble Push to Talk** button in HA to toggle transmitting (press once to talk, press again to stop). Example config uses text, number, and select entities (`server_text_id`, `port_number_id`, `mode_select_id`, etc.); see `esphome/generic-esp32s3.yaml` for the full pattern.
+Configure Mumble server, port, username, password, channel, and mode (always-on / push-to-talk) from the Home Assistant UI after adding the device; values persist in NVS. Use the **Microphone Enabled** switch in HA to enable or disable transmitting. Example config uses text and select entities (`server_text_id`, `port_text_id`, `mode_select_id`, etc.) plus `microphone_switch_id`; see `esphome/generic-esp32s3.yaml` for the full pattern.
 
 ## Project Structure
 

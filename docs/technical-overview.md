@@ -212,7 +212,7 @@ The pipeline order is: multi-channel capture â†’ beamforming/downmix (to mono) â
 components/
   mumble/
     __init__.py          # ESPHome component registration, YAML schema
-    mumble_component.h   # Main component; settings, PTT action
+    mumble_component.h   # Main component; settings, microphone switch, PTT
     mumble_component.cpp
     mumble_client.h      # MumbleClient C++ class (connection, protocol)
     mumble_client.cpp
@@ -223,44 +223,47 @@ components/
     mumble_varint.h      # Varint encode/decode
 ```
 
-The component is loaded as an ESPHome external component. Connection settings (server, port, username, password, channel) can be inline or referenced from text/number entities; mode (always_on / push_to_talk) can be set in YAML or via an optional select entity. All HA-linked values are editable in the HA UI and persisted to NVS. Use the `mumble.ptt_press` action for a Push to Talk button in HA (toggle: press to start, press again to stop).
+The component is loaded as an ESPHome external component. Connection settings (server, port, username, password, channel) can be inline or referenced from text entities; mode (always_on / push_to_talk) can be set in YAML or via an optional select entity. All HA-linked values are editable in the HA UI and persisted to NVS. Use the **Microphone Enabled** switch with `mumble.microphone_enable` and `mumble.microphone_disable` for explicit on/off control. The `mumble.ptt_press` action is for the physical PTT button (press-and-hold).
 
 ```yaml
 external_components:
   - source: { type: local, path: components }
 
-# Optional: text/number/select entities for HA-editable settings (restore_value: true)
+# Optional: text/select entities for HA-editable settings (restore_value: true)
+# Port uses text (not number) so it displays as integer in HA
 text:
   - platform: template
     id: mumble_server_host
-    name: "Mumble Server"
+    name: "1. Server"
     mode: text
     optimistic: true
     restore_value: true
     initial_value: "192.168.1.100"
-number:
   - platform: template
     id: mumble_server_port
-    name: "Mumble Port"
+    name: "2. Port"
+    mode: text
     optimistic: true
     restore_value: true
-    initial_value: 64738
-    min_value: 1
-    max_value: 65535
-    step: 1
+    initial_value: "64738"
 select:
   - platform: template
     id: mumble_mode
-    name: "Mumble Mode"
+    name: "6. Mode"
     optimistic: true
     restore_value: true
     initial_option: "always_on"
     options: ["always_on", "push_to_talk"]
-button:
+switch:
   - platform: template
-    name: "Mumble Push to Talk"
-    on_press:
-      - mumble.ptt_press: mumble_client
+    name: "Microphone Enabled"
+    id: mumble_microphone_enabled
+    lambda: |-
+      return id(mumble_client).get_microphone_enabled();
+    turn_on_action:
+      - mumble.microphone_enable: mumble_client
+    turn_off_action:
+      - mumble.microphone_disable: mumble_client
 
 mumble:
   id: mumble_client
@@ -270,9 +273,10 @@ mumble:
   password: ""
   channel: ""
   server_text_id: mumble_server_host
-  port_number_id: mumble_server_port
+  port_text_id: mumble_server_port
   # username_text_id, password_text_id, channel_text_id ...
-  mode_select_id: mumble_mode   # optional; use select entity for HA-editable mode
+  mode_select_id: mumble_mode
+  microphone_switch_id: mumble_microphone_enabled
   mode: always_on
   mute_pin: GPIO38        # optional hardware mute switch
 ```
@@ -289,11 +293,12 @@ mumble:
 | `mode_select_id` | id | none | Select entity for mode (options: `always_on`, `push_to_talk`; overrides `mode` when set) |
 | `mode` | enum | `always_on` | `always_on` or `push_to_talk` (fallback when no `mode_select_id`) |
 | `server_text_id` | id | none | Text entity for server host (overrides `server` when set) |
-| `port_number_id` | id | none | Number entity for port |
+| `port_text_id` | id | none | Text entity for port (displays as integer in HA) |
 | `username_text_id` | id | none | Text entity for username |
 | `password_text_id` | id | none | Text entity for password |
 | `channel_text_id` | id | none | Text entity for default channel |
-| `ptt_pin` | pin | none | GPIO for push-to-talk button (required if mode is push_to_talk) |
+| `microphone_switch_id` | id | none | Switch entity for Microphone Enabled (Controls) |
+| `ptt_pin` | pin | none | GPIO for push-to-talk button (press-and-hold; required if mode is push_to_talk) |
 | `mute_pin` | pin | none | GPIO for hardware mute switch |
 | `crypto` | enum | `lite` | Crypto mode: `lite` (recommended) or `legacy` (standard Mumble; optional, CPU-permitting) |
 
@@ -304,13 +309,27 @@ mumble:
 | Entity ID | Platform | Description |
 |-----------|----------|-------------|
 | `text.mumble_server_host` | `text` | Server hostname or IP |
-| `number.mumble_server_port` | `number` | Server port |
+| `text.mumble_server_port` | `text` | Server port (integer, no decimals) |
 | `select.mumble_mode` | `select` | Mode: `always_on` or `push_to_talk` |
 | `text.mumble_username` | `text` | Username |
 | `text.mumble_password` | `text` | Password (mode: password) |
 | `text.mumble_default_channel` | `text` | Channel to join on connect |
 
 When a configuration entity is changed in HA, the new value is written to NVS and the client reconnects with the updated settings. YAML values serve as initial defaults that are overridden once HA values are set.
+
+**Controls**:
+
+| Entity ID | Platform | Description |
+|-----------|----------|-------------|
+| `switch.mumble_microphone_enabled` | `switch` | Microphone Enabled (explicit on/off) |
+
+**Diagnostics**:
+
+| Entity ID | Platform | Description |
+|-----------|----------|-------------|
+| `sensor.wifi_signal` | `sensor` | WiFi RSSI (dBm) |
+| `binary_sensor.mumble_connected` | `binary_sensor` | Connected to Mumble server (future) |
+| `sensor.mumble_ping` | `sensor` | Round-trip ping time to server in ms (future) |
 
 **Runtime entities** -- reflect live state (planned; not yet implemented):
 
@@ -320,7 +339,7 @@ When a configuration entity is changed in HA, the new value is written to NVS an
 | `number.mumble_volume` | `number` | Speaker volume (0-100) |
 | `select.mumble_channel` | `select` | Active channel (options from server) |
 | `binary_sensor.mumble_talking` | `binary_sensor` | Transmitting audio |
-| `binary_sensor.mumble_connected` | `binary_sensor` | Connected to server |
+| `binary_sensor.mumble_connected` | `binary_sensor` | Connected to server (also in Diagnostics) |
 
 ## Hardware Abstraction
 

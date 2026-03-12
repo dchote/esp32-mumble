@@ -12,9 +12,9 @@ The project targets LAN deployments, with Lite crypto mode (cleartext UDP voice)
 
 The device listens and transmits continuously, acting as a room intercom. Audio from the microphone streams to the Mumble channel in real time. A physical mute button (or HA-controlled software mute) silences the microphone without disconnecting. This is the default operating mode.
 
-### Push-to-Talk
+### Microphone Control
 
-Push-to-talk can be triggered by a physical button (GPIO) or by the **Mumble Push to Talk** button in the Home Assistant UI. In HA, each press toggles transmission (press once to start talking, press again to stop). A physical PTT button can be wired for hold-to-talk (press and hold to talk, release to stop). Useful in environments where constant open-mic is undesirable.
+The **Microphone Enabled** switch in Home Assistant explicitly turns transmitting on or off. In push-to-talk mode, a physical PTT button (`ptt_pin`) can be wired for hold-to-talk: press and hold to talk, release to stop. PTT is distinct from the Microphone Enabled switch — the switch is a persistent on/off toggle; PTT is momentary.
 
 ### Multi-Room Intercom
 
@@ -58,8 +58,9 @@ All targets require an ESP32-S3 with PSRAM and Wi-Fi. The S3's dual-core archite
 
 ### Controls and Indicators
 
+- **Microphone Enabled** switch in Home Assistant (explicit on/off)
 - Mute/unmute via hardware switch or button
-- Push-to-talk via dedicated button
+- Push-to-talk via physical button (`ptt_pin`; press-and-hold)
 - Volume control via touch surface, button, or Home Assistant
 - LED status indication:
   - Connecting (slow pulse)
@@ -75,11 +76,20 @@ The following settings are exposed as Home Assistant entities and can be changed
 | Entity | Type | Description |
 |---|---|---|
 | Mumble Server Host | Text | Hostname or IP of the Mumble server |
-| Mumble Server Port | Number | Server port (default 64738) |
+| Mumble Server Port | Text | Server port (default 64738, displays as integer) |
 | Username | Text | Mumble username for this device |
 | Password | Text | Server or user password |
 | Default Channel | Text | Channel to join on connect |
 | Mumble Mode | Select | **Always on** or **Push to talk** (persisted across reboots) |
+| Microphone Enabled | Switch | Explicitly enable or disable transmitting (Controls section) |
+
+### Home Assistant Diagnostics
+
+| Entity | Type | Description |
+|---|---|---|
+| WiFi Signal | Sensor | WiFi RSSI in dBm |
+| Mumble Connected | Binary Sensor | Whether connected to the Mumble server (future) |
+| Mumble Ping | Sensor | Round-trip ping time to server in ms (future) |
 
 ### Home Assistant Runtime Entities
 

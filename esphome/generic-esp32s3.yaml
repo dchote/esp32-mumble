@@ -21,11 +21,8 @@ psram:
 
 wifi:
   networks:
-    - ssid: "YourWiFi"
-      password: "YourPassword"
-  ap:
-    ssid: "ESP32-Mumble Fallback"
-    password: "fallback123"
+    - ssid: !secret wifi_ssid
+      password: !secret wifi_password
 
 logger:
 
@@ -33,19 +30,32 @@ api:
 
 ota:
 
-# Mumble connection and mode settings (editable in Home Assistant, persisted to NVS)
+# Mumble connection and mode settings (Configuration section; persisted to NVS)
+# Entity names use numeric prefixes for display order: server, port, username, password, channel, mode
+# Port is text (not number) so it displays as integer in HA, per home-assistant-voice-pe pattern
 text:
   - platform: template
     id: mumble_server_host
-    name: "Mumble Server"
+    name: "1. Server"
+    entity_category: config
     mode: text
     optimistic: true
     restore_value: true
     initial_value: "192.168.1.100"
     max_length: 253
   - platform: template
+    id: mumble_server_port
+    name: "2. Port"
+    entity_category: config
+    mode: text
+    optimistic: true
+    restore_value: true
+    initial_value: "64738"
+    max_length: 5
+  - platform: template
     id: mumble_username
-    name: "Mumble Username"
+    name: "3. Username"
+    entity_category: config
     mode: text
     optimistic: true
     restore_value: true
@@ -53,7 +63,8 @@ text:
     max_length: 128
   - platform: template
     id: mumble_password
-    name: "Mumble Password"
+    name: "4. Password"
+    entity_category: config
     mode: password
     optimistic: true
     restore_value: true
@@ -61,18 +72,18 @@ text:
     max_length: 128
   - platform: template
     id: mumble_default_channel
-    name: "Mumble Channel"
+    name: "5. Channel"
+    entity_category: config
     mode: text
     optimistic: true
     restore_value: true
     initial_value: ""
     max_length: 128
-
-# Mumble mode: always_on or push_to_talk (editable in HA)
 select:
   - platform: template
     id: mumble_mode
-    name: "Mumble Mode"
+    name: "6. Mode"
+    entity_category: config
     optimistic: true
     restore_value: true
     initial_option: "always_on"
@@ -80,25 +91,43 @@ select:
       - "always_on"
       - "push_to_talk"
 
-number:
+# Diagnostics section (HA device page)
+sensor:
+  - platform: wifi_signal
+    name: "WiFi Signal"
+    entity_category: diagnostic
+    update_interval: 60s
   - platform: template
-    id: mumble_server_port
-    name: "Mumble Port"
-    optimistic: true
-    restore_value: true
-    initial_value: 64738
-    min_value: 1
-    max_value: 65535
-    step: 1
+    name: "Mumble Ping"
+    id: mumble_ping_sensor
+    entity_category: diagnostic
+    unit_of_measurement: "ms"
+    device_class: duration
+    accuracy_decimals: 0
+    lambda: |-
+      return id(mumble_client).get_ping_ms();
+    update_interval: 5s
+binary_sensor:
+  - platform: template
+    name: "Mumble Connected"
+    id: mumble_connected_sensor
+    entity_category: diagnostic
+    device_class: connectivity
+    lambda: |-
+      return id(mumble_client).is_connected();
 
-# Push-to-talk button (press in HA to start/stop transmitting)
-button:
+# Microphone enabled/disabled (Controls section) - explicit on/off
+switch:
   - platform: template
-    name: "Mumble Push to Talk"
-    id: mumble_ptt_button
+    name: "Microphone Enabled"
+    id: mumble_microphone_enabled
     icon: "mdi:microphone"
-    on_press:
-      - mumble.ptt_press: mumble_client
+    lambda: |-
+      return id(mumble_client).get_microphone_enabled();
+    turn_on_action:
+      - mumble.microphone_enable: mumble_client
+    turn_off_action:
+      - mumble.microphone_disable: mumble_client
 
 # Mumble client component (local external component)
 external_components:
@@ -114,10 +143,11 @@ mumble:
   password: ""
   channel: ""
   server_text_id: mumble_server_host
-  port_number_id: mumble_server_port
+  port_text_id: mumble_server_port
   username_text_id: mumble_username
   password_text_id: mumble_password
   channel_text_id: mumble_default_channel
   mode_select_id: mumble_mode
+  microphone_switch_id: mumble_microphone_enabled
   mode: always_on
   crypto: lite

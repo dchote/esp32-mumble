@@ -6,10 +6,18 @@
 - Python 3.9+
 - One of the supported ESP32-S3 boards
 
+**Before compiling**: You must specify Wi‑Fi credentials. Create `esphome/secrets.yaml` (or add to your config) with `wifi_ssid` and `wifi_password`; the configs reference these via `!secret`. See `secrets.example.yaml` for the expected format.
+
 ### Installing ESPHome
 
 ```bash
 pip install esphome
+```
+
+On macOS you can also use Homebrew:
+
+```bash
+brew install esphome
 ```
 
 Or use the [ESPHome Dashboard](https://web.esphome.io/) for a browser-based workflow.
@@ -57,8 +65,8 @@ On macOS the port is typically `/dev/cu.usbmodem*`.
 
 ## Configuration
 
-- **Wi‑Fi**: Edit the `wifi` section in the YAML (`ssid` / `password`).
-- **Mumble**: Server host, port, username, password, channel, and mode (always-on / push-to-talk) are exposed as text, number, and select entities. Configure them in the Home Assistant UI after the device is added; values persist in NVS. You can also set `initial_value` or `initial_option` in the YAML for first-time defaults.
+- **Wi‑Fi** (required before compile): Add `esphome/secrets.yaml` with `wifi_ssid` and `wifi_password`, or edit the `wifi` section in the YAML directly. The example configs use `!secret` references.
+- **Mumble**: Server host, port, username, password, channel, and mode (always-on / push-to-talk) are exposed as text and select entities in the Configuration section. The **Microphone Enabled** switch in Controls turns transmitting on or off. Diagnostics show WiFi signal, Mumble connected status, and ping time. Configure in the Home Assistant UI after the device is added; values persist in NVS. You can also set `initial_value` or `initial_option` in the YAML for first-time defaults.
 
 ## CI
 
