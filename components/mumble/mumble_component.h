@@ -2,6 +2,7 @@
 
 #include <cmath>
 #include "esphome/core/component.h"
+#include "mumble_client.h"
 #include "esphome/components/select/select.h"
 #include "esphome/components/switch/switch.h"
 #include "esphome/components/text/text.h"
@@ -11,6 +12,8 @@
 
 namespace esphome {
 namespace mumble {
+
+class MumbleChannelSelect;
 
 class MumbleComponent : public Component {
  public:
@@ -29,6 +32,7 @@ class MumbleComponent : public Component {
   void set_username_text(text::Text *t) { username_text_ = t; }
   void set_password_text(text::Text *t) { password_text_ = t; }
   void set_channel_text(text::Text *t) { channel_text_ = t; }
+  void set_channel_select(MumbleChannelSelect *s) { channel_select_ = s; }
   void set_mode_select(select::Select *s) { mode_select_ = s; }
   void set_microphone_switch(switch_::Switch *s) { microphone_switch_ = s; }
 
@@ -44,6 +48,8 @@ class MumbleComponent : public Component {
   uint8_t get_mode() const;
 
   void trigger_ptt();  // for ptt_pin: press-and-hold to talk (future)
+  void join_channel_by_id(uint32_t channel_id);
+  void reset_config();  // Reset all config entities to defaults (diagnostic)
 
   void setup() override;
   void loop() override;
@@ -69,12 +75,31 @@ class MumbleComponent : public Component {
   text::Text *username_text_{nullptr};
   text::Text *password_text_{nullptr};
   text::Text *channel_text_{nullptr};
+  MumbleChannelSelect *channel_select_{nullptr};
   select::Select *mode_select_{nullptr};
   switch_::Switch *microphone_switch_{nullptr};
 
   bool microphone_enabled_{false};  // explicit on/off; distinct from PTT (press-and-hold)
-  bool connected_{false};   // future: set by connection logic
-  float ping_ms_{NAN};      // future: set by ping logic
+  bool connected_{false};
+  float ping_ms_{NAN};
+
+  MumbleClient client_;
+  std::string last_server_;
+  uint16_t last_port_{0};
+  std::string last_username_;
+  std::string last_password_;
+  std::string last_channel_;
+  bool config_tracked_{false};
+  std::vector<std::string> channel_option_strings_;
+  std::vector<uint32_t> channel_option_ids_;
+  FixedVector<const char *> channel_option_ptrs_;
+  size_t last_channel_count_{0};
+  uint32_t last_current_channel_id_{0};
+
+  std::string get_mac_based_username() const;
+  void seed_username_default_if_empty();
+  void publish_empty_text_defaults();
+  void update_channel_select();
 };
 
 template<typename... Ts>
@@ -96,6 +121,13 @@ class MumblePttPressAction : public Action<Ts...>, public Parented<MumbleCompone
  public:
   explicit MumblePttPressAction(MumbleComponent *parent) { this->set_parent(parent); }
   void play(Ts... x) override { this->parent_->trigger_ptt(); }  // press-and-hold PTT
+};
+
+template<typename... Ts>
+class MumbleResetConfigAction : public Action<Ts...>, public Parented<MumbleComponent> {
+ public:
+  explicit MumbleResetConfigAction(MumbleComponent *parent) { this->set_parent(parent); }
+  void play(Ts... x) override { this->parent_->reset_config(); }
 };
 
 }  // namespace mumble

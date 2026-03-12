@@ -75,21 +75,24 @@ The following settings are exposed as Home Assistant entities and can be changed
 
 | Entity | Type | Description |
 |---|---|---|
-| Mumble Server Host | Text | Hostname or IP of the Mumble server |
-| Mumble Server Port | Text | Server port (default 64738, displays as integer) |
-| Username | Text | Mumble username for this device |
-| Password | Text | Server or user password |
-| Default Channel | Text | Channel to join on connect |
-| Mumble Mode | Select | **Always on** or **Push to talk** (persisted across reboots) |
+| Server | Text | Hostname or IP of the Mumble server |
+| Port | Text | Server port (default 64738, displays as integer) |
+| Username | Text | Mumble username; defaults to `esp32-<MAC>` on first run (user can overwrite) |
+| Password | Text | Server or user password; no default |
+| Channel | Text | Channel to join on connect (empty = root; case-insensitive match) |
+| Mode | Select | **Always on** or **Push to talk** (persisted across reboots) |
 | Microphone Enabled | Switch | Explicitly enable or disable transmitting (Controls section) |
+
+Changing server, port, username, password, or channel forces an immediate reconnect to the Mumble server.
 
 ### Home Assistant Diagnostics
 
 | Entity | Type | Description |
 |---|---|---|
 | WiFi Signal | Sensor | WiFi RSSI in dBm |
-| Mumble Connected | Binary Sensor | Whether connected to the Mumble server (future) |
-| Mumble Ping | Sensor | Round-trip ping time to server in ms (future) |
+| Mumble Connected | Binary Sensor | Whether connected to the Mumble server |
+| Mumble Ping | Sensor | Round-trip ping time to server in ms |
+| Reset Config | Button | Restore server, port, username, password, channel, mode, and mic to defaults |
 
 ### Home Assistant Runtime Entities
 

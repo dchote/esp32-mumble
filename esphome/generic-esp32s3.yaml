@@ -37,6 +37,7 @@ text:
   - platform: template
     id: mumble_server_host
     name: "1. Server"
+    icon: "mdi:server-network"
     entity_category: config
     mode: text
     optimistic: true
@@ -46,6 +47,7 @@ text:
   - platform: template
     id: mumble_server_port
     name: "2. Port"
+    icon: "mdi:ethernet"
     entity_category: config
     mode: text
     optimistic: true
@@ -55,34 +57,38 @@ text:
   - platform: template
     id: mumble_username
     name: "3. Username"
+    icon: "mdi:account"
     entity_category: config
     mode: text
     optimistic: true
     restore_value: true
-    initial_value: "esp32-intercom"
+    initial_value: ""  # Seeded with esp32-<MAC> at setup; user can overwrite
     max_length: 128
   - platform: template
     id: mumble_password
     name: "4. Password"
+    icon: "mdi:key"
     entity_category: config
     mode: password
     optimistic: true
     restore_value: true
-    initial_value: ""
+    initial_value: ""  # Component publishes empty default at setup (avoids HA "unknown")
     max_length: 128
   - platform: template
-    id: mumble_default_channel
+    id: mumble_channel
     name: "5. Channel"
+    icon: "mdi:forum"
     entity_category: config
     mode: text
     optimistic: true
     restore_value: true
-    initial_value: ""
+    initial_value: ""  # Component publishes empty default at setup (avoids HA "unknown")
     max_length: 128
 select:
   - platform: template
     id: mumble_mode
     name: "6. Mode"
+    icon: "mdi:microphone-settings"
     entity_category: config
     optimistic: true
     restore_value: true
@@ -92,14 +98,24 @@ select:
       - "push_to_talk"
 
 # Diagnostics section (HA device page)
+button:
+  - platform: template
+    name: "Reset Config"
+    id: mumble_reset_config
+    icon: "mdi:restore"
+    entity_category: diagnostic
+    on_press:
+      - mumble.reset_config: mumble_client
 sensor:
   - platform: wifi_signal
     name: "WiFi Signal"
+    icon: "mdi:wifi"
     entity_category: diagnostic
     update_interval: 60s
   - platform: template
     name: "Mumble Ping"
     id: mumble_ping_sensor
+    icon: "mdi:lan"
     entity_category: diagnostic
     unit_of_measurement: "ms"
     device_class: duration
@@ -111,6 +127,7 @@ binary_sensor:
   - platform: template
     name: "Mumble Connected"
     id: mumble_connected_sensor
+    icon: "mdi:connection"
     entity_category: diagnostic
     device_class: connectivity
     lambda: |-
@@ -137,7 +154,7 @@ external_components:
 
 mumble:
   id: mumble_client
-  server: ""
+  server: "192.168.1.100"  # Fallback when text entity not yet synced
   port: 64738
   username: ""
   password: ""
@@ -146,7 +163,7 @@ mumble:
   port_text_id: mumble_server_port
   username_text_id: mumble_username
   password_text_id: mumble_password
-  channel_text_id: mumble_default_channel
+  channel_text_id: mumble_channel
   mode_select_id: mumble_mode
   microphone_switch_id: mumble_microphone_enabled
   mode: always_on

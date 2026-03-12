@@ -61,14 +61,14 @@ See the full documentation:
 ## Quick Start
 
 ```bash
-# Clone, then set Wi‑Fi in esphome/generic-esp32s3.yaml; optionally set initial_value for Mumble server/username
+# Clone, then set Wi‑Fi in esphome/secrets.yaml; optionally set initial_value for Mumble server
 esphome compile esphome/generic-esp32s3.yaml
 esphome run esphome/generic-esp32s3.yaml --device /dev/ttyUSB0
 ```
 
 See [docs/build.md](docs/build.md) for full build and flash instructions.
 
-Configure Mumble server, port, username, password, channel, and mode (always-on / push-to-talk) from the Home Assistant UI after adding the device; values persist in NVS. Use the **Microphone Enabled** switch in HA to enable or disable transmitting. Example config uses text and select entities (`server_text_id`, `port_text_id`, `mode_select_id`, etc.) plus `microphone_switch_id`; see `esphome/generic-esp32s3.yaml` for the full pattern.
+Configure Mumble server, port, username, password, channel, and mode from the Home Assistant UI after adding the device; values persist in NVS. Username defaults to `esp32-<MAC>`; you can overwrite it. Changing server, username, password, or channel forces a reconnect. Use the **Microphone Enabled** switch to enable or disable transmitting. The **Reset Config** button in Diagnostics restores all settings to defaults. See `esphome/generic-esp32s3.yaml` for the full pattern.
 
 ## Project Structure
 

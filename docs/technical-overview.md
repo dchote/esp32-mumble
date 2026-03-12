@@ -62,7 +62,7 @@ ESP32                                         go-mumble-server
   │◄──► TCP Ping (keepalive) ◄────────────────────►│
 ```
 
-**Channel changes** are performed by sending a `UserState` message (type 9) with the new `channel_id`. The `select.mumble_channel` entity drives this when the user switches channels in Home Assistant.
+**Channel selection** — The client joins the channel specified in the Channel text entity. Changing the channel in HA forces a reconnect; the new channel name is matched case-insensitively (e.g. `root` matches `Root`).
 
 ### Crypto Modes
 
@@ -223,7 +223,9 @@ components/
     mumble_varint.h      # Varint encode/decode
 ```
 
-The component is loaded as an ESPHome external component. Connection settings (server, port, username, password, channel) can be inline or referenced from text entities; mode (always_on / push_to_talk) can be set in YAML or via an optional select entity. All HA-linked values are editable in the HA UI and persisted to NVS. Use the **Microphone Enabled** switch with `mumble.microphone_enable` and `mumble.microphone_disable` for explicit on/off control. The `mumble.ptt_press` action is for the physical PTT button (press-and-hold).
+The component is loaded as an ESPHome external component. Connection settings (server, port, username, password, channel) can be inline or referenced from text entities; mode (always_on / push_to_talk) can be set in YAML or via an optional select entity. Username defaults to `esp32-<MAC>` on first run if not set; password has no default. All HA-linked values are editable in the HA UI and persisted to NVS. Changing server, username, password, or channel forces a reconnect. Use the **Microphone Enabled** switch with `mumble.microphone_enable` and `mumble.microphone_disable` for explicit on/off control. The `mumble.ptt_press` action is for the physical PTT button (press-and-hold). The `mumble.reset_config` action resets all config entities to defaults.
+
+**Empty-state "unknown" workaround** — ESPHome's `TemplateText::setup()` only calls `publish_state()` when the restored/initial value is non-empty. Text entities with `initial_value: ""` (or omitted) never get a state published, so Home Assistant displays them as "unknown". The Mumble component works around this by calling `publish_empty_text_defaults()` during `setup()`, which force-publishes an empty string for any text entity that still has `has_state() == false`. Always use `initial_value: ""` in the YAML (not omitted) so the intent is clear, and rely on the component to publish the state.
 
 ```yaml
 external_components:
@@ -315,7 +317,7 @@ mumble:
 | `text.mumble_password` | `text` | Password (mode: password) |
 | `text.mumble_default_channel` | `text` | Channel to join on connect |
 
-When a configuration entity is changed in HA, the new value is written to NVS and the client reconnects with the updated settings. YAML values serve as initial defaults that are overridden once HA values are set.
+When server, username, password, or channel is changed in HA, the client disconnects immediately and reconnects with the new settings. YAML values serve as initial defaults that are overridden once HA values are set. Channel name lookup is case-insensitive (e.g. `root` matches `Root`).
 
 **Controls**:
 
@@ -328,8 +330,9 @@ When a configuration entity is changed in HA, the new value is written to NVS an
 | Entity ID | Platform | Description |
 |-----------|----------|-------------|
 | `sensor.wifi_signal` | `sensor` | WiFi RSSI (dBm) |
-| `binary_sensor.mumble_connected` | `binary_sensor` | Connected to Mumble server (future) |
-| `sensor.mumble_ping` | `sensor` | Round-trip ping time to server in ms (future) |
+| `binary_sensor.mumble_connected` | `binary_sensor` | Connected to Mumble server |
+| `sensor.mumble_ping` | `sensor` | Round-trip ping time to server in ms |
+| `button.mumble_reset_config` | `button` | Reset all config to defaults (server, port, username, password, channel, mode) |
 
 **Runtime entities** -- reflect live state (planned; not yet implemented):
 

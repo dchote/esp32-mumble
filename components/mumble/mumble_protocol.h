@@ -2,6 +2,8 @@
 
 #include <cstdint>
 #include <cstddef>
+#include <string>
+#include <vector>
 
 namespace esphome {
 namespace mumble {
@@ -53,6 +55,23 @@ bool read_tcp_header(const uint8_t *buf, size_t len, uint16_t *out_type,
 
 // Write TCP packet header into buf. Returns bytes written (always 6).
 size_t write_tcp_header(uint8_t *buf, uint16_t type, uint32_t payload_len);
+
+// --- Protobuf wire encoder (append to vector) ---
+void proto_append_tag(std::vector<uint8_t> &out, int field_num, int wire_type);
+void proto_append_varint(std::vector<uint8_t> &out, uint64_t value);
+void proto_append_fixed32(std::vector<uint8_t> &out, uint32_t value);
+void proto_append_string(std::vector<uint8_t> &out, int field_num, const std::string &s);
+void proto_append_bytes(std::vector<uint8_t> &out, int field_num, const uint8_t *data, size_t len);
+void proto_append_bool(std::vector<uint8_t> &out, int field_num, bool value);
+
+// --- Protobuf wire decoder (read from buffer) ---
+// Returns bytes consumed, or 0 on error/buffer too short.
+int proto_read_varint(const uint8_t *buf, size_t len, uint64_t *out_value);
+int proto_read_tag(const uint8_t *buf, size_t len, int *out_field_num, int *out_wire_type);
+int proto_read_length_delimited(const uint8_t *buf, size_t len, const uint8_t **out_data,
+                                size_t *out_data_len);
+uint32_t proto_read_fixed32(const uint8_t *buf);  // caller must ensure len >= 4
+int proto_skip_field(const uint8_t *buf, size_t len, int wire_type);
 
 }  // namespace mumble
 }  // namespace esphome

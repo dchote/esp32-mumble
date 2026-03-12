@@ -10,6 +10,7 @@ from esphome import automation
 from esphome.automation import maybe_simple_id
 import esphome.codegen as cg
 import esphome.config_validation as cv
+from esphome.core import CORE
 from esphome import pins
 from esphome.components import select, switch, text
 from esphome.const import CONF_ID, CONF_PORT, CONF_PASSWORD, CONF_CHANNEL
@@ -39,6 +40,7 @@ CONF_LEGACY = "legacy"
 
 mumble_ns = cg.esphome_ns.namespace("mumble")
 MumbleComponent = mumble_ns.class_("MumbleComponent", cg.Component)
+MumbleChannelSelect = mumble_ns.class_("MumbleChannelSelect", select.Select, cg.Component)
 
 MUMBLE_MODE = {
     CONF_ALWAYS_ON: 0,
@@ -60,10 +62,22 @@ def _validate_connection_config(config):
     return config
 
 
+CONF_CHANNEL_SELECT_ID = "channel_select_id"
+CONF_CHANNEL_SELECT = "channel_select"
+
+CHANNEL_SELECT_SCHEMA = cv.Schema(
+    {
+        cv.GenerateID(CONF_CHANNEL_SELECT_ID): cv.declare_id(MumbleChannelSelect),
+        cv.Optional("name", default="5. Channel"): cv.string,
+        cv.Optional("icon", default="mdi:forum"): cv.icon,
+    }
+)
+
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(MumbleComponent),
+            cv.Optional(CONF_CHANNEL_SELECT): CHANNEL_SELECT_SCHEMA,
             cv.Optional(CONF_SERVER, default=""): cv.string,
             cv.Optional(CONF_PORT, default=64738): cv.port,
             cv.Optional(CONF_USERNAME, default=""): cv.string,
@@ -91,6 +105,9 @@ CONFIG_SCHEMA = cv.All(
 
 
 async def to_code(config):
+    if CORE.is_esp32 and CORE.using_arduino:
+        cg.add_library("WiFi", None)
+        cg.add_library("NetworkClientSecure", None)
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
 
@@ -117,6 +134,17 @@ async def to_code(config):
     if CONF_CHANNEL_TEXT in config:
         channel_text = await cg.get_variable(config[CONF_CHANNEL_TEXT])
         cg.add(var.set_channel_text(channel_text))
+
+    if CONF_CHANNEL_SELECT in config:
+        chan_conf = config[CONF_CHANNEL_SELECT]
+        chan_sel = cg.new_Pvariable(chan_conf[CONF_CHANNEL_SELECT_ID])
+        await cg.register_component(chan_sel, config)
+        cg.add(cg.App.register_select(chan_sel))
+        cg.add(chan_sel.set_parent(var))
+        cg.add(chan_sel.set_name(chan_conf.get("name", "5. Channel")))
+        cg.add(chan_sel.set_entity_category(cg.EntityCategory.ENTITY_CATEGORY_CONFIG))
+        cg.add(chan_sel.set_icon(chan_conf.get("icon", "mdi:chat")))
+        cg.add(var.set_channel_select(chan_sel))
     if CONF_MODE_SELECT in config:
         mode_select = await cg.get_variable(config[CONF_MODE_SELECT])
         cg.add(var.set_mode_select(mode_select))
@@ -147,6 +175,9 @@ MumbleMicrophoneDisableAction = mumble_ns.class_(
 MumblePttPressAction = mumble_ns.class_(
     "MumblePttPressAction", automation.Action
 )
+MumbleResetConfigAction = mumble_ns.class_(
+    "MumbleResetConfigAction", automation.Action
+)
 
 
 @automation.register_action(
@@ -175,5 +206,15 @@ async def mumble_microphone_disable_to_code(config, action_id, template_arg, arg
     MUMBLE_ACTION_SCHEMA,
 )
 async def mumble_ptt_press_to_code(config, action_id, template_arg, args):
+    var = await cg.get_variable(config[CONF_ID])
+    return cg.new_Pvariable(action_id, template_arg, var)
+
+
+@automation.register_action(
+    "mumble.reset_config",
+    MumbleResetConfigAction,
+    MUMBLE_ACTION_SCHEMA,
+)
+async def mumble_reset_config_to_code(config, action_id, template_arg, args):
     var = await cg.get_variable(config[CONF_ID])
     return cg.new_Pvariable(action_id, template_arg, var)
