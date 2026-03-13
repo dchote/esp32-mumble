@@ -2,7 +2,7 @@
 
 An ESP32-S3 Mumble voice chat client for ESPHome, turning microcontroller boards into always-on intercoms and push-to-talk devices.
 
-> **Status: Alpha** -- Voice receive and transmit implemented. Legacy (default) and Lite crypto and HA integration working. Tested with go-mumble-server. **Voice transmit is not 100%**: UDP path works for pings; server may not yet have a valid UDP route for the device (`SendAudio no UDP path`); voice may fall back to TCP tunnel. **All board configs use Arduino framework** (ESP-IDF/lwIP unicast UDP has known issues; ESP-IDF support will be restored after Arduino validation).
+> **Status: Voice-functional alpha** — Voice receive and transmit working. Legacy (default) and Lite crypto, HA integration. Tested with go-mumble-server. **Box and Box-3** use ESP-IDF with lwIP netconn for UDP. **Generic and Atom Echo** use Arduino. UDP when active; TCP tunnel fallback when UDP unreachable.
 
 ## What Is This?
 
@@ -24,8 +24,8 @@ The firmware runs as an [ESPHome](https://esphome.io/) external component, integ
 
 | Board | Framework | Mic | Speaker | Highlights |
 |---|---|---|---|---|
-| ESP32-S3 Box | Arduino | ES7210 mic array | ES8311 DAC | UDP voice working |
-| ESP32-S3 Box 3 | Arduino | ES7210 mic array | ES8311 DAC | Same as Box; pin differences |
+| ESP32-S3 Box | ESP-IDF | ES7210 mic array | ES8311 DAC | lwIP netconn UDP |
+| ESP32-S3 Box 3 | ESP-IDF | ES7210 mic array | ES8311 DAC | Same as Box; pin differences |
 | Onju Voice | Arduino | SPH0645 I2S | MAX98357A I2S | Nest Mini form factor, touch, LEDs |
 | M5Stack Atom Echo | Arduino | PDM mic | External DAC | Compact |
 | Generic ESP32-S3 | Arduino | Any I2S mic | Any I2S DAC/amp | User-defined pins |
@@ -61,10 +61,12 @@ See the full documentation:
 ## Quick Start
 
 ```bash
-# Clone, then set Wi‑Fi in esphome/secrets.yaml; optionally set initial_value for Mumble server
-esphome compile esphome/generic-esp32s3.yaml
-esphome run esphome/generic-esp32s3.yaml --device /dev/ttyUSB0
+# Clone, set Wi‑Fi in esphome/secrets.yaml; optionally set Mumble server in YAML
+esphome compile esphome/esp32-s3-box.yaml   # Box: ESP-IDF; or generic-esp32s3.yaml for Arduino
+esphome run esphome/esp32-s3-box.yaml --device /dev/ttyUSB0
 ```
+
+For Box/Box-3 (ESP-IDF): first flash must be via USB, not OTA.
 
 See [docs/build.md](docs/build.md) for full build and flash instructions.
 
@@ -98,7 +100,6 @@ esp32-mumble/
 │   ├── generic-esp32s3.yaml
 │   ├── m5stack-atom-echo.yaml
 │   └── secrets.example.yaml
-├── .github/workflows/   # CI (build.yml)
 ├── README.md
 └── LICENSE
 ```

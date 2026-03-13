@@ -4,7 +4,7 @@
 
 Combines the voice capture pipeline, ESP-IDF migration, and network/socket standardization into a single reference. Implements the full microphone-to-network transmit path with dual backend support (Arduino and ESP-IDF), portable IP handling, and UDP diagnostics for ESP-IDF debugging.
 
-**Current status (2025-03)**: **ESP32-S3 Box and Box-3** use ESP-IDF with lwIP **netconn** API for UDP. Generic, M5Stack Atom Echo, and others use Arduino (WiFiUDP). Voice transmit uses UDP when active; TCP tunnel fallback when UDP unreachable.
+**Current status (voice-functional alpha, 2025-03)**: **ESP32-S3 Box and Box-3** use ESP-IDF with lwIP **netconn** API for UDP. Generic, M5Stack Atom Echo, and others use Arduino (WiFiUDP). Voice transmit uses UDP when active; TCP tunnel fallback when UDP unreachable.
 
 ---
 

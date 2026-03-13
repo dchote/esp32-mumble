@@ -34,8 +34,8 @@ Or use the build script:
 
 ```bash
 ./scripts/build.sh generic    # generic ESP32-S3 (Arduino)
-./scripts/build.sh box        # ESP32-S3 Box (Arduino, requires 2025.5.0+)
-./scripts/build.sh box3       # ESP32-S3 Box 3 (Arduino)
+./scripts/build.sh box        # ESP32-S3 Box (ESP-IDF, lwIP netconn, requires 2025.5.0+)
+./scripts/build.sh box3       # ESP32-S3 Box 3 (ESP-IDF, lwIP netconn)
 ./scripts/build.sh all        # all configs
 ```
 
@@ -43,8 +43,8 @@ Or via Makefile:
 
 ```bash
 make build                    # default: generic
-make CONFIG=box build         # ESP32-S3 Box (Arduino)
-make CONFIG=box3 build        # ESP32-S3 Box 3 (Arduino)
+make CONFIG=box build         # ESP32-S3 Box (ESP-IDF)
+make CONFIG=box3 build        # ESP32-S3 Box 3 (ESP-IDF)
 make all
 ```
 
@@ -69,10 +69,6 @@ On macOS the port is typically `/dev/cu.usbmodem*`.
 
 - **Wi‑Fi** (required before compile): Add `esphome/secrets.yaml` with `wifi_ssid` and `wifi_password`, or edit the `wifi` section in the YAML directly. The example configs use `!secret` references.
 - **Mumble**: Server, port, username, password, channel, mode (always-on / push-to-talk), and crypto (default: **Legacy**; or **Lite** for trusted LAN) are exposed as config entities. Username defaults to `esp32-<MAC>`. Changing server, username, password, channel, or crypto forces a reconnect. **Speaker Volume** controls output and persists across reboots; microphone is controlled via physical button wiring. On Box/Box-3, **Speaker Power** toggles the hardware amplifier (GPIO46). Diagnostics include WiFi signal, Mumble connected, ping, and **Reset Config**. **Voice Received** appears under Sensors. All values persist in NVS and are restored on boot.
-
-## CI
-
-The [`.github/workflows/build.yml`](../.github/workflows/build.yml) workflow builds both configs when run manually (Actions → Build → Run workflow). It uses the [esphome/workflows](https://github.com/esphome/workflows) reusable workflow.
 
 ## Dependencies
 

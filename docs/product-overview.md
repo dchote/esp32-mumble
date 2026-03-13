@@ -26,13 +26,13 @@ Each device appears in Home Assistant as an ESPHome node with configurable entit
 
 ## Target Hardware
 
-| Board | Microphone | Speaker/DAC | Notes |
-|---|---|---|---|
-| **ESP32-S3 Box 3** | ES7210 4-ch mic array | ES8311 DAC | Mic array enables beamforming; I2C codec control |
-| **ESP32-S3 Box** | ES7210 4-ch mic array | ES8311 DAC | Older revision of Box 3 |
-| **Onju Voice** | SPH0645 I2S mic | MAX98357A I2S amp | Drop-in Google Nest Mini replacement; touch, LEDs, mute switch |
-| **M5Stack Atom Echo** | PDM microphone | External I2S DAC | Compact form factor |
-| **Generic ESP32-S3** | Any I2S microphone | Any I2S amplifier/DAC | User-defined pin configuration |
+| Board | Framework | Microphone | Speaker/DAC | Notes |
+|---|---|---|---|---|
+| **ESP32-S3 Box 3** | ESP-IDF | ES7210 4-ch mic array | ES8311 DAC | lwIP netconn UDP; I2C codec control |
+| **ESP32-S3 Box** | ESP-IDF | ES7210 4-ch mic array | ES8311 DAC | Older revision of Box 3 |
+| **Onju Voice** | Arduino | SPH0645 I2S mic | MAX98357A I2S amp | Drop-in Google Nest Mini replacement; touch, LEDs, mute switch |
+| **M5Stack Atom Echo** | Arduino | PDM microphone | External I2S DAC | Compact form factor |
+| **Generic ESP32-S3** | Arduino | Any I2S microphone | Any I2S amplifier/DAC | User-defined pin configuration |
 
 All targets require an ESP32-S3 with PSRAM and Wi-Fi. The S3's dual-core architecture is needed for simultaneous audio encode/decode and network I/O.
 

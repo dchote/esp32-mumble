@@ -30,7 +30,7 @@
 
 The ESP32-S3 device maintains two network connections:
 
-1. **Mumble server** — TCP/TLS for control messages and UDP for voice packets (Lite: cleartext; Legacy: OCB2-AES128), both on port 64738. *Voice transmit:* UDP pings work; server UDP path to the device may be incomplete (`SendAudio no UDP path`); voice falls back to TCP tunnel when needed.
+1. **Mumble server** — TCP/TLS for control messages and UDP for voice packets (Lite: cleartext; Legacy: OCB2-AES128), both on port 64738. UDP voice works on Box/Box-3 (ESP-IDF netconn); TCP tunnel fallback when UDP unreachable.
 2. **Home Assistant** -- ESPHome native API for entity state, configuration, and OTA updates.
 
 ## Mumble Protocol
