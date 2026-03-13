@@ -1,5 +1,7 @@
 .cursor
 .DS_Store
+__pycache__/
+*.pyc
 research/
 # Prerequisites
 *.d

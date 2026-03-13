@@ -49,6 +49,42 @@ int OpusAudioDecoder::decode_lost(int16_t *out_pcm, int max_samples) {
   return n;
 }
 
+// --- OpusAudioEncoder ---
+
+bool OpusAudioEncoder::init(int sample_rate, int channels) {
+  destroy();
+  sample_rate_ = sample_rate;
+  channels_ = channels;
+  int err = 0;
+  OpusEncoder *enc = opus_encoder_create(sample_rate, channels, OPUS_APPLICATION_VOIP, &err);
+  if (enc == nullptr || err != OPUS_OK) {
+    ESP_LOGE(TAG, "opus_encoder_create failed: %d", err);
+    return false;
+  }
+  encoder_ = enc;
+  opus_encoder_ctl(static_cast<OpusEncoder *>(encoder_), OPUS_SET_BITRATE(16000));
+  opus_encoder_ctl(static_cast<OpusEncoder *>(encoder_), OPUS_SET_COMPLEXITY(1));
+  opus_encoder_ctl(static_cast<OpusEncoder *>(encoder_), OPUS_SET_VBR(1));
+  opus_encoder_ctl(static_cast<OpusEncoder *>(encoder_), OPUS_SET_DTX(1));
+  ESP_LOGI(TAG, "Opus encoder init %dHz mono", sample_rate);
+  return true;
+}
+
+void OpusAudioEncoder::destroy() {
+  if (encoder_ != nullptr) {
+    opus_encoder_destroy(static_cast<OpusEncoder *>(encoder_));
+    encoder_ = nullptr;
+  }
+}
+
+int OpusAudioEncoder::encode(const int16_t *pcm, size_t samples, uint8_t *out, size_t max_out) {
+  if (encoder_ == nullptr || out == nullptr || pcm == nullptr) return -1;
+  if (samples != FRAME_SAMPLES || max_out < MAX_PAYLOAD_BYTES) return -1;
+  int n = opus_encode(static_cast<OpusEncoder *>(encoder_),
+                      pcm, static_cast<int>(samples), out, static_cast<opus_int32>(max_out));
+  return n;
+}
+
 // --- JitterBuffer ---
 
 void JitterBuffer::init(size_t capacity_frames) {
@@ -117,33 +153,6 @@ size_t JitterBuffer::pop(int16_t *out_pcm, size_t max_samples) {
 
 bool JitterBuffer::has_playout_ready() const {
   return buffered_ >= target_depth_;
-}
-
-// --- AudioMixer ---
-
-void AudioMixer::reset() {
-  memset(acc_, 0, sizeof(acc_));
-  max_used_ = 0;
-}
-
-void AudioMixer::mix_in(const int16_t *src, size_t samples) {
-  if (src == nullptr || samples > MAX_SAMPLES) return;
-  for (size_t i = 0; i < samples; i++) {
-    acc_[i] += src[i];
-  }
-  if (samples > max_used_) max_used_ = samples;
-}
-
-void AudioMixer::get_mixed(int16_t *out, size_t samples) {
-  if (out == nullptr || samples > MAX_SAMPLES) return;
-  for (size_t i = 0; i < samples; i++) {
-    int32_t v = acc_[i];
-    if (v > 32767) v = 32767;
-    if (v < -32768) v = -32768;
-    out[i] = static_cast<int16_t>(v);
-  }
-  memset(acc_, 0, max_used_ * sizeof(int32_t));
-  max_used_ = 0;
 }
 
 // --- EsphomeSpeakerSink ---

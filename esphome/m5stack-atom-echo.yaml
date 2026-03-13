@@ -10,7 +10,7 @@ substitutions:
 esphome:
   name: ${name}
   name_add_mac_suffix: true
-  min_version: "2024.1.0"
+  min_version: "2025.5.0"
   on_boot:
     priority: -100
     then:
@@ -20,10 +20,6 @@ esphome:
             float vol = id(mumble_speaker_volume).state;
             if (isnan(vol)) vol = 80;
             return vol / 100.0f;
-      - lambda: |-
-          if (id(mumble_microphone_enabled).state) {
-            id(mumble_client).set_microphone_enabled(true);
-          }
   platformio_options:
     build_flags:
       - -Wno-cpp
@@ -34,7 +30,9 @@ esp32:
   cpu_frequency: 240MHz
   framework:
     type: arduino
-    sdkconfig_options: {}
+    sdkconfig_options:
+      CONFIG_ESP_TLS_INSECURE: "y"
+      CONFIG_ESP_TLS_SKIP_SERVER_CERT_VERIFY: "y"
 
 wifi:
   networks:
@@ -68,6 +66,13 @@ binary_sensor:
     lambda: |-
       return id(mumble_client).get_voice_active();
   - platform: template
+    name: "Voice Sending"
+    id: mumble_voice_sending
+    icon: "mdi:microphone"
+    device_class: running
+    lambda: |-
+      return id(mumble_client).get_voice_sending();
+  - platform: template
     name: "Mumble Connected"
     id: mumble_connected_sensor
     icon: "mdi:connection"
@@ -81,6 +86,15 @@ i2s_audio:
   - id: i2s_audio_bus
     i2s_lrclk_pin: GPIO33
     i2s_bclk_pin: GPIO19
+
+microphone:
+  - platform: i2s_audio
+    id: echo_microphone
+    i2s_din_pin: GPIO23
+    adc_type: external
+    pdm: true
+    sample_rate: 16000
+    correct_dc_offset: true
 
 speaker:
   - platform: i2s_audio
@@ -215,20 +229,6 @@ number:
           id: echo_speaker
           volume: !lambda 'return x / 100.0;'
 
-# Microphone enabled/disabled (Controls section) - explicit on/off
-# Atom Echo has no separate Speaker Enable GPIO
-switch:
-  - platform: template
-    name: "Microphone Enabled"
-    id: mumble_microphone_enabled
-    icon: "mdi:microphone"
-    optimistic: true
-    restore_mode: RESTORE_DEFAULT_OFF
-    turn_on_action:
-      - mumble.microphone_enable: mumble_client
-    turn_off_action:
-      - mumble.microphone_disable: mumble_client
-
 external_components:
   - source:
       type: local
@@ -248,7 +248,7 @@ mumble:
   channel_text_id: mumble_channel
   mode_select_id: mumble_mode
   crypto_select_id: mumble_crypto
-  microphone_switch_id: mumble_microphone_enabled
+  microphone_id: echo_microphone
   speaker_id: echo_speaker
   mode: always_on
   crypto: legacy

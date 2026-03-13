@@ -2,8 +2,7 @@
 
 #include "mumble_messages.h"
 #include "mumble_protocol.h"
-#include <Arduino.h>
-#include <WiFiClientSecure.h>
+#include "mumble_socket.h"
 #include <cstdint>
 #include <functional>
 #include <string>
@@ -40,7 +39,12 @@ enum class ConnectionState {
 class MumbleClient {
  public:
   MumbleClient() = default;
-  ~MumbleClient() = default;
+  ~MumbleClient() {
+    if (tls_client_ != nullptr) {
+      mumble_free_tls_client(tls_client_);
+      tls_client_ = nullptr;
+    }
+  }
 
   void set_server(const std::string &server) { server_ = server; }
   void set_port(uint16_t port) { port_ = port; }
@@ -58,6 +62,14 @@ class MumbleClient {
 
   float get_ping_rtt_ms() const { return ping_rtt_ms_; }
   uint32_t get_session_id() const { return session_id_; }
+  /** Peer IP (network byte order) from TLS connection; 0 if not connected. Use for UDP to avoid DNS/IP mismatch. */
+  uint32_t get_peer_ip() const {
+    return (tls_client_ != nullptr && is_connected()) ? tls_client_->get_peer_ip() : 0;
+  }
+  /** Local IP (network byte order) from TLS connection; 0 if not connected. Use for UDP bind. */
+  uint32_t get_local_ip() const {
+    return (tls_client_ != nullptr && is_connected()) ? tls_client_->get_local_ip() : 0;
+  }
 
   bool has_crypt_setup() const { return crypt_setup_received_; }
   const std::vector<uint8_t> &get_crypt_key() const { return crypt_key_; }
@@ -95,7 +107,11 @@ class MumbleClient {
     voice_packet_callback_ = std::move(cb);
   }
 
+  /** Send voice packet via TCP UDPTunnel (message type 1). Used when UDP is not active. */
+  bool send_udp_tunnel(const uint8_t *data, size_t len);
+
  private:
+  bool write_all(const uint8_t *buf, size_t len);
   bool send_message(uint16_t type, const uint8_t *payload, size_t payload_len);
   void handle_message(uint16_t type, const uint8_t *payload, size_t len);
   void send_version();
@@ -137,7 +153,7 @@ class MumbleClient {
   uint8_t crypt_negotiated_mode_{0};  // 0=lite, 1=legacy, 2=secure
   bool unknown_crypt_logged_{false};
 
-  WiFiClientSecure tls_client_;
+  TlsClient *tls_client_{nullptr};
   std::vector<uint8_t> recv_buf_;
   static constexpr size_t RECV_BUF_MAX = 16384;
   static constexpr size_t MAX_PAYLOAD_PRACTICAL = 16384;

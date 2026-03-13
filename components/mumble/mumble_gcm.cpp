@@ -92,6 +92,12 @@ bool MumbleCryptStateGcm::decrypt(const uint8_t *src, uint8_t *dst, size_t ciphe
 
   uint64_t counter = read_be64(nonce + 4);
 
+  // Save state before modification so we can restore on auth failure
+  uint64_t save_dec_max = dec_max_;
+  uint8_t save_bitmap[8];
+  memcpy(save_bitmap, dec_bitmap_, sizeof(save_bitmap));
+  uint32_t save_good = good_, save_late = late_, save_lost = lost_;
+
   if (counter <= dec_max_) {
     if (dec_max_ - counter >= DECRYPT_WINDOW) {
       return false;  // Replay or too old
@@ -110,7 +116,6 @@ bool MumbleCryptStateGcm::decrypt(const uint8_t *src, uint8_t *dst, size_t ciphe
       memset(dec_bitmap_, 0, sizeof(dec_bitmap_));
       shift = DECRYPT_WINDOW;
     } else {
-      // Left-shift 64-bit bitmap (big-endian: dec_bitmap_[0] = MSB)
       uint64_t b = (static_cast<uint64_t>(dec_bitmap_[0]) << 56) |
                   (static_cast<uint64_t>(dec_bitmap_[1]) << 48) |
                   (static_cast<uint64_t>(dec_bitmap_[2]) << 40) |
@@ -139,9 +144,13 @@ bool MumbleCryptStateGcm::decrypt(const uint8_t *src, uint8_t *dst, size_t ciphe
   int ret = mbedtls_gcm_auth_decrypt(&ctx_, ct_len, nonce, GCM_NONCE_LEN, nullptr, 0, tag,
                                     GCM_TAG_LEN, ct, dst);
   if (ret != 0) {
-    if (ret == MBEDTLS_ERR_GCM_AUTH_FAILED) {
-      return false;
-    }
+    // Restore replay state on auth failure to prevent forged packets from
+    // poisoning the window (matching the OCB2 save/restore pattern)
+    dec_max_ = save_dec_max;
+    memcpy(dec_bitmap_, save_bitmap, sizeof(dec_bitmap_));
+    good_ = save_good;
+    late_ = save_late;
+    lost_ = save_lost;
     return false;
   }
   return true;

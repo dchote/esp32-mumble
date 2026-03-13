@@ -66,10 +66,10 @@ Default crypto is **Legacy** (OCB2-AES128); **Lite** (cleartext UDP) is optional
 
 ### 9. Boot-Time Settings Restore
 
-ESPHome template entities with `set_action` or `lambda` do not re-fire their actions when NVS values are restored on boot. Without explicit handling, Speaker Volume would default to 100% and Microphone Enabled would always start OFF.
+ESPHome template entities with `set_action` or `lambda` do not re-fire their actions when NVS values are restored on boot. Without explicit handling, Speaker Volume would default to 100%.
 
-- **`on_boot` at priority `-100`**: Runs after all template components have restored NVS values. Applies stored Speaker Volume via `speaker.volume_set` and stored Microphone Enabled via `set_microphone_enabled()`.
-- **Microphone switch**: Changed from polling `lambda` (which read `false` from the freshly-booted component) to `optimistic: true` + `restore_mode: RESTORE_DEFAULT_OFF`. The component's `set_microphone_enabled()` calls `publish_state()` on the switch to keep it in sync after boot.
+- **`on_boot` at priority `-100`**: Runs after all template components have restored NVS values. Applies stored Speaker Volume via `speaker.volume_set`.
+- **Microphone**: Controlled via physical button wiring to `mumble.microphone_enable` / `mumble.microphone_disable`; no switch entity.
 
 ### 10. Voice Received Binary Sensor
 

@@ -1,6 +1,9 @@
 name: Build
 
 on:
+  push:
+    branches: [main]
+  pull_request:
   workflow_dispatch:
 
 concurrency:
@@ -14,5 +17,7 @@ jobs:
     with:
       files: |
         esphome/generic-esp32s3.yaml
+        esphome/esp32-s3-box.yaml
         esphome/esp32-s3-box3.yaml
+        esphome/m5stack-atom-echo.yaml
       esphome-version: "2025.x"

@@ -8,9 +8,9 @@
 #include "mumble_ocb2.h"
 #include "mumble_udp.h"
 #include "mumble_voice.h"
+#include "esphome/components/microphone/microphone.h"
 #include "esphome/components/select/select.h"
 #include "esphome/components/speaker/speaker.h"
-#include "esphome/components/switch/switch.h"
 #include "esphome/components/text/text.h"
 #include "esphome/core/automation.h"
 #include "esphome/core/gpio.h"
@@ -43,7 +43,7 @@ class MumbleComponent : public Component {
   void set_channel_select(MumbleChannelSelect *s) { channel_select_ = s; }
   void set_mode_select(select::Select *s) { mode_select_ = s; }
   void set_crypto_select(select::Select *s) { crypto_select_ = s; }
-  void set_microphone_switch(switch_::Switch *s) { microphone_switch_ = s; }
+  void set_microphone(microphone::Microphone *m) { microphone_ = m; }
   void set_speaker(speaker::Speaker *s) { speaker_ = s; }
 
   bool get_microphone_enabled() const { return microphone_enabled_; }
@@ -51,6 +51,7 @@ class MumbleComponent : public Component {
   bool is_connected() const { return connected_; }
   float get_ping_ms() const { return ping_ms_; }
   bool get_voice_active() const { return voice_active_; }
+  bool get_voice_sending() const { return voice_sending_; }
   std::string get_server() const;
   uint16_t get_port() const;
   std::string get_username() const;
@@ -59,7 +60,7 @@ class MumbleComponent : public Component {
   uint8_t get_mode() const;
   uint8_t get_crypto() const;
 
-  void trigger_ptt();  // for ptt_pin: press-and-hold to talk (future)
+  void trigger_ptt();  // mumble.ptt_press action: toggle mic (or future hold-to-talk via ptt_pin)
   void join_channel_by_id(uint32_t channel_id);
   void reset_config();  // Reset all config entities to defaults (diagnostic)
 
@@ -92,7 +93,6 @@ class MumbleComponent : public Component {
   MumbleChannelSelect *channel_select_{nullptr};
   select::Select *mode_select_{nullptr};
   select::Select *crypto_select_{nullptr};
-  switch_::Switch *microphone_switch_{nullptr};
   speaker::Speaker *speaker_{nullptr};
 
   bool microphone_enabled_{false};  // explicit on/off; distinct from PTT (press-and-hold)
@@ -129,25 +129,59 @@ class MumbleComponent : public Component {
   uint32_t last_current_channel_id_{0};
 
   std::string get_mac_based_username() const;
+  static int32_t frame_rms(const int16_t *pcm, size_t samples);
+  void send_voice_packet(const uint8_t *opus_data, size_t opus_len, bool is_terminator);
   void seed_username_default_if_empty();
   void publish_empty_text_defaults();
   void update_channel_select();
   void on_voice_packet(const uint8_t *data, size_t len);
   void audio_playout();
+  void manage_i2s_bus();
+  void on_microphone_data(const std::vector<uint8_t> &data);
+  bool should_transmit() const;
+  void audio_capture();
+
+  enum class TxState { IDLE, CAPTURING, TRANSMITTING, TAIL };
+  static constexpr size_t CAPTURE_BUF_FRAMES = 8;
+  static constexpr size_t CAPTURE_BUF_SAMPLES = CAPTURE_BUF_FRAMES * OpusAudioEncoder::FRAME_SAMPLES;
+  static constexpr int VAD_ATTACK_FRAMES = 3;
+  static constexpr int VAD_HANGOVER_FRAMES = 15;
+  static constexpr uint32_t ECHO_SUPPRESS_TAIL_MS = 100;
+  static constexpr size_t TX_PACKET_BUF_SIZE = 1024;
+
+  enum class BusOwner : uint8_t { NONE, MIC, SPEAKER };
+  BusOwner bus_owner_{BusOwner::NONE};
+  bool bus_releasing_{false};
+  uint32_t mic_warmup_until_ms_{0};  // Delay before first mic start (fixes toggle-to-start)
+
+  uint8_t opus_payload_buf_[OpusAudioEncoder::MAX_PAYLOAD_BYTES];
+  microphone::Microphone *microphone_{nullptr};
+  TxState tx_state_{TxState::IDLE};
+  OpusAudioEncoder opus_encoder_;
+  int16_t capture_buf_[CAPTURE_BUF_SAMPLES];
+  size_t capture_write_{0};
+  size_t capture_read_{0};
+  size_t capture_used_{0};
+  int vad_voice_frames_{0};
+  int vad_silence_frames_{0};
+  uint64_t tx_sequence_{0};
+  bool voice_sending_{false};
+  uint32_t last_voice_active_ms_{0};
+  uint8_t tx_packet_buf_[TX_PACKET_BUF_SIZE];
 };
 
 template<typename... Ts>
 class MumbleMicrophoneEnableAction : public Action<Ts...>, public Parented<MumbleComponent> {
  public:
   explicit MumbleMicrophoneEnableAction(MumbleComponent *parent) { this->set_parent(parent); }
-  void play(Ts... x) override { this->parent_->set_microphone_enabled(true); }
+  void play(const Ts &...x) override { this->parent_->set_microphone_enabled(true); }
 };
 
 template<typename... Ts>
 class MumbleMicrophoneDisableAction : public Action<Ts...>, public Parented<MumbleComponent> {
  public:
   explicit MumbleMicrophoneDisableAction(MumbleComponent *parent) { this->set_parent(parent); }
-  void play(Ts... x) override { this->parent_->set_microphone_enabled(false); }
+  void play(const Ts &...x) override { this->parent_->set_microphone_enabled(false); }
 };
 
 template<typename... Ts>

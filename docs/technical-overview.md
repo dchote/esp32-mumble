@@ -30,7 +30,7 @@
 
 The ESP32-S3 device maintains two network connections:
 
-1. **Mumble server** — TCP/TLS for control messages and UDP for voice packets (Lite: cleartext; Legacy: OCB2-AES128), both on port 64738.
+1. **Mumble server** — TCP/TLS for control messages and UDP for voice packets (Lite: cleartext; Legacy: OCB2-AES128), both on port 64738. *Voice transmit:* UDP pings work; server UDP path to the device may be incomplete (`SendAudio no UDP path`); voice falls back to TCP tunnel when needed.
 2. **Home Assistant** -- ESPHome native API for entity state, configuration, and OTA updates.
 
 ## Mumble Protocol
@@ -138,7 +138,7 @@ This client uses the **legacy binary format**; the server also supports a modern
 
 ### UDP Ping
 
-UDP connectivity is confirmed by a ping/echo exchange. The client sends a codec-type-1 packet (encrypted in Legacy mode); the server decrypts it, matches the session, and echoes it back. If no echo is received within the timeout, the client falls back to tunneling voice over TCP using UDPTunnel (message type 1). On same-LAN setups, failure to receive the echo typically indicated an OCB2 compatibility bug (resolved: byte layout now matches grumble).
+UDP connectivity is confirmed by a ping/echo exchange. The client sends a codec-type-1 packet (encrypted in Legacy mode); the server decrypts it, matches the session, and echoes it back. If no echo is received within the timeout, the client falls back to tunneling voice over TCP using UDPTunnel (message type 1). **Arduino framework**: UDP works on same-LAN. **ESP-IDF framework**: Unicast UDP packets do not leave the device (known lwIP issue); use Arduino for now.
 
 ### Protocol Reference
 
@@ -150,14 +150,13 @@ The authoritative protocol documentation lives in `research/go-mumble-server/doc
 
 ## Audio Pipeline
 
-### Capture Path (Microphone to Network) — *Not yet implemented*
+### Capture Path (Microphone to Network) — *Implemented*
 
 ```
-I2S Mic ──► DMA Buffer ──► [multi-ch downmix/beamform] ──► AEC ──► Opus Encoder ──► UDP ──► WiFi TX
-  (planned)
+I2S Mic ──► Ring Buffer ──► VAD ──► Echo Suppress ──► Opus Encoder ──► Voice Packet ──► UDP/TCP ──► WiFi TX
 ```
 
-Microphone capture and transmit are not yet implemented. The planned pipeline: I2S capture → downmix/beamforming → AEC (with speaker reference) → Opus encode → Mumble UDP packet framing → send to server.
+Implemented pipeline: ESPHome microphone component → ring buffer → energy-based VAD (threshold 200, 3-frame attack, 15-frame hangover) → echo suppression (TX suppressed while receiving or 100 ms after) → Opus encode (16 kHz mono, 16 kbps) → Mumble UDP voice packet → send via UDP or TCP tunnel fallback. Half-duplex I2S bus management: mic and speaker share the bus; `manage_i2s_bus()` coordinates handoff using `is_stopped()` to avoid "Parent I2S bus not free" errors. A short warmup delay (80 ms) is applied before starting the microphone when transitioning from speaker to mic, to ensure the I2S/ES7210 codec is ready.
 
 ### Playback Path (Network to Speaker) — *Implemented*
 
@@ -191,7 +190,7 @@ In always-on mode the speaker output will be picked up by the microphone, creati
 
 - **ESP-SR AFE**: Espressif's audio front-end library includes AEC, noise suppression, and VAD. Runs on the ESP32-S3's dedicated vector instructions.
 - **ESP-ADF AEC**: The Audio Development Framework provides an AEC pipeline element that can be inserted between I2S capture and the application.
-- **Fallback**: On boards or configurations where AEC is unavailable, the system degrades to push-to-talk only (muting the mic while the speaker is active).
+- **Current implementation**: Half-duplex with echo suppression — when receiving voice (or within 100 ms after), transmit is suppressed. ESPHome's I2S component uses exclusive bus access, so mic and speaker take turns; `manage_i2s_bus()` coordinates the handoff.
 
 ### Microphone Array Support
 
@@ -211,29 +210,32 @@ The pipeline order is: multi-channel capture → beamforming/downmix (to mono) �
 components/
   mumble/
     __init__.py          # ESPHome component registration, YAML schema
-    mumble_component.h   # Main component; settings, microphone switch, PTT
+    mumble_component.h   # Main component; settings, mic/speaker bus management, PTT
     mumble_component.cpp
     mumble_client.h      # MumbleClient C++ class (connection, protocol)
     mumble_client.cpp
+    mumble_socket.h      # Abstract TlsClient and UdpSocket interfaces
+    mumble_socket.cpp    # ESP-IDF backend (esp_tls, lwip) or Arduino backend
     mumble_audio.h       # Audio pipeline (capture, playback, Opus)
     mumble_audio.cpp
     mumble_protocol.h    # Wire format encoding/decoding, message structs
     mumble_protocol.cpp
     mumble_varint.h      # Varint encode/decode
+    mumble_gcm.h/.cpp    # AES-256-GCM for Secure mode (mbedtls)
     mumble_ocb2.h/.cpp   # OCB2-AES128 for Legacy UDP encryption (ported from grumble)
     mumble_udp.h/.cpp    # UDP send/recv, ping, voice packet framing
 ```
 
-The component is loaded as an ESPHome external component. Connection settings (server, port, username, password, channel) can be inline or referenced from text entities; mode (always_on / push_to_talk) can be set in YAML or via an optional select entity. Username defaults to `esp32-<MAC>` on first run if not set; password has no default. All HA-linked values are editable in the HA UI and persisted to NVS. Changing server, username, password, or channel forces a reconnect. Use the **Microphone Enabled** switch with `mumble.microphone_enable` and `mumble.microphone_disable` for explicit on/off control. The `mumble.ptt_press` action is for the physical PTT button (press-and-hold). The `mumble.reset_config` action resets all config entities to defaults.
+**Framework backends**: The component uses a socket abstraction (`TlsClient`, `UdpSocket`) with two backends: **Arduino** (WiFiClientSecure, WiFiUDP) and **ESP-IDF** (esp_tls, lwip sockets). **All board configs currently use Arduino** because ESP-IDF/lwIP has a known issue where unicast UDP packets do not leave the device (send reports success but packets never appear on the wire). Arduino WiFiUDP works correctly. ESP-IDF support will be debugged and restored after Arduino is fully validated.
+
+The component is loaded as an ESPHome external component. Connection settings (server, port, username, password, channel) can be inline or referenced from text entities; mode (always_on / push_to_talk) can be set in YAML or via an optional select entity. Username defaults to `esp32-<MAC>` on first run if not set; password has no default. All HA-linked values are editable in the HA UI and persisted to NVS. Changing server, username, password, or channel forces a reconnect. Wire a physical button to `mumble.microphone_enable` and `mumble.microphone_disable` for mic control (press = on, release = off). The `mumble.ptt_press` action toggles mic state. The `mumble.reset_config` action resets all config entities to defaults.
 
 **Empty-state "unknown" workaround** — ESPHome's `TemplateText::setup()` only calls `publish_state()` when the restored/initial value is non-empty. Text entities with `initial_value: ""` (or omitted) never get a state published, so Home Assistant displays them as "unknown". The Mumble component works around this by calling `publish_empty_text_defaults()` during `setup()`, which force-publishes an empty string for any text entity that still has `has_state() == false`. Always use `initial_value: ""` in the YAML (not omitted) so the intent is clear, and rely on the component to publish the state.
 
-**Boot-time restore of controls** — ESPHome template entities with `set_action` or `lambda` do not re-fire their actions when NVS values are restored on boot. Speaker Volume (template number) and Microphone Enabled (template switch) would lose their saved state without explicit handling. The fix uses two mechanisms:
+**Boot-time restore of controls** — ESPHome template entities with `set_action` or `lambda` do not re-fire their actions when NVS values are restored on boot. Speaker Volume (template number) would lose its saved state without explicit handling. The fix uses two mechanisms:
 
-1. **`on_boot` at priority `-100`** (runs after all template components have restored NVS values): reads the stored Speaker Volume and applies it via `speaker.volume_set`; reads the stored Microphone Enabled state and calls `set_microphone_enabled()` on the component.
+1. **`on_boot` at priority `-100`** (runs after all template components have restored NVS values): reads the stored Speaker Volume and applies it via `speaker.volume_set`.
 2. **`EsphomeSpeakerSink::start()` re-applies volume** — `speaker->set_volume(speaker->get_volume())` after `start()` ensures the DAC register matches the stored volume even if audio hardware re-initializes when the speaker starts.
-
-The Microphone Enabled switch uses `optimistic: true` + `restore_mode: RESTORE_DEFAULT_OFF` instead of a polling lambda, so its NVS state is managed by ESPHome's native switch restore mechanism.
 
 ```yaml
 external_components:
@@ -264,17 +266,8 @@ select:
     restore_value: true
     initial_option: "always_on"
     options: ["always_on", "push_to_talk"]
-switch:
-  - platform: template
-    name: "Microphone Enabled"
-    id: mumble_microphone_enabled
-    optimistic: true
-    restore_mode: RESTORE_DEFAULT_OFF
-    turn_on_action:
-      - mumble.microphone_enable: mumble_client
-    turn_off_action:
-      - mumble.microphone_disable: mumble_client
 
+# Physical button: on_press -> mumble.microphone_enable, on_release -> mumble.microphone_disable
 mumble:
   id: mumble_client
   server: ""              # or inline; if using entities use server_text_id
@@ -286,7 +279,8 @@ mumble:
   port_text_id: mumble_server_port
   # username_text_id, password_text_id, channel_text_id, crypto_select_id ...
   mode_select_id: mumble_mode
-  microphone_switch_id: mumble_microphone_enabled
+  microphone_id: box_mic  # optional; when set, enables transmit
+  speaker_id: box_speaker
   mode: always_on
   mute_pin: GPIO38        # optional hardware mute switch
 ```
@@ -308,11 +302,14 @@ mumble:
 | `password_text_id` | id | none | Text entity for password |
 | `channel_text_id` | id | none | Text entity for default channel |
 | `crypto_select_id` | id | none | Select entity for crypto (`legacy` or `lite`) |
-| `microphone_switch_id` | id | none | Switch entity for Microphone Enabled (Controls) |
-| `ptt_pin` | pin | none | GPIO for push-to-talk button (press-and-hold; required if mode is push_to_talk) |
+| `microphone_id` | id | none | ESPHome microphone component for capture (required for transmit) |
+| `speaker_id` | id | none | ESPHome speaker component for playback |
+| `ptt_pin` | pin | none | GPIO for push-to-talk button (optional; wire button to mumble.microphone_enable/disable in YAML) |
 | `mute_pin` | pin | none | GPIO for hardware mute switch |
 | `crypto` | enum | `legacy` | Crypto mode: `legacy` (default, OCB2-AES128) or `lite` (cleartext UDP). Use `crypto_select_id` for HA entity. Changing crypto forces reconnect. |
-| `ca_cert` | string | (empty) | Optional PEM of CA certificate for server verification. When set, TLS verification is enabled; when empty, `setInsecure()` is used (trusted LAN only). |
+| `ca_cert` | string | (empty) | Optional PEM of CA certificate for server verification. When set, TLS verification is enabled; when empty, insecure mode (trusted LAN only). |
+
+**ESP32-S3 Box / Box-3 (Arduino)** — Both Box configs use `framework: type: arduino`. ESP-IDF backend exists but has UDP issues; use Arduino for development and deployment until ESP-IDF is fixed.
 
 ### Home Assistant Entities
 
@@ -334,7 +331,6 @@ When server, username, password, or channel is changed in HA, the client disconn
 
 | Entity ID | Platform | Description |
 |-----------|----------|-------------|
-| `switch.mumble_microphone_enabled` | `switch` | Microphone Enabled (explicit on/off; persists via NVS) |
 | `number.mumble_speaker_volume` | `number` | Speaker volume 0–100 (persists via NVS; applied on boot) |
 | `switch.speaker_power` | `switch` | Speaker Power — PA enable GPIO46 (Box/Box-3 only; persists) |
 
@@ -345,20 +341,20 @@ When server, username, password, or channel is changed in HA, the client disconn
 | `sensor.wifi_signal` | `sensor` | WiFi RSSI (dBm) |
 | `binary_sensor.mumble_connected` | `binary_sensor` | Connected to Mumble server |
 | `sensor.mumble_ping` | `sensor` | Round-trip ping time to server in ms |
-| `binary_sensor.mumble_voice_active` | `binary_sensor` | Voice Received: true while voice is being received (Sensors) |
+| `binary_sensor.mumble_voice_active` | `binary_sensor` | Voice Received: true while voice is being received |
+| `binary_sensor.mumble_voice_sending` | `binary_sensor` | Voice Sending: true while the device is transmitting |
 | `button.mumble_reset_config` | `button` | Reset all config to defaults (server, port, username, password, channel, mode) |
 
 **Runtime entities**:
 
 | Entity ID | Platform | Status | Description |
 |-----------|----------|--------|-------------|
-| `switch.mumble_microphone_enabled` | `switch` | Implemented | Microphone Enabled (Controls; NVS restore on boot) |
 | `number.mumble_speaker_volume` | `number` | Implemented | Speaker volume 0–100 (NVS restore on boot) |
 | `switch.speaker_power` | `switch` | Implemented | Speaker Power — PA enable (Box/Box-3 only) |
 | `binary_sensor.mumble_connected` | `binary_sensor` | Implemented | Connection status (Diagnostics) |
 | `binary_sensor.mumble_voice_active` | `binary_sensor` | Implemented | Voice Received (Sensors, with Microphone) |
 | `select.mumble_channel` | `select` | Optional | Channel select with server options (`channel_select_id`) |
-| `binary_sensor.mumble_talking` | `binary_sensor` | Planned | Transmitting audio |
+| `binary_sensor.mumble_voice_sending` | `binary_sensor` | Implemented | Voice Sending: true while transmitting |
 
 ## Hardware Abstraction
 
@@ -377,7 +373,8 @@ Board-specific details (pin assignments, codec I2C addresses, I2S parameters) ar
 - DAC: ES8311 (48 kHz, mono)
 - Speaker Power (PA enable): GPIO46
 
-**ESP32-S3 Box** (older revision)
+**ESP32-S3 Box** (older revision, **Arduino framework**)
+- Framework: `type: arduino`; min ESPHome 2025.5.0
 - I2S: LRCLK=GPIO47, BCLK=GPIO17, MCLK=GPIO2, DIN=GPIO16, DOUT=GPIO15
 - I2C: SCL=GPIO18, SDA=GPIO8
 - ADC: ES7210 (4-ch, 16 kHz, 16-bit)
@@ -405,8 +402,8 @@ Board-specific details (pin assignments, codec I2C addresses, I2S parameters) ar
 
 | Dependency | Version | Purpose |
 |------------|---------|---------|
-| ESP-IDF | 5.x | SoC framework, FreeRTOS, I2S, Wi-Fi, mbedTLS |
-| ESPHome | 2024.x or later | Component framework, HA integration, OTA |
+| ESP-IDF | 5.x | SoC framework (ESP32-S3 Box uses esp-idf; others use Arduino on ESP-IDF base) |
+| ESPHome | 2024.x or later (2025.5.0+ for Box) | Component framework, HA integration, OTA |
 | micro-opus | (local, `lib/micro-opus/`) | Opus audio codec; heap pseudostack, PSRAM, Xtensa DSP; based on esphome-libs/micro-opus |
 | mbedTLS | (bundled with ESP-IDF) | TLS for Mumble control channel; OCB2-AES128 for Legacy; AES-256-GCM for Secure |
 | ESP-ADF | optional | ADF pipeline for full-duplex I2S |
@@ -419,7 +416,7 @@ The build uses ESPHome/PlatformIO. The Opus library is **vendored locally** in `
 | Risk | Impact | Mitigation |
 |------|--------|------------|
 | Opus encode/decode CPU cost | Audio dropouts or high latency | Use 16 kHz narrowband mode (~3 ms encode per 20 ms frame on S3). Pin audio tasks to dedicated core. |
-| Full-duplex I2S reliability | Glitches, buffer underruns | Follow the ADF duplex pipeline pattern proven in Onju Voice. Fall back to half-duplex with mute-on-play if needed. |
+| I2S bus sharing | Mic and speaker contend for same bus | Half-duplex via `manage_i2s_bus()`: wait for `is_stopped()` before starting the other. Echo suppression during receive. |
 | AEC quality | Echo leaks in always-on mode | Start with ESP-SR AFE. Allow fallback to push-to-talk if AEC is insufficient for a board. |
 | RAM budget | Opus + TLS + ESPHome may exceed SRAM | Use PSRAM for audio buffers and Opus state. Optimize TLS buffer sizes. Target boards with 8 MB PSRAM. |
 | TLS handshake time | Slow reconnects | Cache TLS sessions. Use TLS 1.2 with minimal cipher suite. |

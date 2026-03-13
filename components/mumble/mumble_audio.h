@@ -32,6 +32,29 @@ class OpusAudioDecoder {
   int channels_{1};
 };
 
+// Opus encoder wrapper (16 kHz mono, VOIP)
+class OpusAudioEncoder {
+ public:
+  static constexpr size_t FRAME_SAMPLES = 320;  // 20ms at 16kHz
+  static constexpr size_t MAX_PAYLOAD_BYTES = 256;
+
+  OpusAudioEncoder() = default;
+  ~OpusAudioEncoder() { destroy(); }
+
+  bool init(int sample_rate = 16000, int channels = 1);
+  void destroy();
+
+  // Encode one frame (FRAME_SAMPLES samples). Returns bytes written, or negative on error.
+  int encode(const int16_t *pcm, size_t samples, uint8_t *out, size_t max_out);
+
+  bool is_initialized() const { return encoder_ != nullptr; }
+
+ private:
+  void *encoder_{nullptr};  // OpusEncoder* (opaque to avoid opus.h in header)
+  int sample_rate_{16000};
+  int channels_{1};
+};
+
 // Simple jitter buffer for decoded PCM frames
 class JitterBuffer {
  public:
@@ -65,20 +88,6 @@ class JitterBuffer {
   size_t capacity_{0};
   size_t target_depth_{0};
   bool playout_started_{false};
-};
-
-// Simple PCM mixer (for multi-user - single-user fast path skips mixing)
-class AudioMixer {
- public:
-  static constexpr size_t MAX_SAMPLES = 640;
-
-  void reset();
-  void mix_in(const int16_t *src, size_t samples);
-  void get_mixed(int16_t *out, size_t samples);
-
- private:
-  int32_t acc_[MAX_SAMPLES];
-  size_t max_used_{0};
 };
 
 // Speaker sink - writes PCM to ESPHome speaker

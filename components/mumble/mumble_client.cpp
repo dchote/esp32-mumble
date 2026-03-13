@@ -1,7 +1,6 @@
 #include "mumble_client.h"
 #include "esphome/core/log.h"
 #include "esphome/components/network/util.h"
-#include <WiFi.h>
 #include <algorithm>
 #include <cstdio>
 #include <cstring>
@@ -14,7 +13,6 @@ static const char *const TAG = "mumble.client";
 // Crypto mode bits (Version message CryptoModes field)
 static constexpr uint32_t CRYPTO_LITE = 0x01;
 static constexpr uint32_t CRYPTO_LEGACY = 0x02;
-static constexpr uint32_t CRYPTO_SECURE = 0x04;
 
 bool MumbleClient::connect() {
   if (server_.empty() || username_.empty()) {
@@ -22,45 +20,41 @@ bool MumbleClient::connect() {
     return false;
   }
   state_ = ConnectionState::CONNECTING;
-  // go-mumble-server requires TLS 1.2. When ca_cert_ is set, verify server; else trusted LAN (setInsecure).
+  if (tls_client_ == nullptr) {
+    tls_client_ = mumble_create_tls_client();
+  }
   if (!ca_cert_.empty()) {
-    tls_client_.setCACert(ca_cert_.c_str());
+    tls_client_->set_ca_cert(ca_cert_.c_str());
   } else {
-    tls_client_.setInsecure();
+    tls_client_->set_insecure();
   }
-  tls_client_.setTimeout(CONNECT_TIMEOUT_MS / 1000);
-  tls_client_.setHandshakeTimeout(CONNECT_TIMEOUT_MS / 1000);
-
-  // Connect by hostname so SNI is sent (some servers require it). Fallback to IP if
-  // hostname fails (e.g. local IP like 172.20.13.17).
-  bool ok = tls_client_.connect(server_.c_str(), port_, CONNECT_TIMEOUT_MS / 1000);
-  if (!ok) {
-    IPAddress ip;
-    if (WiFi.hostByName(server_.c_str(), ip)) {
-      ok = tls_client_.connect(ip, port_, CONNECT_TIMEOUT_MS / 1000);
-    }
+  // connect() spawns a background task (ESP-IDF) or blocks (Arduino).
+  // esp_tls handles DNS internally so no manual fallback needed.
+  bool ok = tls_client_->connect(server_.c_str(), port_, CONNECT_TIMEOUT_MS);
+  if (ok) {
+    recv_buf_.clear();
+    recv_buf_.reserve(1024);
+    channel_join_sent_ = false;
+    unknown_crypt_logged_ = false;
+    state_ = ConnectionState::AUTHENTICATING;
+    ESP_LOGI(TAG, "Connected to %s:%u, starting handshake", server_.c_str(), port_);
+    return true;
   }
-  if (!ok) {
-    char errbuf[128];
-    int err = tls_client_.lastError(errbuf, sizeof(errbuf));
-    ESP_LOGE(TAG, "TLS connect failed to %s:%u: last_error=%d (%s)", server_.c_str(), port_, err,
-             errbuf[0] ? errbuf : "(no message)");
-    tls_client_.stop();
-    state_ = ConnectionState::DISCONNECTED;
-    return false;
+  if (tls_client_->connect_in_progress()) {
+    ESP_LOGD(TAG, "TLS connect to %s:%u in progress (background task)", server_.c_str(), port_);
+    return false;  // Stay in CONNECTING; loop() will call connect_poll()
   }
-
-  recv_buf_.clear();
-  recv_buf_.reserve(1024);
-  channel_join_sent_ = false;
-  unknown_crypt_logged_ = false;
-  state_ = ConnectionState::AUTHENTICATING;
-  ESP_LOGI(TAG, "Connected to %s:%u, starting handshake", server_.c_str(), port_);
-  return true;
+  char errbuf[128];
+  int err = tls_client_->last_error(errbuf, sizeof(errbuf));
+  ESP_LOGE(TAG, "TLS connect failed to %s:%u: last_error=%d (%s)", server_.c_str(), port_, err,
+           errbuf[0] ? errbuf : "(no message)");
+  tls_client_->stop();
+  state_ = ConnectionState::DISCONNECTED;
+  return false;
 }
 
 void MumbleClient::disconnect() {
-  tls_client_.stop();
+  if (tls_client_ != nullptr) tls_client_->stop();
   state_ = ConnectionState::DISCONNECTED;
   recv_buf_.clear();
   channels_.clear();
@@ -73,7 +67,7 @@ void MumbleClient::disconnect() {
 }
 
 void MumbleClient::loop() {
-  uint32_t now = millis();
+  uint32_t now = mumble_millis();
 
   switch (state_) {
     case ConnectionState::DISCONNECTED: {
@@ -96,21 +90,37 @@ void MumbleClient::loop() {
       last_connect_attempt_ms_ = now;
       if (connect()) {
         reconnect_delay_ms_ = 1000;
-      } else {
+      } else if (tls_client_ == nullptr || !tls_client_->connect_in_progress()) {
         if (reconnect_delay_ms_ < RECONNECT_DELAY_MAX_MS) {
           reconnect_delay_ms_ = std::min(reconnect_delay_ms_ * 2, RECONNECT_DELAY_MAX_MS);
         }
       }
       return;
     }
-    case ConnectionState::CONNECTING:
+    case ConnectionState::CONNECTING: {
+      int poll = tls_client_ != nullptr ? tls_client_->connect_poll() : -1;
+      if (poll == 1) {
+        recv_buf_.clear();
+        recv_buf_.reserve(1024);
+        channel_join_sent_ = false;
+        unknown_crypt_logged_ = false;
+        state_ = ConnectionState::AUTHENTICATING;
+        ESP_LOGI(TAG, "Connected to %s:%u, starting handshake", server_.c_str(), port_);
+      } else if (poll == -1) {
+        tls_client_->stop();
+        state_ = ConnectionState::DISCONNECTED;
+        if (reconnect_delay_ms_ < RECONNECT_DELAY_MAX_MS) {
+          reconnect_delay_ms_ = std::min(reconnect_delay_ms_ * 2, RECONNECT_DELAY_MAX_MS);
+        }
+      }
       return;
+    }
     case ConnectionState::AUTHENTICATING:
     case ConnectionState::CONNECTED:
       break;
   }
 
-  if (!tls_client_.connected()) {
+  if (tls_client_ == nullptr || !tls_client_->connected()) {
     ESP_LOGW(TAG, "Connection lost");
     disconnect();
     return;
@@ -127,22 +137,38 @@ void MumbleClient::loop() {
     }
   }
 
+  // With non-blocking TLS, esp_tls_get_bytes_avail only reports bytes already
+  // decrypted by mbedTLS. We must attempt a read() to process incoming TLS
+  // records from the socket, even when available() returns 0.
   int max_messages = 8;
-  while (tls_client_.available() > 0 && max_messages-- > 0) {
-    size_t avail = tls_client_.available();
-    size_t to_read = std::min(avail, RECV_BUF_MAX - recv_buf_.size());
-    if (to_read == 0) break;
+  while (max_messages-- > 0) {
+    size_t space = RECV_BUF_MAX - recv_buf_.size();
+    if (space == 0) break;
+    size_t to_read = std::min(space, static_cast<size_t>(1024));
 
     size_t old_size = recv_buf_.size();
     recv_buf_.resize(old_size + to_read);
-    int n = tls_client_.read(&recv_buf_[old_size], to_read);
-    if (n <= 0) break;
+    int n = tls_client_->read(&recv_buf_[old_size], to_read);
+    if (n <= 0) {
+      recv_buf_.resize(old_size);
+      if (n < 0) {
+        // Arduino WiFiClientSecure returns -1 when no data available (not just on error).
+        // Only disconnect if the connection is actually dead.
+        if (!tls_client_->connected()) {
+          ESP_LOGW(TAG, "TLS read error, disconnecting");
+          disconnect();
+          return;
+        }
+      }
+      break;
+    }
     recv_buf_.resize(old_size + static_cast<size_t>(n));
 
-    while (recv_buf_.size() >= TCP_HEADER_SIZE) {
+    size_t consumed = 0;
+    while (recv_buf_.size() - consumed >= TCP_HEADER_SIZE) {
       uint16_t type;
       uint32_t payload_len;
-      if (!read_tcp_header(recv_buf_.data(), recv_buf_.size(), &type, &payload_len)) {
+      if (!read_tcp_header(recv_buf_.data() + consumed, recv_buf_.size() - consumed, &type, &payload_len)) {
         break;
       }
       if (payload_len > MAX_PAYLOAD_PRACTICAL) {
@@ -151,14 +177,16 @@ void MumbleClient::loop() {
         return;
       }
       size_t total = TCP_HEADER_SIZE + payload_len;
-      if (recv_buf_.size() < total) break;
+      if (recv_buf_.size() - consumed < total) break;
 
-      handle_message(type, recv_buf_.data() + TCP_HEADER_SIZE, payload_len);
-
-      recv_buf_.erase(recv_buf_.begin(), recv_buf_.begin() + static_cast<ptrdiff_t>(total));
+      handle_message(type, recv_buf_.data() + consumed + TCP_HEADER_SIZE, payload_len);
+      consumed += total;
       if (state_ == ConnectionState::DISCONNECTED) {
-        break;  // Exit message loop to avoid spin (e.g. on Reject)
+        break;
       }
+    }
+    if (consumed > 0) {
+      recv_buf_.erase(recv_buf_.begin(), recv_buf_.begin() + static_cast<ptrdiff_t>(consumed));
     }
     if (state_ == ConnectionState::DISCONNECTED) {
       break;
@@ -166,16 +194,37 @@ void MumbleClient::loop() {
   }
 }
 
+bool MumbleClient::write_all(const uint8_t *buf, size_t len) {
+  size_t sent = 0;
+  int retries = 0;
+  while (sent < len) {
+    size_t n = tls_client_->write(buf + sent, len - sent);
+    if (n > 0) {
+      sent += n;
+      retries = 0;
+    } else if (++retries > 200) {
+      ESP_LOGW(TAG, "write_all failed after retries (sent %u/%u)", (unsigned) sent, (unsigned) len);
+      return false;
+    } else {
+      vTaskDelay(1);  // yield to let TLS/TCP drain
+    }
+  }
+  return true;
+}
+
 bool MumbleClient::send_message(uint16_t type, const uint8_t *payload, size_t payload_len) {
   uint8_t header[TCP_HEADER_SIZE];
   write_tcp_header(header, type, static_cast<uint32_t>(payload_len));
-  size_t wrote = tls_client_.write(header, TCP_HEADER_SIZE);
-  if (wrote != TCP_HEADER_SIZE) return false;
+  if (!write_all(header, TCP_HEADER_SIZE)) return false;
   if (payload_len > 0 && payload != nullptr) {
-    wrote = tls_client_.write(payload, payload_len);
-    if (wrote != payload_len) return false;
+    if (!write_all(payload, payload_len)) return false;
   }
   return true;
+}
+
+bool MumbleClient::send_udp_tunnel(const uint8_t *data, size_t len) {
+  if (tls_client_ == nullptr || !tls_client_->connected() || data == nullptr) return false;
+  return send_message(MSG_UDP_TUNNEL, data, len);
 }
 
 void MumbleClient::handle_message(uint16_t type, const uint8_t *payload, size_t len) {
@@ -260,7 +309,7 @@ void MumbleClient::send_authenticate() {
 }
 
 void MumbleClient::send_ping() {
-  uint64_t ts = static_cast<uint64_t>(millis());
+  uint64_t ts = static_cast<uint64_t>(mumble_millis());
   MsgPing p;
   p.timestamp = ts;
   p.good = ping_udp_good_;
@@ -273,7 +322,7 @@ void MumbleClient::send_ping() {
   std::vector<uint8_t> buf;
   p.marshal(buf);
   if (send_message(MSG_PING, buf.data(), buf.size())) {
-    last_ping_ms_ = millis();
+    last_ping_ms_ = mumble_millis();
     last_ping_timestamp_ = ts;
   }
 }
@@ -388,7 +437,7 @@ void MumbleClient::on_ping(const uint8_t *payload, size_t len) {
   MsgPing m;
   if (!m.unmarshal(payload, len)) return;
   if (m.timestamp == last_ping_timestamp_ && last_ping_ms_ > 0) {
-    ping_rtt_ms_ = static_cast<float>(millis() - last_ping_ms_);
+    ping_rtt_ms_ = static_cast<float>(mumble_millis() - last_ping_ms_);
   }
 }
 
@@ -402,7 +451,7 @@ void MumbleClient::on_reject(const uint8_t *payload, size_t len) {
   ESP_LOGE(TAG, "Rejected (%u/%u): type=%u, reason=%s",
            (unsigned) reject_count_, (unsigned) MAX_REJECT_ATTEMPTS,
            (unsigned) m.type, m.reason.c_str());
-  last_connect_attempt_ms_ = millis();  // Prevent immediate retry
+  last_connect_attempt_ms_ = mumble_millis();  // Prevent immediate retry
   reconnect_delay_ms_ = std::max(reconnect_delay_ms_, static_cast<uint32_t>(30000));  // 30s backoff on reject
   disconnect();
 }

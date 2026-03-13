@@ -89,13 +89,13 @@ size_t mumble_varint_encode(uint8_t *buf, int64_t value) {
     return 2;
   }
   if (value <= 0x1FFFFF) {
-    buf[0] = (uint8_t)((value >> 16) & 0x1F | 0xC0);
+    buf[0] = (uint8_t)(((value >> 16) & 0x1F) | 0xC0);
     buf[1] = (uint8_t)((value >> 8) & 0xFF);
     buf[2] = (uint8_t)(value & 0xFF);
     return 3;
   }
   if (value <= 0x0FFFFFFF) {
-    buf[0] = (uint8_t)((value >> 24) & 0x0F | 0xE0);
+    buf[0] = (uint8_t)(((value >> 24) & 0x0F) | 0xE0);
     buf[1] = (uint8_t)((value >> 16) & 0xFF);
     buf[2] = (uint8_t)((value >> 8) & 0xFF);
     buf[3] = (uint8_t)(value & 0xFF);

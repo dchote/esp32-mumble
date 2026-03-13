@@ -63,5 +63,9 @@ class MumbleCryptState : public MumbleCryptStateBase {
   uint32_t resync_{0};
 };
 
+/** Run OCB2 round-trip test (client encrypt, server decrypt). Returns true if OK. */
+bool mumble_ocb2_selftest(const uint8_t *key, const uint8_t *client_nonce,
+                          const uint8_t *server_nonce);
+
 }  // namespace mumble
 }  // namespace esphome

@@ -299,5 +299,48 @@ bool MumbleCryptState::ocb_decrypt(const uint8_t *encrypted, uint8_t *plain, uns
   return success;
 }
 
+bool mumble_ocb2_selftest(const uint8_t *key, const uint8_t *client_nonce,
+                          const uint8_t *server_nonce) {
+  if (key == nullptr || client_nonce == nullptr || server_nonce == nullptr)
+    return false;
+
+  MumbleCryptState client_crypt;
+  MumbleCryptState server_crypt;
+
+  // Client: encrypt_iv=client_nonce, decrypt_iv=server_nonce (we send to server)
+  if (!client_crypt.set_key(key, AES_KEY_LEN, client_nonce, AES_BLOCK,
+                            server_nonce, AES_BLOCK))
+    return false;
+
+  // Server: encrypt_iv=server_nonce, decrypt_iv=client_nonce (receives from client)
+  if (!server_crypt.set_key(key, AES_KEY_LEN, server_nonce, AES_BLOCK,
+                            client_nonce, AES_BLOCK))
+    return false;
+
+  // Ping-like plaintext: 0x20 + varint(timestamp)
+  uint8_t plain[] = {0x20, 0x80, 0x00};  // header + 2-byte varint for 0
+  size_t plain_len = sizeof(plain);
+
+  uint8_t cipher[64];
+  if (!client_crypt.encrypt(plain, cipher, plain_len)) {
+    ESP_LOGE(TAG, "selftest: encrypt failed");
+    return false;
+  }
+  size_t cipher_len = plain_len + OCB2_OVERHEAD;
+
+  uint8_t decrypted[64];
+  if (!server_crypt.decrypt(cipher, decrypted, cipher_len)) {
+    ESP_LOGE(TAG, "selftest: decrypt failed (cipher_len=%u)", (unsigned) cipher_len);
+    return false;
+  }
+  if (plain_len != cipher_len - OCB2_OVERHEAD ||
+      memcmp(plain, decrypted, plain_len) != 0) {
+    ESP_LOGE(TAG, "selftest: round-trip mismatch");
+    return false;
+  }
+  ESP_LOGI(TAG, "OCB2 selftest OK");
+  return true;
+}
+
 }  // namespace mumble
 }  // namespace esphome

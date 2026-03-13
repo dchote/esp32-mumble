@@ -10,7 +10,7 @@ substitutions:
 esphome:
   name: ${name}
   name_add_mac_suffix: true
-  min_version: "2024.1.0"
+  min_version: "2025.5.0"
   on_boot:
     - priority: 600
       then:
@@ -23,11 +23,9 @@ esphome:
               float vol = id(mumble_speaker_volume).state;
               if (isnan(vol)) vol = 80;
               return vol / 100.0f;
-        - lambda: |-
-            if (id(mumble_microphone_enabled).state) {
-              id(mumble_client).set_microphone_enabled(true);
-            }
   platformio_options:
+    extra_scripts:
+      - pre:../../../../scripts/patch_mbedtls_requires.py
     build_flags:
       - -Wno-cpp
       - -Wno-stringop-overread
@@ -38,10 +36,7 @@ esp32:
   cpu_frequency: 240MHz
   framework:
     type: arduino
-    sdkconfig_options:
-      CONFIG_I2S_SUPPRESS_DEPRECATE_WARN: "y"
 
-# PSRAM required for audio
 psram:
   mode: octal
   speed: 80MHz
@@ -69,19 +64,28 @@ light:
     output: backlight_output
     restore_mode: RESTORE_DEFAULT_OFF
 
-# ESP32-S3-Box-3 buttons: REC/LED button (GPIO1) = microphone (press/release). No volume button; use HA Speaker Volume.
+# GPIO1 = hardware mic mute button (latching toggle). LED off = unmuted, LED on = muted.
+# On unmute, re-init ES7210 via I2C to restore ADC registers after hardware mute.
 binary_sensor:
   - platform: gpio
     pin:
       number: GPIO1
       mode: INPUT_PULLUP
       inverted: true
-    name: "Microphone"
+    name: "Microphone Muted"
     id: button_microphone
-    on_press:
-      - mumble.microphone_enable: mumble_client
-    on_release:
-      - mumble.microphone_disable: mumble_client
+    on_state:
+      - if:
+          condition:
+            binary_sensor.is_on: button_microphone
+          then:
+            - microphone.mute:
+            - mumble.microphone_disable: mumble_client
+          else:
+            - lambda: id(es7210_adc).setup();
+            - delay: 50ms
+            - microphone.unmute:
+            - mumble.microphone_enable: mumble_client
   - platform: template
     name: "Voice Received"
     id: mumble_voice_active
@@ -89,6 +93,13 @@ binary_sensor:
     device_class: running
     lambda: |-
       return id(mumble_client).get_voice_active();
+  - platform: template
+    name: "Voice Sending"
+    id: mumble_voice_sending
+    icon: "mdi:microphone"
+    device_class: running
+    lambda: |-
+      return id(mumble_client).get_voice_sending();
 
 # Diagnostics
   - platform: template
@@ -111,11 +122,30 @@ i2s_audio:
     i2s_bclk_pin: GPIO17
     i2s_mclk_pin: GPIO2
 
+audio_adc:
+  - platform: es7210
+    id: es7210_adc
+    bits_per_sample: 16bit
+    sample_rate: 16000
+    mic_gain: 30dB
+
 audio_dac:
   - platform: es8311
     id: es8311_dac
     bits_per_sample: 16bit
     sample_rate: 16000
+
+microphone:
+  - platform: i2s_audio
+    id: box_mic
+    sample_rate: 16000
+    i2s_din_pin: GPIO16
+    i2s_audio_id: i2s_audio_bus
+    bits_per_sample: 16bit
+    bits_per_channel: 16bit
+    channel: left
+    adc_type: external
+    correct_dc_offset: true
 
 speaker:
   - platform: i2s_audio
@@ -256,7 +286,6 @@ number:
           id: box_speaker
           volume: !lambda 'return x / 100.0;'
 
-# Microphone enabled/disabled (Controls section) - explicit on/off
 # Speaker Enable: Box-3 PA enable on GPIO46 (original Box may use same)
 switch:
   - platform: gpio
@@ -268,15 +297,18 @@ switch:
     restore_mode: RESTORE_DEFAULT_ON
     entity_category: config
   - platform: template
-    name: "Microphone Enabled"
-    id: mumble_microphone_enabled
-    icon: "mdi:microphone"
+    name: "Mute"
+    id: mute
+    icon: "mdi:microphone-off"
     optimistic: true
     restore_mode: RESTORE_DEFAULT_OFF
-    turn_on_action:
-      - mumble.microphone_enable: mumble_client
-    turn_off_action:
+    entity_category: config
+    on_turn_on:
+      - microphone.mute:
       - mumble.microphone_disable: mumble_client
+    on_turn_off:
+      - microphone.unmute:
+      - mumble.microphone_enable: mumble_client
 
 external_components:
   - source:
@@ -297,7 +329,7 @@ mumble:
   channel_text_id: mumble_channel
   mode_select_id: mumble_mode
   crypto_select_id: mumble_crypto
-  microphone_switch_id: mumble_microphone_enabled
+  microphone_id: box_mic
   speaker_id: box_speaker
   mode: always_on
   crypto: legacy

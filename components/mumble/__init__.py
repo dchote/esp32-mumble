@@ -2,7 +2,7 @@
 
 Configuration: server, port, username, password, channel, mode, crypto (inline).
 Optional HA-editable entities: server_text_id, port_text_id, username_text_id,
-password_text_id, channel_text_id, mode_select_id, crypto_select_id, microphone_switch_id (values persisted to NVS).
+password_text_id, channel_text_id, mode_select_id, crypto_select_id (values persisted to NVS).
 Optional hardware: ptt_pin (press-and-hold PTT), mute_pin.
 """
 
@@ -12,10 +12,10 @@ import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.core import CORE
 from esphome import pins
-from esphome.components import select, speaker, switch, text
+from esphome.components import microphone, select, speaker, text
 from esphome.const import CONF_ID, CONF_PORT, CONF_PASSWORD, CONF_CHANNEL
 
-CODEOWNERS = ["@esphome"]
+CODEOWNERS = ["@danielhoward314"]
 DEPENDENCIES = ["network"]
 AUTO_LOAD = []
 
@@ -33,7 +33,7 @@ CONF_PASSWORD_TEXT = "password_text_id"
 CONF_CHANNEL_TEXT = "channel_text_id"
 CONF_MODE_SELECT = "mode_select_id"
 CONF_CRYPTO_SELECT = "crypto_select_id"
-CONF_MICROPHONE_SWITCH = "microphone_switch_id"
+CONF_MICROPHONE = "microphone_id"
 CONF_SPEAKER = "speaker_id"
 
 CONF_ALWAYS_ON = "always_on"
@@ -93,7 +93,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_CHANNEL_TEXT): cv.use_id(text.Text),
             cv.Optional(CONF_MODE_SELECT): cv.use_id(select.Select),
             cv.Optional(CONF_CRYPTO_SELECT): cv.use_id(select.Select),
-            cv.Optional(CONF_MICROPHONE_SWITCH): cv.use_id(switch.Switch),
+            cv.Optional(CONF_MICROPHONE): cv.use_id(microphone.Microphone),
             cv.Optional(CONF_SPEAKER): cv.use_id(speaker.Speaker),
             cv.Optional(CONF_MODE, default=CONF_ALWAYS_ON): cv.enum(
                 MUMBLE_MODE, lower=True
@@ -162,9 +162,9 @@ async def to_code(config):
     if CONF_CRYPTO_SELECT in config:
         crypto_select = await cg.get_variable(config[CONF_CRYPTO_SELECT])
         cg.add(var.set_crypto_select(crypto_select))
-    if CONF_MICROPHONE_SWITCH in config:
-        microphone_switch = await cg.get_variable(config[CONF_MICROPHONE_SWITCH])
-        cg.add(var.set_microphone_switch(microphone_switch))
+    if CONF_MICROPHONE in config:
+        mic_var = await cg.get_variable(config[CONF_MICROPHONE])
+        cg.add(var.set_microphone(mic_var))
     if CONF_SPEAKER in config:
         speaker_var = await cg.get_variable(config[CONF_SPEAKER])
         cg.add(var.set_speaker(speaker_var))

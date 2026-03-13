@@ -14,7 +14,7 @@ The device listens and transmits continuously, acting as a room intercom. Audio 
 
 ### Microphone Control
 
-The **Microphone Enabled** switch in Home Assistant explicitly turns transmitting on or off. In push-to-talk mode, a physical PTT button (`ptt_pin`) can be wired for hold-to-talk: press and hold to talk, release to stop. PTT is distinct from the Microphone Enabled switch — the switch is a persistent on/off toggle; PTT is momentary.
+Transmitting is controlled by a physical button wired to `mumble.microphone_enable` / `mumble.microphone_disable` (press = on, release = off). In push-to-talk mode this provides hold-to-talk; in always-on mode it toggles. The `mumble.ptt_press` action toggles mic state for single-press buttons.
 
 ### Multi-Room Intercom
 
@@ -41,9 +41,9 @@ All targets require an ESP32-S3 with PSRAM and Wi-Fi. The S3's dual-core archite
 ### Audio
 
 - Opus decoding of received voice streams to speaker output — **implemented**
-- Opus encoding of microphone input (16 kHz, mono, ~16 kbps) — **not yet implemented**
-- Full-duplex (simultaneous capture and playback) — **receive-only for now**
-- Acoustic echo cancellation (AEC) to prevent speaker output from feeding back into the microphone
+- Opus encoding of microphone input (16 kHz, mono, ~16 kbps) — **implemented**
+- Half-duplex capture and playback (shared I2S bus; mic and speaker take turns)
+- Echo suppression: transmit is suppressed while receiving or within 100 ms after
 - Microphone array support with beamforming on boards with multi-channel ADCs (ES7210)
 
 ### Mumble Protocol
@@ -51,16 +51,16 @@ All targets require an ESP32-S3 with PSRAM and Wi-Fi. The S3's dual-core archite
 - **Legacy mode** (default): Standard Mumble protocol with OCB2-AES128 UDP encryption. Connects to Murmur, go-mumble-server, or any Mumble server.
 - **Lite mode** (optional): Cleartext UDP voice, TLS control. Minimal CPU; use on trusted LAN when the server supports it (e.g. go-mumble-server with Lite enabled).
 - Join a configured channel on connect
-- Receive Opus voice packets; transmit not yet implemented
+- Receive and transmit Opus voice packets  
+  *(Note: Voice transmit not 100% — UDP pings work; server UDP path to device may be incomplete; TCP tunnel fallback used when needed.)*
 - Channel changes via `UserState` (e.g. from HA channel select)
 - Respond to server pings to maintain connection
 - UDP voice with TCP fallback (UDPTunnel) if UDP is unreachable
 
 ### Controls and Indicators
 
-- **Microphone Enabled** switch (UI present; transmit pipeline not yet implemented)
-- Mute/unmute via hardware switch or button
-- Push-to-talk via physical button (`ptt_pin`; press-and-hold)
+- Microphone on/off via physical button (`mumble.microphone_enable` / `mumble.microphone_disable`)
+- Push-to-talk via physical button (press-and-hold)
 - Volume control via touch surface, button, or Home Assistant
 - LED status indication:
   - Connecting (slow pulse)
@@ -84,9 +84,8 @@ The following settings are exposed as Home Assistant entities and can be changed
 | Crypto | Select | **Legacy** (OCB2-AES128, default) or **Lite** (cleartext UDP for trusted LAN) |
 | Speaker Volume | Number | Playback volume level (0–100, default 80) |
 | Speaker Power | Switch | Hardware amplifier power on/off (Box/Box-3 only, GPIO46) |
-| Microphone Enabled | Switch | Explicitly enable or disable transmitting (Controls section) |
 
-All settings persist in NVS and are restored on boot — including speaker volume and microphone state. Changing server, port, username, password, channel, or crypto forces an immediate reconnect.
+All settings persist in NVS and are restored on boot — including speaker volume. Changing server, port, username, password, channel, or crypto forces an immediate reconnect.
 
 ### Home Assistant Diagnostics
 
@@ -96,20 +95,19 @@ All settings persist in NVS and are restored on boot — including speaker volum
 | Mumble Connected | Binary Sensor | Whether connected to the Mumble server |
 | Mumble Ping | Sensor | Round-trip ping time to server in ms |
 | Voice Received | Binary Sensor | True while voice is being received and processed (Sensors) |
-| Reset Config | Button | Restore server, port, username, password, channel, mode, crypto, and mic to defaults |
+| Reset Config | Button | Restore server, port, username, password, channel, mode, and crypto to defaults |
 
 ### Home Assistant Runtime Entities
 
 | Entity | Type | Status | Description |
 |---|---|---|---|
-| Microphone Enabled | Switch | Implemented | Enable or disable transmitting (persists across reboots) |
+| Voice Sending | Binary Sensor | Implemented | True while the device is transmitting audio |
 | Speaker Volume | Number | Implemented | Speaker volume level 0–100 (persists across reboots) |
 | Speaker Power | Switch | Implemented | Hardware amplifier on/off, Box/Box-3 only (persists) |
 | Mumble Connected | Binary Sensor | Implemented | Connection status (Diagnostics) |
-| Voice Received | Binary Sensor | Implemented | Receiving voice (Sensors, with Microphone) |
+| Voice Received | Binary Sensor | Implemented | True while receiving voice (Sensors) |
 | Channel | Text | Implemented | Channel name to join (config) |
 | Channel Select | Select | Optional | Server-populated channel list (`channel_select_id`) |
-| Talking (TX) | Binary Sensor | Planned | Whether the device is transmitting audio |
 
 ## Server Requirements
 
