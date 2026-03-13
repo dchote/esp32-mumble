@@ -193,6 +193,19 @@ button:
     entity_category: diagnostic
     on_press:
       - mumble.reset_config: mumble_client
+text_sensor:
+  - platform: template
+    name: "Transport"
+    id: mumble_transport
+    icon: "mdi:protocol"
+    entity_category: diagnostic
+    lambda: |-
+      if (id(mumble_client).get_voice_transport_udp()) {
+        return {"UDP"};
+      } else {
+        return {"TCP"};
+      }
+    update_interval: 5s
 sensor:
   - platform: wifi_signal
     name: "WiFi Signal"

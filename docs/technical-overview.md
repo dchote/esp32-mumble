@@ -138,7 +138,7 @@ This client uses the **legacy binary format**; the server also supports a modern
 
 ### UDP Ping
 
-UDP connectivity is confirmed by a ping/echo exchange. The client sends a codec-type-1 packet (encrypted in Legacy mode); the server decrypts it, matches the session, and echoes it back. If no echo is received within the timeout, the client falls back to tunneling voice over TCP using UDPTunnel (message type 1). **Arduino framework**: UDP works on same-LAN. **ESP-IDF framework**: Unicast UDP packets do not leave the device (known lwIP issue); use Arduino for now.
+UDP connectivity is confirmed by a ping/echo exchange. The client sends a codec-type-1 packet (encrypted in Legacy mode); the server decrypts it, matches the session, and echoes it back. If no echo is received within the timeout, the client falls back to tunneling voice over TCP using UDPTunnel (message type 1). **ESP32-S3 Box and Box-3 (ESP-IDF)**: Use lwIP netconn for UDP. **Other boards (Arduino)**: WiFiUDP.
 
 ### Protocol Reference
 
@@ -226,7 +226,7 @@ components/
     mumble_udp.h/.cpp    # UDP send/recv, ping, voice packet framing
 ```
 
-**Framework backends**: The component uses a socket abstraction (`TlsClient`, `UdpSocket`) with two backends: **Arduino** (WiFiClientSecure, WiFiUDP) and **ESP-IDF** (esp_tls, lwip sockets). **All board configs currently use Arduino** because ESP-IDF/lwIP has a known issue where unicast UDP packets do not leave the device (send reports success but packets never appear on the wire). Arduino WiFiUDP works correctly. ESP-IDF support will be debugged and restored after Arduino is fully validated.
+**Framework backends**: The component uses a socket abstraction (`TlsClient`, `UdpSocket`) with two backends: **Arduino** (WiFiClientSecure, WiFiUDP) and **ESP-IDF** (esp_tls, lwIP **netconn** for UDP, BSD sockets for TCP). **ESP32-S3 Box and Box-3** use ESP-IDF with lwIP netconn (`netconn_sendto`). **Generic, M5Stack Atom Echo, and others** use Arduino.
 
 The component is loaded as an ESPHome external component. Connection settings (server, port, username, password, channel) can be inline or referenced from text entities; mode (always_on / push_to_talk) can be set in YAML or via an optional select entity. Username defaults to `esp32-<MAC>` on first run if not set; password has no default. All HA-linked values are editable in the HA UI and persisted to NVS. Changing server, username, password, or channel forces a reconnect. Wire a physical button to `mumble.microphone_enable` and `mumble.microphone_disable` for mic control (press = on, release = off). The `mumble.ptt_press` action toggles mic state. The `mumble.reset_config` action resets all config entities to defaults.
 
@@ -309,7 +309,7 @@ mumble:
 | `crypto` | enum | `legacy` | Crypto mode: `legacy` (default, OCB2-AES128) or `lite` (cleartext UDP). Use `crypto_select_id` for HA entity. Changing crypto forces reconnect. |
 | `ca_cert` | string | (empty) | Optional PEM of CA certificate for server verification. When set, TLS verification is enabled; when empty, insecure mode (trusted LAN only). |
 
-**ESP32-S3 Box / Box-3 (Arduino)** — Both Box configs use `framework: type: arduino`. ESP-IDF backend exists but has UDP issues; use Arduino for development and deployment until ESP-IDF is fixed.
+**ESP32-S3 Box / Box-3 (ESP-IDF)** — Both use `framework: type: esp-idf` with lwIP netconn for UDP. First flash must be via USB, not OTA.
 
 ### Home Assistant Entities
 
@@ -322,7 +322,7 @@ mumble:
 | `select.mumble_mode` | `select` | Mode: `always_on` or `push_to_talk` |
 | `text.mumble_username` | `text` | Username |
 | `text.mumble_password` | `text` | Password (mode: password) |
-| `text.mumble_default_channel` | `text` | Channel to join on connect |
+| `text.mumble_channel` | `text` | Channel to join on connect |
 | `select.mumble_crypto` | `select` | Crypto: `legacy` or `lite` |
 
 When server, username, password, or channel is changed in HA, the client disconnects immediately and reconnects with the new settings. YAML values serve as initial defaults that are overridden once HA values are set. Channel name lookup is case-insensitive (e.g. `root` matches `Root`).
@@ -366,15 +366,16 @@ Board-specific details (pin assignments, codec I2C addresses, I2S parameters) ar
 
 ### Board Profiles
 
-**ESP32-S3 Box 3**
+**ESP32-S3 Box 3** (**ESP-IDF framework**)
+- Framework: `type: esp-idf`; lwIP netconn for UDP; min ESPHome 2025.5.0
 - I2S: LRCLK=GPIO45, BCLK=GPIO17, MCLK=GPIO2, DIN=GPIO16, DOUT=GPIO15
 - I2C: SCL=GPIO18, SDA=GPIO8
 - ADC: ES7210 (4-ch, 16 kHz, 16-bit)
 - DAC: ES8311 (48 kHz, mono)
 - Speaker Power (PA enable): GPIO46
 
-**ESP32-S3 Box** (older revision, **Arduino framework**)
-- Framework: `type: arduino`; min ESPHome 2025.5.0
+**ESP32-S3 Box** (older revision, **ESP-IDF framework**)
+- Framework: `type: esp-idf`; lwIP netconn for UDP; min ESPHome 2025.5.0
 - I2S: LRCLK=GPIO47, BCLK=GPIO17, MCLK=GPIO2, DIN=GPIO16, DOUT=GPIO15
 - I2C: SCL=GPIO18, SDA=GPIO8
 - ADC: ES7210 (4-ch, 16 kHz, 16-bit)
@@ -402,7 +403,7 @@ Board-specific details (pin assignments, codec I2C addresses, I2S parameters) ar
 
 | Dependency | Version | Purpose |
 |------------|---------|---------|
-| ESP-IDF | 5.x | SoC framework (ESP32-S3 Box uses esp-idf; others use Arduino on ESP-IDF base) |
+| ESP-IDF | 5.x | SoC framework (Box/Box-3 use esp-idf + lwIP netconn; others use Arduino on ESP-IDF base) |
 | ESPHome | 2024.x or later (2025.5.0+ for Box) | Component framework, HA integration, OTA |
 | micro-opus | (local, `lib/micro-opus/`) | Opus audio codec; heap pseudostack, PSRAM, Xtensa DSP; based on esphome-libs/micro-opus |
 | mbedTLS | (bundled with ESP-IDF) | TLS for Mumble control channel; OCB2-AES128 for Legacy; AES-256-GCM for Secure |

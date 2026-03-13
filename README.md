@@ -89,8 +89,7 @@ esp32-mumble/
 │   │   ├── 0002-initial-code-framework.md
 │   │   ├── 0003-mumble-connection-protocol.md
 │   │   ├── 0004-udp-voice-playback.md
-│   │   ├── 0005-voice-capture-encoding-transmission.md
-│   │   └── 0006-esp-idf-migration.md
+│   │   └── 0008-voice-capture-optimizations.md
 │   ├── product-overview.md
 │   └── technical-overview.md
 ├── esphome/             # Example device configs

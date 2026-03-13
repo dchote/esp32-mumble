@@ -70,14 +70,14 @@ void mumble_diag_run_boot() {
              (unsigned long) ((ho >> 8) & 0xFF), (unsigned long) (ho & 0xFF));
   }
 
-  // 4. ESP-IDF: getpeername returns host order; we must htonl for sendto
-  uint32_t for_sendto = htonl(ia.s_addr);
-  uint32_t ho2 = ntohl(for_sendto);
-  ESP_LOGI(TAG, "  For sendto: htonl(s_addr) -> %lu.%lu.%lu.%lu",
+  // 4. ESP-IDF: getpeername returns host order; apply htonl for network byte order
+  uint32_t for_net = htonl(ia.s_addr);
+  uint32_t ho2 = ntohl(for_net);
+  ESP_LOGI(TAG, "  For network order: htonl(s_addr) -> %lu.%lu.%lu.%lu",
            (unsigned long) ((ho2 >> 24) & 0xFF), (unsigned long) ((ho2 >> 16) & 0xFF),
            (unsigned long) ((ho2 >> 8) & 0xFF), (unsigned long) (ho2 & 0xFF));
 
-  ESP_LOGI(TAG, "  => ESP-IDF getpeername returns host order; apply htonl before sendto");
+  ESP_LOGI(TAG, "  => get_peer_ip() returns htonl(peer) for network byte order; used by netconn IP4_ADDR");
   ESP_LOGI(TAG, "=== end diagnostics ===");
 #else
   ESP_LOGI(TAG, "Diagnostics skipped (Arduino build)");

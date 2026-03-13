@@ -1,4 +1,5 @@
 #include "mumble_socket.h"
+#include "mumble_network_types.h"
 #include "esphome/core/log.h"
 
 #ifdef USE_ESP_IDF
@@ -6,11 +7,14 @@
 #include "esp_netif.h"
 #include "lwip/sockets.h"
 #include "lwip/netdb.h"
+#include "lwip/api.h"
+#include "lwip/ip4_addr.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "freertos/semphr.h"
 #include "esp_timer.h"
 #include <atomic>
+#include <cerrno>
 #include <cstring>
 
 namespace esphome {
@@ -170,15 +174,6 @@ class TlsClientEspIdf : public TlsClient {
     // ESP-IDF/lwIP getpeername returns s_addr in host byte order; sendto expects network order.
     return htonl(peer.sin_addr.s_addr);
   }
-  uint32_t get_local_ip() const override {
-    if (tls_ == nullptr) return 0;
-    int fd = -1;
-    if (esp_tls_get_conn_sockfd(tls_, &fd) != ESP_OK || fd < 0) return 0;
-    struct sockaddr_in local = {};
-    socklen_t len = sizeof(local);
-    if (getsockname(fd, (struct sockaddr *) &local, &len) != 0) return 0;
-    return htonl(local.sin_addr.s_addr);
-  }
 
  private:
   esp_tls_t *tls_{nullptr};
@@ -188,44 +183,50 @@ class TlsClientEspIdf : public TlsClient {
   TaskHandle_t connect_task_{nullptr};
 };
 
-// --- ESP-IDF UDP socket ---
-class UdpSocketEspIdf : public UdpSocket {
+// --- ESP-IDF UDP socket: lwIP netconn API (BSD sockets have UDP send issues) ---
+class UdpSocketNetconn : public UdpSocket {
  public:
-  UdpSocketEspIdf() : fd_(-1) {}
-  ~UdpSocketEspIdf() override { stop(); }
+  UdpSocketNetconn() : conn_(nullptr) {}
+  ~UdpSocketNetconn() override { stop(); }
 
   bool begin(uint16_t local_port, uint32_t local_ip = 0) override {
     (void) local_ip;
     stop();
-    fd_ = socket(AF_INET, SOCK_DGRAM, 0);
-    if (fd_ < 0) return false;
-    struct sockaddr_in addr = {};
-    addr.sin_family = AF_INET;
-    addr.sin_addr.s_addr = htonl(INADDR_ANY);
-    addr.sin_port = htons(local_port);
-    if (bind(fd_, (struct sockaddr *) &addr, sizeof(addr)) != 0) {
-      close(fd_);
-      fd_ = -1;
+    conn_ = netconn_new(NETCONN_UDP);
+    if (conn_ == nullptr) return false;
+    err_t err = netconn_bind(conn_, nullptr, local_port);  // nullptr = IP_ADDR_ANY
+    if (err != ERR_OK) {
+      netconn_delete(conn_);
+      conn_ = nullptr;
       return false;
     }
+    netconn_set_recvtimeout(conn_, 1);  // 1ms = poll, don't block
     return true;
   }
   void stop() override {
-    if (fd_ >= 0) {
-      close(fd_);
-      fd_ = -1;
+    if (conn_ != nullptr) {
+      netconn_delete(conn_);
+      conn_ = nullptr;
     }
+    recv_len_ = 0;
+    recv_pos_ = 0;
   }
   int parse_packet() override {
-    if (fd_ < 0) return -1;
-    struct sockaddr_in from;
-    socklen_t from_len = sizeof(from);
-    ssize_t n = recvfrom(fd_, recv_buf_, sizeof(recv_buf_), MSG_DONTWAIT,
-                         (struct sockaddr *) &from, &from_len);
-    if (n <= 0) return -1;
-    recv_len_ = (size_t) n;
+    if (conn_ == nullptr) return -1;
+    struct netbuf *in = nullptr;
+    err_t err = netconn_recv(conn_, &in);
+    if (err != ERR_OK || in == nullptr) return -1;
+    void *data = nullptr;
+    u16_t len = 0;
+    if (netbuf_data(in, &data, &len) != ERR_OK || data == nullptr || len == 0 || len > sizeof(recv_buf_)) {
+      netbuf_delete(in);
+      return -1;
+    }
+    memcpy(recv_buf_, data, len);
+    recv_len_ = len;
     recv_pos_ = 0;
-    return (int) n;
+    netbuf_delete(in);
+    return (int) len;
   }
   int read(uint8_t *buf, size_t len) override {
     if (buf == nullptr || recv_len_ == 0) return -1;
@@ -237,18 +238,9 @@ class UdpSocketEspIdf : public UdpSocket {
   }
   void flush() override { recv_len_ = 0; recv_pos_ = 0; }
   bool connect_remote(uint32_t ip, uint16_t port) override {
-    if (fd_ < 0) return false;
-    struct sockaddr_in addr = {};
-    addr.sin_family = AF_INET;
-    addr.sin_addr.s_addr = ip;
-    addr.sin_port = htons(port);
-    if (connect(fd_, (struct sockaddr *) &addr, sizeof(addr)) != 0) {
-      return false;
-    }
-    connected_remote_ = true;
-    remote_ip_ = ip;
-    remote_port_ = port;
-    return true;
+    (void) ip;
+    (void) port;
+    return false;  // netconn_sendto doesn't need connect
   }
   bool begin_packet(uint32_t ip, uint16_t port) override {
     remote_ip_ = ip;
@@ -263,24 +255,31 @@ class UdpSocketEspIdf : public UdpSocket {
     return len;
   }
   bool end_packet() override {
-    if (fd_ < 0 || send_pos_ == 0) return false;
-    ssize_t n;
-    if (connected_remote_) {
-      n = send(fd_, send_buf_, send_pos_, 0);
-    } else {
-      struct sockaddr_in to = {};
-      to.sin_family = AF_INET;
-      to.sin_addr.s_addr = remote_ip_;
-      to.sin_port = htons(remote_port_);
-      n = sendto(fd_, send_buf_, send_pos_, 0,
-                 (struct sockaddr *) &to, sizeof(to));
+    if (conn_ == nullptr || send_pos_ == 0) return false;
+    static const char *const TAG = "mumble.udp";
+    struct netbuf *out = netbuf_new();
+    if (out == nullptr) return false;
+    if (netbuf_ref(out, send_buf_, send_pos_) != ERR_OK) {
+      netbuf_delete(out);
+      return false;
     }
-    return n == (ssize_t) send_pos_;
+    ip_addr_t dst;
+    IP4_ADDR(&dst, (uint8_t) (remote_ip_ >> 24), (uint8_t) (remote_ip_ >> 16),
+             (uint8_t) (remote_ip_ >> 8), (uint8_t) (remote_ip_ & 0xff));
+    err_t err = netconn_sendto(conn_, out, &dst, remote_port_);
+    netbuf_delete(out);
+    bool ok = (err == ERR_OK);
+    if (!ok) {
+      char ipbuf[16];
+      mumble_ip_to_dotted(remote_ip_, ipbuf, sizeof(ipbuf));
+      ESP_LOGW(TAG, "UDP netconn_sendto: target %s:%u len=%zu err=%d",
+               ipbuf, remote_port_, send_pos_, (int) err);
+    }
+    return ok;
   }
 
  private:
-  int fd_{-1};
-  bool connected_remote_{false};
+  struct netconn *conn_{nullptr};
   uint8_t recv_buf_[1024 + 64];
   size_t recv_len_{0};
   size_t recv_pos_{0};
@@ -291,7 +290,7 @@ class UdpSocketEspIdf : public UdpSocket {
 };
 
 TlsClient *mumble_create_tls_client() { return new TlsClientEspIdf; }
-UdpSocket *mumble_create_udp_socket() { return new UdpSocketEspIdf; }
+UdpSocket *mumble_create_udp_socket() { return new UdpSocketNetconn; }
 void mumble_free_tls_client(TlsClient *c) { delete c; }
 void mumble_free_udp_socket(UdpSocket *s) { delete s; }
 

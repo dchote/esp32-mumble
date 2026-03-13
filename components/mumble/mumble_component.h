@@ -52,6 +52,8 @@ class MumbleComponent : public Component {
   float get_ping_ms() const { return ping_ms_; }
   bool get_voice_active() const { return voice_active_; }
   bool get_voice_sending() const { return voice_sending_; }
+  /** True if voice uses UDP; false if TCP tunnel. For Transport diagnostic. */
+  bool get_voice_transport_udp() const { return udp_.is_active(); }
   std::string get_server() const;
   uint16_t get_port() const;
   std::string get_username() const;

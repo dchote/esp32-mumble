@@ -10,8 +10,12 @@ import os
 
 
 def patch_cmake():
-    # Only for ESP-IDF
-    if env.get("PIOFRAMEWORK", []) != ["espidf"]:
+    # Only for ESP-IDF (PIOFRAMEWORK can be str or list)
+    fw = env.get("PIOFRAMEWORK", [])
+    if isinstance(fw, list):
+        if "espidf" not in fw:
+            return
+    elif fw != "espidf":
         return
     proj_dir = env.get("PROJECT_DIR")
     if not proj_dir:

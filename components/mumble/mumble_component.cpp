@@ -3,6 +3,9 @@
 #include "mumble_diag.h"
 #include "mumble_socket.h"
 #include "esphome/core/log.h"
+#ifdef USE_ESP_IDF
+#include "esp_wifi.h"
+#endif
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
@@ -177,7 +180,12 @@ void MumbleComponent::log_connection_config() const {
 
 void MumbleComponent::setup() {
   mumble_diag_run_boot();
-
+#ifdef USE_ESP_IDF
+  // Disable WiFi power save to improve UDP transmission. Modem sleep can cause
+  // UDP packets to be lost or delayed (ESP-IDF issue tracker). For plugged-in
+  // devices this has negligible impact.
+  esp_wifi_set_ps(WIFI_PS_NONE);
+#endif
   ESP_LOGCONFIG(TAG, "Setting up Mumble client");
   seed_username_default_if_empty();  // Expose esp32-<MAC> as default; user can overwrite
   publish_empty_text_defaults();     // Prevent HA showing "unknown" for empty fields

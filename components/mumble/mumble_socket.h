@@ -31,8 +31,6 @@ class TlsClient {
   virtual int last_error(char *buf, size_t buf_len) = 0;
   /** Peer IP in network byte order when connected; 0 if not available. */
   virtual uint32_t get_peer_ip() const { return 0; }
-  /** Local IP in network byte order when connected; 0 if not available. Use for UDP bind. */
-  virtual uint32_t get_local_ip() const { return 0; }
 };
 
 // UDP socket abstraction

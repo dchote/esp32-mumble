@@ -77,12 +77,12 @@ The [`.github/workflows/build.yml`](../.github/workflows/build.yml) workflow bui
 ## Dependencies
 
 - **Opus**: The Mumble component uses a **local vendored Opus library** (`lib/micro-opus/`) based on [esphome-libs/micro-opus](https://github.com/esphome-libs/micro-opus). It uses heap-based pseudostack allocation (PSRAM when available) and Xtensa DSP optimizations. Do not remove or modify `lib/micro-opus/` — it is required for compilation.
-- **ESP32-S3 Box / Box-3 (Arduino)**: Both Box configs use `framework: type: arduino`. UDP voice works on Arduino; ESP-IDF has known unicast UDP issues and is not used for now.
+- **ESP32-S3 Box / Box-3 (ESP-IDF)**: Both use `framework: type: esp-idf` with lwIP netconn for UDP. First flash must be via USB, not OTA.
 
 ## Troubleshooting
 
 - **Component not found**: Ensure `external_components` points to `../components` relative to the YAML file (configs are in `esphome/`).
 - **Board not found**: Use `esphome boards` to list available boards. For Box 3 use `esp32s3box3`; for original Box use `esp32s3box`.
 - **Compilation errors**: Ensure you have the correct ESPHome version (`esphome version`). For ESP32-S3 Box, use ESPHome 2025.5.0 or later. If Opus-related errors occur, verify `lib/micro-opus/` exists and is complete (no missing files).
-- **UDP ping timeout**: Arduino framework: UDP works on same-LAN. If ping stays "nan" and voice uses TCP tunnel, check firewall/NAT. ESP-IDF: unicast UDP does not work (known issue); use Arduino.
+- **UDP ping timeout**: Box and Box-3 (ESP-IDF netconn) support UDP. If ping stays "nan" and voice uses TCP tunnel, check firewall/NAT.
 - **"UDP ping echo not received"**: On same-LAN setups this was historically caused by an OCB2 encryption mismatch; the implementation now matches grumble. If it persists, check NAT/firewall rules or try Lite crypto mode (cleartext UDP) to isolate networking vs. encryption.

@@ -1,5 +1,6 @@
 #include "mumble_udp.h"
 #include "mumble_diag.h"
+#include "mumble_network_types.h"
 #include "mumble_socket.h"
 #include "esphome/core/log.h"
 #include <cstring>
@@ -34,9 +35,14 @@ bool MumbleUdp::start(const std::string &server, uint16_t port, uint32_t peer_ip
     ESP_LOGE(TAG, "UDP begin failed");
     return false;
   }
+#ifdef USE_ESP_IDF
+  // ESP-IDF: do NOT use connect() - use sendto() instead. connect()+send() can cause
+  // unicast UDP packets to never leave the device (known lwIP quirk).
+#else
   if (udp_->connect_remote(cached_ip_, port_)) {
     ESP_LOGD(TAG, "UDP connected (send instead of sendto)");
   }
+#endif
   started_ = true;
   udp_active_ = false;
   last_ping_sent_ms_ = 0;
@@ -177,10 +183,9 @@ bool MumbleUdp::send_raw(const uint8_t *data, size_t len) {
     }
   }
   if (!ok && udp_packets_sent_ <= 15) {
-    ESP_LOGW(TAG, "UDP send FAIL to %u.%u.%u.%u:%u len=%u",
-             (unsigned)(cached_ip_ >> 24) & 0xFF, (unsigned)(cached_ip_ >> 16) & 0xFF,
-             (unsigned)(cached_ip_ >> 8) & 0xFF, (unsigned) cached_ip_ & 0xFF,
-             port_, (unsigned) len);
+    char ipbuf[16];
+    mumble_ip_to_dotted(cached_ip_, ipbuf, sizeof(ipbuf));
+    ESP_LOGW(TAG, "UDP send FAIL to %s:%u len=%u", ipbuf, port_, (unsigned) len);
   }
   return ok;
 }

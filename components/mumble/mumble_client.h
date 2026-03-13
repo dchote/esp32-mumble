@@ -66,10 +66,6 @@ class MumbleClient {
   uint32_t get_peer_ip() const {
     return (tls_client_ != nullptr && is_connected()) ? tls_client_->get_peer_ip() : 0;
   }
-  /** Local IP (network byte order) from TLS connection; 0 if not connected. Use for UDP bind. */
-  uint32_t get_local_ip() const {
-    return (tls_client_ != nullptr && is_connected()) ? tls_client_->get_local_ip() : 0;
-  }
 
   bool has_crypt_setup() const { return crypt_setup_received_; }
   const std::vector<uint8_t> &get_crypt_key() const { return crypt_key_; }

@@ -1,8 +1,10 @@
 ---
 # ESP32-S3-BOX (original Box, not Box-3) board config for Mumble client
+# Uses ESP-IDF framework with lwIP netconn for UDP (BSD sockets have unicast UDP issues).
 # Keep functionally in sync with esp32-s3-box3.yaml (same entities/features; only pins differ).
 # Pinout: backlight GPIO45, I2S LRCLK GPIO47 (Box-3 uses backlight 47, LRCLK 45).
 # Configure server, port, username, password, channel, and mode in Home Assistant UI (values persist in NVS)
+# First flash after switching framework must be via USB, not OTA.
 
 substitutions:
   name: esp32-mumble-box
@@ -35,7 +37,15 @@ esp32:
   flash_size: 16MB
   cpu_frequency: 240MHz
   framework:
-    type: arduino
+    type: esp-idf
+    sdkconfig_options:
+      CONFIG_ESP32S3_DEFAULT_CPU_FREQ_240: "y"
+      CONFIG_ESP32S3_DATA_CACHE_64KB: "y"
+      CONFIG_ESP32S3_DATA_CACHE_LINE_64B: "y"
+      CONFIG_MBEDTLS_AES_C: "y"
+      CONFIG_MBEDTLS_GCM_C: "y"
+      CONFIG_ESP_TLS_INSECURE: "y"
+      CONFIG_ESP_TLS_SKIP_SERVER_CERT_VERIFY: "y"
 
 psram:
   mode: octal
@@ -251,6 +261,19 @@ button:
     entity_category: diagnostic
     on_press:
       - mumble.reset_config: mumble_client
+text_sensor:
+  - platform: template
+    name: "Transport"
+    id: mumble_transport
+    icon: "mdi:protocol"
+    entity_category: diagnostic
+    lambda: |-
+      if (id(mumble_client).get_voice_transport_udp()) {
+        return {"UDP"};
+      } else {
+        return {"TCP"};
+      }
+    update_interval: 5s
 sensor:
   - platform: wifi_signal
     name: "WiFi Signal"

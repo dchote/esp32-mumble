@@ -40,8 +40,8 @@ case "$CONFIG" in
   *)
     echo "Usage: $0 [generic|box|box3|echo|all]"
     echo "  generic - Build generic ESP32-S3 config (default, Arduino)"
-    echo "  box     - Build ESP32-S3 Box config (ESP-IDF, requires 2025.5.0+)"
-    echo "  box3    - Build ESP32-S3 Box 3 config (ESP-IDF, requires 2025.5.0+)"
+    echo "  box     - Build ESP32-S3 Box config (ESP-IDF, lwIP netconn, requires 2025.5.0+)"
+    echo "  box3    - Build ESP32-S3 Box 3 config (ESP-IDF, lwIP netconn, requires 2025.5.0+)"
     echo "  echo    - Build M5Stack Atom Echo config (Arduino)"
     echo "  all     - Build all configs"
     exit 1

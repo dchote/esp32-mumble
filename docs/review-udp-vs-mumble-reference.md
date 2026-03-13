@@ -8,7 +8,7 @@ Comparison of the ESP32 Mumble client against:
 
 The protocol and crypto implementation **align with** the reference. No obvious wire-format mismatches.
 
-**Framework finding (2025-03)**: With **Arduino** (WiFiUDP), UDP packets reach the server and ping echo works. With **ESP-IDF** (lwIP sockets), `send()`/`sendto()` returns success but no unicast UDP packets appear on the wire. The issue is the ESP-IDF/lwIP stack, not Mumble protocol or OCB2. Use Arduino for development and deployment until ESP-IDF is debugged.
+**Framework finding (2025-03)**: With **Arduino** (WiFiUDP), UDP packets reach the server and ping echo works. With **ESP-IDF** (BSD sockets), `sendto()` returns success but unicast UDP packets did not leave the device. **Fix**: Use lwIP **netconn** API (`netconn_sendto`) instead of BSD sockets for UDP; netconn uses the tcpip task path. ESP32-S3 Box now uses ESP-IDF with netconn for UDP.
 
 **Voice transmit (2025-03)**: Device sends voice via UDP; server receives it via UDPTunnel (TCP) when UDP path is missing. Server logs may show `SendAudio no UDP path` when relaying to the ESP32 — server-side UDP address handling for the device is not fully validated yet.
 
@@ -59,13 +59,9 @@ Mapping matches go-mumble-server and Mumble.
 
 ## Areas to Verify
 
-### A. UDP Socket Usage (sendto)
+### A. UDP Socket Usage
 
-`UdpSocketEspIdf::end_packet()` uses `sendto(fd_, send_buf_, send_pos_, 0, ...)`. It does not check the return value for partial sends. `send_pos_` should match the actual size sent. Adding logging for:
-- Target IP:port
-- `sendto` return value vs. `send_pos_`
-
-would confirm that packets are sent as expected.
+ESP-IDF uses `UdpSocketNetconn::end_packet()` with `netconn_sendto()`. Target IP:port and `netconn_sendto` err are logged on failure. Transport text sensor shows UDP vs TCP.
 
 ### B. OCB2 XEX* Attack Countermeasure
 
@@ -83,12 +79,9 @@ The server echoes pings to the address it received from. If the client uses an u
 
 ## Recommended Next Steps
 
-1. **Use Arduino framework** for all configs — UDP works. ESP-IDF debugging deferred until Arduino is validated.
+1. **ESP32-S3 Box**: ESP-IDF with lwIP netconn for UDP — works. **Box-3 and others**: Arduino (WiFiUDP) — works.
 
-2. **ESP-IDF debugging** (when resuming)
-   - Log target IP:port and `sendto` return value in `UdpSocketEspIdf::end_packet()`.
-   - Try lwIP netconn API instead of BSD sockets.
-   - Compare with mDNS (multicast works) vs unicast path differences.
+2. **netconn fix** (implemented): ESP-IDF UDP now uses `netconn_sendto()` instead of BSD `sendto()`. `UdpSocketNetconn` in mumble_socket.cpp.
 
 3. **Decrypt test**
    - On a dev machine, use a test harness (e.g. from go-mumble-server `cryptstate_test.go`) to ensure ESP32-encrypted packets decrypt correctly with the same key/nonce setup.

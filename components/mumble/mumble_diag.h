@@ -6,7 +6,8 @@
 namespace esphome {
 namespace mumble {
 
-/** Run once at boot: diagnose byte-order, IP format, and sockaddr patterns. */
+/** Run once at boot: diagnose byte-order, IP format, and sockaddr patterns.
+ *  Only active when USE_ESP_IDF is defined (ESP-IDF framework builds). */
 void mumble_diag_run_boot();
 
 /** Log up to max_bytes of data as hex. Tag used for ESP_LOG*. */

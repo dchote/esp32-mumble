@@ -51,8 +51,7 @@ All targets require an ESP32-S3 with PSRAM and Wi-Fi. The S3's dual-core archite
 - **Legacy mode** (default): Standard Mumble protocol with OCB2-AES128 UDP encryption. Connects to Murmur, go-mumble-server, or any Mumble server.
 - **Lite mode** (optional): Cleartext UDP voice, TLS control. Minimal CPU; use on trusted LAN when the server supports it (e.g. go-mumble-server with Lite enabled).
 - Join a configured channel on connect
-- Receive and transmit Opus voice packets  
-  *(Note: Voice transmit not 100% — UDP pings work; server UDP path to device may be incomplete; TCP tunnel fallback used when needed.)*
+- Receive and transmit Opus voice packets (UDP when active; TCP tunnel fallback when UDP unreachable)
 - Channel changes via `UserState` (e.g. from HA channel select)
 - Respond to server pings to maintain connection
 - UDP voice with TCP fallback (UDPTunnel) if UDP is unreachable
