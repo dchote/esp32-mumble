@@ -16,14 +16,14 @@ esphome:
   on_boot:
     - priority: 600
       then:
-        - light.turn_off: screen_backlight
+        - light.turn_on: screen_backlight
     - priority: -100
       then:
         - speaker.volume_set:
             id: box_speaker
             volume: !lambda |-
               float vol = id(mumble_speaker_volume).state;
-              if (isnan(vol)) vol = 80;
+              if (isnan(vol)) vol = 65;
               return vol / 100.0f;
   platformio_options:
     extra_scripts:
@@ -59,7 +59,7 @@ wifi:
 logger:
   hardware_uart: USB_SERIAL_JTAG
 
-# Screen backlight: Box uses GPIO45 (Box-3 uses GPIO47). Keep off by default.
+# Screen backlight: Box uses GPIO45 (Box-3 uses GPIO47). Default on for status display.
 output:
   - platform: ledc
     pin:
@@ -74,11 +74,104 @@ light:
     icon: "mdi:television"
     entity_category: config
     output: backlight_output
-    restore_mode: RESTORE_DEFAULT_OFF
+    restore_mode: RESTORE_DEFAULT_ON
+
+font:
+  - file: "gfonts://Roboto"
+    id: font_title
+    size: 14
+    glyphsets: [GF_Latin_Kernel]
+  - file: "gfonts://Roboto"
+    id: font_server
+    size: 18
+    glyphsets: [GF_Latin_Kernel]
+  - file: "gfonts://Roboto Mono"
+    id: font_small
+    size: 14
+    glyphsets: [GF_Latin_Kernel]
+
+# SPI for display (Box: GPIO7 SCK, GPIO6 MOSI)
+spi:
+  - id: spi_bus
+    clk_pin: GPIO7
+    mosi_pin: GPIO6
+
+# Display (required by touchscreen). Match wake-word-voice-assistants: S3BOX, invert_colors false, reset 48.
+# Status display: active writes may help touchscreen; shows server, ping, mute, voice RX/TX.
+display:
+  - platform: ili9xxx
+    id: box_display
+    model: S3BOX
+    invert_colors: false
+    data_rate: 40MHz
+    spi_id: spi_bus
+    cs_pin: 5
+    dc_pin: 4
+    reset_pin: 48
+    update_interval: 1s
+    lambda: |-
+      int w = it.get_width();
+      int h = it.get_height();
+      auto fg = Color(255, 255, 255);
+      auto dim = Color(140, 140, 140);
+      auto bg = Color(24, 24, 28);
+      auto card = Color(40, 40, 48);
+      auto accent = Color(60, 60, 72);
+      it.fill(bg);
+      it.filled_rectangle(6, 6, w - 12, h - 12, card);
+      it.rectangle(6, 6, w - 12, h - 12, accent);
+      it.print(14, 14, id(font_title), dim, "MUMBLE");
+      auto srv = id(mumble_server_host).state;
+      if (srv.empty()) srv = "--";
+      else if (srv.length() > 22) srv = srv.substr(0, 19) + "...";
+      it.print(14, 36, id(font_server), fg, srv.c_str());
+      it.horizontal_line(14, 62, w - 28);
+      float p = id(mumble_ping_sensor).state;
+      if (isnan(p)) it.print(14, 72, id(font_small), dim, "Ping: --");
+      else it.printf(14, 72, id(font_small), fg, "Ping: %.0f ms", p);
+      int y = 100;
+      bool muted = id(button_microphone).state;
+      bool rx = id(mumble_voice_active).state;
+      bool tx = id(mumble_voice_sending).state;
+      it.printf(14, y, id(font_small), muted ? Color(240, 100, 100) : dim, "Mic: %s  ", muted ? "MUTED" : "UNMUTED");
+      it.printf(14, y + 20, id(font_small), rx ? Color(100, 220, 120) : dim, "RX: %s  ", rx ? "on" : "off");
+      it.printf(14, y + 40, id(font_small), tx ? Color(100, 180, 255) : dim, "TX: %s  ", tx ? "on" : "off");
+
+# Touchscreen: original Box uses TT21100 (Box-3 uses GT911). Red circle button is index 0.
+# Omit reset_pin — shared with display; display init performs reset.
+# Use polling (update_interval) instead of interrupt; interrupt can fail on some hardware.
+touchscreen:
+  - platform: tt21100
+    id: box_touchscreen
+    display: box_display
+    update_interval: 50ms
 
 # GPIO1 = hardware mic mute button (latching toggle). LED off = unmuted, LED on = muted.
 # On unmute, re-init ES7210 via I2C to restore ADC registers after hardware mute.
 binary_sensor:
+  - platform: tt21100
+    name: "PTT"
+    id: button_ptt
+    tt21100_id: box_touchscreen
+    index: 0
+    on_press:
+      - if:
+          condition:
+            - binary_sensor.is_on: mumble_connected_sensor
+          then:
+            - if:
+                condition:
+                  - lambda: 'return id(mumble_client).get_mode() == 2;'
+                then:
+                  - mumble.communicator_toggle: mumble_client
+                else:
+                  - mumble.microphone_enable: mumble_client
+    on_release:
+      - if:
+          condition:
+            - lambda: 'return id(mumble_client).get_mode() != 2;'
+          then:
+            - mumble.microphone_disable: mumble_client
   - platform: gpio
     pin:
       number: GPIO1
@@ -112,7 +205,6 @@ binary_sensor:
     device_class: running
     lambda: |-
       return id(mumble_client).get_voice_sending();
-
 # Diagnostics
   - platform: template
     name: "Mumble Connected"
@@ -168,6 +260,8 @@ speaker:
     channel: left
     audio_dac: es8311_dac
     buffer_duration: 500ms
+
+# Communicator chime: embedded in Mumble component (bus-aware playback via manage_i2s_bus)
 
 api:
 
@@ -240,6 +334,7 @@ select:
     options:
       - "always_on"
       - "push_to_talk"
+      - "communicator"
   - platform: template
     id: mumble_crypto
     name: "7. Crypto"
@@ -261,6 +356,14 @@ button:
     entity_category: diagnostic
     on_press:
       - mumble.reset_config: mumble_client
+      - number.set:
+          id: mumble_speaker_volume
+          value: 65
+  - platform: restart
+    name: "Reboot"
+    id: mumble_reboot
+    icon: "mdi:restart"
+    entity_category: diagnostic
 text_sensor:
   - platform: template
     name: "Transport"
@@ -304,7 +407,7 @@ number:
     min_value: 0
     max_value: 100
     step: 5
-    initial_value: 80
+    initial_value: 65
     set_action:
       - speaker.volume_set:
           id: box_speaker

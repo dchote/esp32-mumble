@@ -265,7 +265,7 @@ select:
     optimistic: true
     restore_value: true
     initial_option: "always_on"
-    options: ["always_on", "push_to_talk"]
+    options: ["always_on", "push_to_talk", "communicator"]
 
 # Physical button: on_press -> mumble.microphone_enable, on_release -> mumble.microphone_disable
 mumble:
@@ -294,7 +294,7 @@ mumble:
 | `username` | string | optional | Username to authenticate with (or use `username_text_id`) |
 | `password` | string | `""` | Server or user password |
 | `channel` | string | `""` | Channel to join after connect (empty = root) |
-| `mode_select_id` | id | none | Select entity for mode (options: `always_on`, `push_to_talk`; overrides `mode` when set) |
+| `mode_select_id` | id | none | Select entity for mode (options: `always_on`, `push_to_talk`, `communicator`; overrides `mode` when set) |
 | `mode` | enum | `always_on` | `always_on` or `push_to_talk` (fallback when no `mode_select_id`) |
 | `server_text_id` | id | none | Text entity for server host (overrides `server` when set) |
 | `port_text_id` | id | none | Text entity for port (displays as integer in HA) |
@@ -308,6 +308,7 @@ mumble:
 | `mute_pin` | pin | none | GPIO for hardware mute switch |
 | `crypto` | enum | `legacy` | Crypto mode: `legacy` (default, OCB2-AES128) or `lite` (cleartext UDP). Use `crypto_select_id` for HA entity. Changing crypto forces reconnect. |
 | `ca_cert` | string | (empty) | Optional PEM of CA certificate for server verification. When set, TLS verification is enabled; when empty, insecure mode (trusted LAN only). |
+| `on_communicator_end` | automation | none | Fired when communicator sequence ends (timeout or cancel); wire to play close chime (Box/Box-3). |
 
 **ESP32-S3 Box / Box-3 (ESP-IDF)** — Both use `framework: type: esp-idf` with lwIP netconn for UDP. First flash must be via USB, not OTA.
 
@@ -319,7 +320,7 @@ mumble:
 |-----------|----------|-------------|
 | `text.mumble_server_host` | `text` | Server hostname or IP |
 | `text.mumble_server_port` | `text` | Server port (integer, no decimals) |
-| `select.mumble_mode` | `select` | Mode: `always_on` or `push_to_talk` |
+| `select.mumble_mode` | `select` | Mode: `always_on`, `push_to_talk`, or `communicator` |
 | `text.mumble_username` | `text` | Username |
 | `text.mumble_password` | `text` | Password (mode: password) |
 | `text.mumble_channel` | `text` | Channel to join on connect |

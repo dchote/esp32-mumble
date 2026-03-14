@@ -13,7 +13,7 @@ import esphome.config_validation as cv
 from esphome.core import CORE
 from esphome import pins
 from esphome.components import microphone, select, speaker, text
-from esphome.const import CONF_ID, CONF_PORT, CONF_PASSWORD, CONF_CHANNEL
+from esphome.const import CONF_ID, CONF_PORT, CONF_PASSWORD, CONF_CHANNEL, CONF_TRIGGER_ID
 
 CODEOWNERS = ["@danielhoward314"]
 DEPENDENCIES = ["network"]
@@ -35,9 +35,11 @@ CONF_MODE_SELECT = "mode_select_id"
 CONF_CRYPTO_SELECT = "crypto_select_id"
 CONF_MICROPHONE = "microphone_id"
 CONF_SPEAKER = "speaker_id"
+CONF_ON_COMMUNICATOR_END = "on_communicator_end"
 
 CONF_ALWAYS_ON = "always_on"
 CONF_PUSH_TO_TALK = "push_to_talk"
+CONF_COMMUNICATOR = "communicator"
 CONF_LITE = "lite"
 CONF_LEGACY = "legacy"
 
@@ -48,6 +50,7 @@ MumbleChannelSelect = mumble_ns.class_("MumbleChannelSelect", select.Select, cg.
 MUMBLE_MODE = {
     CONF_ALWAYS_ON: 0,
     CONF_PUSH_TO_TALK: 1,
+    CONF_COMMUNICATOR: 2,
 }
 
 MUMBLE_CRYPTO = {
@@ -104,6 +107,13 @@ CONFIG_SCHEMA = cv.All(
                 MUMBLE_CRYPTO, lower=True
             ),
             cv.Optional(CONF_CA_CERT, default=""): cv.string,
+            cv.Optional(CONF_ON_COMMUNICATOR_END): automation.validate_automation(
+                {
+                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
+                        mumble_ns.class_("MumbleCommunicatorEndTrigger", automation.Trigger.template())
+                    ),
+                }
+            ),
         }
     ).extend(cv.COMPONENT_SCHEMA),
     _validate_connection_config,
@@ -174,7 +184,10 @@ async def to_code(config):
         cg.add(var.set_ptt_pin(pin))
     if CONF_MUTE_PIN in config:
         pin = await cg.gpio_pin_expression(config[CONF_MUTE_PIN])
-        cg.add(var.set_mute_pin(pin))
+
+    for conf in config.get(CONF_ON_COMMUNICATOR_END, []):
+        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
+        await automation.build_automation(trigger, [], conf)
 
 
 MUMBLE_ACTION_SCHEMA = maybe_simple_id(
@@ -194,6 +207,12 @@ MumblePttPressAction = mumble_ns.class_(
 )
 MumbleResetConfigAction = mumble_ns.class_(
     "MumbleResetConfigAction", automation.Action
+)
+MumbleStartCommunicatorTransmitAction = mumble_ns.class_(
+    "MumbleStartCommunicatorTransmitAction", automation.Action
+)
+MumbleCommunicatorCancelAction = mumble_ns.class_(
+    "MumbleCommunicatorCancelAction", automation.Action
 )
 
 
@@ -233,5 +252,55 @@ async def mumble_ptt_press_to_code(config, action_id, template_arg, args):
     MUMBLE_ACTION_SCHEMA,
 )
 async def mumble_reset_config_to_code(config, action_id, template_arg, args):
+    var = await cg.get_variable(config[CONF_ID])
+    return cg.new_Pvariable(action_id, template_arg, var)
+
+
+@automation.register_action(
+    "mumble.start_communicator_transmit",
+    MumbleStartCommunicatorTransmitAction,
+    MUMBLE_ACTION_SCHEMA,
+)
+async def mumble_start_communicator_transmit_to_code(config, action_id, template_arg, args):
+    var = await cg.get_variable(config[CONF_ID])
+    return cg.new_Pvariable(action_id, template_arg, var)
+
+
+@automation.register_action(
+    "mumble.communicator_cancel",
+    MumbleCommunicatorCancelAction,
+    MUMBLE_ACTION_SCHEMA,
+)
+async def mumble_communicator_cancel_to_code(config, action_id, template_arg, args):
+    var = await cg.get_variable(config[CONF_ID])
+    return cg.new_Pvariable(action_id, template_arg, var)
+
+
+MumblePlayCommunicatorChimeThenTransmitAction = mumble_ns.class_(
+    "MumblePlayCommunicatorChimeThenTransmitAction", automation.Action
+)
+
+
+@automation.register_action(
+    "mumble.play_communicator_chime_then_transmit",
+    MumblePlayCommunicatorChimeThenTransmitAction,
+    MUMBLE_ACTION_SCHEMA,
+)
+async def mumble_play_communicator_chime_then_transmit_to_code(config, action_id, template_arg, args):
+    var = await cg.get_variable(config[CONF_ID])
+    return cg.new_Pvariable(action_id, template_arg, var)
+
+
+MumbleCommunicatorToggleAction = mumble_ns.class_(
+    "MumbleCommunicatorToggleAction", automation.Action
+)
+
+
+@automation.register_action(
+    "mumble.communicator_toggle",
+    MumbleCommunicatorToggleAction,
+    MUMBLE_ACTION_SCHEMA,
+)
+async def mumble_communicator_toggle_to_code(config, action_id, template_arg, args):
     var = await cg.get_variable(config[CONF_ID])
     return cg.new_Pvariable(action_id, template_arg, var)

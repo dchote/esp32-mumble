@@ -94,9 +94,10 @@ class JitterBuffer {
 class EsphomeSpeakerSink {
  public:
   void set_speaker(speaker::Speaker *spk) { speaker_ = spk; }
-  void write(const int16_t *pcm, size_t samples);
+  size_t write(const int16_t *pcm, size_t samples);
   void start();
   void stop();
+  void finish();
 
   bool has_speaker() const { return speaker_ != nullptr; }
 

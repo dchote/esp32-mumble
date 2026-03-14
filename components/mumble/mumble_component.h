@@ -15,6 +15,7 @@
 #include "esphome/core/automation.h"
 #include "esphome/core/gpio.h"
 #include "esphome/core/helpers.h"
+#include "esphome/core/helpers.h"
 
 namespace esphome {
 namespace mumble {
@@ -66,6 +67,20 @@ class MumbleComponent : public Component {
   void join_channel_by_id(uint32_t channel_id);
   void reset_config();  // Reset all config entities to defaults (diagnostic)
 
+  /** Start communicator transmit phase (call after open chime finishes). */
+  void start_communicator_transmit();
+  /** Play open chime via bus-aware speaker, then start communicator transmit. */
+  void play_communicator_chime_then_transmit();
+  /** Toggle: if active, cancel; else start (open chime -> transmit). */
+  void communicator_toggle();
+  /** Cancel communicator sequence and trigger close chime. */
+  void communicator_cancel();
+  /** True when communicator is active (transmitting or waiting for receive/silence). */
+  bool get_communicator_active() const;
+  void add_on_communicator_end_callback(std::function<void()> &&callback) {
+    on_communicator_end_callback_.add(std::move(callback));
+  }
+
   void setup() override;
   void loop() override;
   void on_shutdown() override;
@@ -108,6 +123,7 @@ class MumbleComponent : public Component {
   std::string last_password_;
   std::string last_channel_;
   uint8_t last_crypto_{0xff};  // 0xff = not yet tracked
+  uint8_t last_mode_{0xff};    // 0xff = not yet tracked; reacts to mode changes
   bool config_tracked_{false};
 
   MumbleUdp udp_;
@@ -124,6 +140,8 @@ class MumbleComponent : public Component {
   uint32_t last_voice_push_ms_{0};       // timestamp of last decoded frame pushed to jitter buffer
   uint32_t voice_recv_count_{0};         // total voice packets received
   static constexpr uint32_t VOICE_IDLE_TIMEOUT_MS = 500;
+  static constexpr uint32_t VOICE_HARD_TIMEOUT_MS = 30000;  // safety: force-clear voice_active_ after 30s
+  uint32_t voice_active_since_ms_{0};
   std::vector<std::string> channel_option_strings_;
   std::vector<uint32_t> channel_option_ids_;
   FixedVector<const char *> channel_option_ptrs_;
@@ -139,17 +157,40 @@ class MumbleComponent : public Component {
   void on_voice_packet(const uint8_t *data, size_t len);
   void audio_playout();
   void manage_i2s_bus();
+  void chime_playout();
   void on_microphone_data(const std::vector<uint8_t> &data);
   bool should_transmit() const;
   void audio_capture();
+  void communicator_loop();
 
   enum class TxState { IDLE, CAPTURING, TRANSMITTING, TAIL };
+  enum class CommunicatorState {
+    IDLE,
+    OPEN_CHIME,       // playing open chime; bus=SPEAKER
+    MIC_ACTIVE,       // mic hot, VAD + TX active
+    SILENCE_WINDOW,   // VAD silent, 10s countdown; mic stays hot
+    CLOSE_CHIME,      // playing close chime; bus=SPEAKER
+  };
+  static constexpr uint32_t COMMUNICATOR_SILENCE_MS = 2000;
+
+  CommunicatorState comm_state_{CommunicatorState::IDLE};
+  bool comm_had_tx_{false};  // true once voice_sending_ was true (starts silence window)
+  uint32_t comm_silence_start_ms_{0};
+  CallbackManager<void()> on_communicator_end_callback_;
   static constexpr size_t CAPTURE_BUF_FRAMES = 8;
   static constexpr size_t CAPTURE_BUF_SAMPLES = CAPTURE_BUF_FRAMES * OpusAudioEncoder::FRAME_SAMPLES;
   static constexpr int VAD_ATTACK_FRAMES = 3;
   static constexpr int VAD_HANGOVER_FRAMES = 15;
   static constexpr uint32_t ECHO_SUPPRESS_TAIL_MS = 100;
   static constexpr size_t TX_PACKET_BUF_SIZE = 1024;
+
+  // Chime playback (bus-aware; uses speaker_sink_ via manage_i2s_bus)
+  static constexpr float CHIME_VOLUME_SCALE = 0.25f;  // reduce level to avoid clipping
+  bool chime_playing_{false};
+  bool chime_wrote_all_{false};
+  bool chime_stop_requested_{false};  // stop() called, waiting for drain
+  bool chime_close_{false};  // true = playing close chime (then IDLE); false = open chime (then MIC_ACTIVE)
+  size_t chime_offset_{0};
 
   enum class BusOwner : uint8_t { NONE, MIC, SPEAKER };
   BusOwner bus_owner_{BusOwner::NONE};
@@ -198,6 +239,41 @@ class MumbleResetConfigAction : public Action<Ts...>, public Parented<MumbleComp
  public:
   explicit MumbleResetConfigAction(MumbleComponent *parent) { this->set_parent(parent); }
   void play(Ts... x) override { this->parent_->reset_config(); }
+};
+
+template<typename... Ts>
+class MumbleStartCommunicatorTransmitAction : public Action<Ts...>, public Parented<MumbleComponent> {
+ public:
+  explicit MumbleStartCommunicatorTransmitAction(MumbleComponent *parent) { this->set_parent(parent); }
+  void play(Ts... x) override { this->parent_->start_communicator_transmit(); }
+};
+
+template<typename... Ts>
+class MumblePlayCommunicatorChimeThenTransmitAction : public Action<Ts...>, public Parented<MumbleComponent> {
+ public:
+  explicit MumblePlayCommunicatorChimeThenTransmitAction(MumbleComponent *parent) { this->set_parent(parent); }
+  void play(Ts... x) override { this->parent_->play_communicator_chime_then_transmit(); }
+};
+
+template<typename... Ts>
+class MumbleCommunicatorToggleAction : public Action<Ts...>, public Parented<MumbleComponent> {
+ public:
+  explicit MumbleCommunicatorToggleAction(MumbleComponent *parent) { this->set_parent(parent); }
+  void play(Ts... x) override { this->parent_->communicator_toggle(); }
+};
+
+template<typename... Ts>
+class MumbleCommunicatorCancelAction : public Action<Ts...>, public Parented<MumbleComponent> {
+ public:
+  explicit MumbleCommunicatorCancelAction(MumbleComponent *parent) { this->set_parent(parent); }
+  void play(Ts... x) override { this->parent_->communicator_cancel(); }
+};
+
+class MumbleCommunicatorEndTrigger : public Trigger<> {
+ public:
+  explicit MumbleCommunicatorEndTrigger(MumbleComponent *parent) {
+    parent->add_on_communicator_end_callback([this]() { this->trigger(); });
+  }
 };
 
 }  // namespace mumble

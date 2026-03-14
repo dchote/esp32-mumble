@@ -18,7 +18,7 @@ esphome:
           id: generic_speaker
           volume: !lambda |-
             float vol = id(mumble_speaker_volume).state;
-            if (isnan(vol)) vol = 80;
+            if (isnan(vol)) vol = 65;
             return vol / 100.0f;
   platformio_options:
     build_flags:
@@ -165,6 +165,7 @@ select:
     options:
       - "always_on"
       - "push_to_talk"
+      - "communicator"
   - platform: template
     id: mumble_crypto
     name: "7. Crypto"
@@ -186,6 +187,14 @@ button:
     entity_category: diagnostic
     on_press:
       - mumble.reset_config: mumble_client
+      - number.set:
+          id: mumble_speaker_volume
+          value: 65
+  - platform: restart
+    name: "Reboot"
+    id: mumble_reboot
+    icon: "mdi:restart"
+    entity_category: diagnostic
 text_sensor:
   - platform: template
     name: "Transport"
@@ -229,7 +238,7 @@ number:
     min_value: 0
     max_value: 100
     step: 5
-    initial_value: 80
+    initial_value: 65
     set_action:
       - speaker.volume_set:
           id: generic_speaker

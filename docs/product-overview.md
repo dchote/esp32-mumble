@@ -14,7 +14,21 @@ The device listens and transmits continuously, acting as a room intercom. Audio 
 
 ### Microphone Control
 
-Transmitting is controlled by a physical button wired to `mumble.microphone_enable` / `mumble.microphone_disable` (press = on, release = off). In push-to-talk mode this provides hold-to-talk; in always-on mode it toggles. The `mumble.ptt_press` action toggles mic state for single-press buttons.
+Transmitting is controlled by a physical button wired to `mumble.microphone_enable` / `mumble.microphone_disable` (press = on, release = off). In push-to-talk mode this provides hold-to-talk; in always-on mode it toggles. On Box/Box-3, the touch-screen red circle below the display acts as the PTT button. The `mumble.ptt_press` action toggles mic state for single-press buttons.
+
+### Star Trek Communicator Mode
+
+In **communicator** mode, a single button press opens a half-duplex session:
+
+1. An **open chime** plays through the speaker (bus-aware, embedded PCM)
+2. The microphone goes live — VAD detects speech and transmits via Opus
+3. When you stop talking, a **2-second silence window** starts; if you resume speaking, the timer resets
+4. After 2 seconds of continuous silence the session auto-closes with a **close chime**
+5. Pressing the button again during an active session **cancels immediately** and plays the close chime
+
+Incoming voice is suppressed while a communicator session is active so the I2S bus stays on the microphone. The chime audio is embedded in the firmware as raw 16-bit PCM (generated from `esphome/sounds/communicator.wav` by `scripts/generate_communicator_chime.py`) and played through the component's own speaker path — no ESPHome media player needed.
+
+The state machine has five states: `IDLE` → `OPEN_CHIME` → `MIC_ACTIVE` → `SILENCE_WINDOW` → `CLOSE_CHIME` → `IDLE`. Mode switching from Home Assistant takes effect immediately and cancels any active session.
 
 ### Multi-Room Intercom
 
@@ -79,7 +93,7 @@ The following settings are exposed as Home Assistant entities and can be changed
 | Username | Text | Mumble username; defaults to `esp32-<MAC>` on first run (user can overwrite) |
 | Password | Text | Server or user password; no default |
 | Channel | Text | Channel to join on connect (empty = root; case-insensitive match) |
-| Mode | Select | **Always on** or **Push to talk** (persisted across reboots) |
+| Mode | Select | **Always on**, **Push to talk**, or **Communicator** (persisted across reboots) |
 | Crypto | Select | **Legacy** (OCB2-AES128, default) or **Lite** (cleartext UDP for trusted LAN) |
 | Speaker Volume | Number | Playback volume level (0–100, default 80) |
 | Speaker Power | Switch | Hardware amplifier power on/off (Box/Box-3 only, GPIO46) |

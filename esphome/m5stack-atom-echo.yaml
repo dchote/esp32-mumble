@@ -18,7 +18,7 @@ esphome:
           id: echo_speaker
           volume: !lambda |-
             float vol = id(mumble_speaker_volume).state;
-            if (isnan(vol)) vol = 80;
+            if (isnan(vol)) vol = 65;
             return vol / 100.0f;
   platformio_options:
     build_flags:
@@ -46,7 +46,7 @@ api:
 ota:
   - platform: esphome
 
-# M5Stack Atom Echo: one button (GPIO39). Use for microphone (press = on, release = off).
+# M5Stack Atom Echo: one button (GPIO39). In communicator mode: toggle communicator. Else: PTT (press=on, release=off).
 binary_sensor:
   - platform: gpio
     pin:
@@ -55,9 +55,23 @@ binary_sensor:
     name: "Microphone"
     id: button_microphone
     on_press:
-      - mumble.microphone_enable: mumble_client
+      - if:
+          condition:
+            - binary_sensor.is_on: mumble_connected_sensor
+          then:
+            - if:
+                condition:
+                  - lambda: 'return id(mumble_client).get_mode() == 2;'
+                then:
+                  - mumble.communicator_toggle: mumble_client
+                else:
+                  - mumble.microphone_enable: mumble_client
     on_release:
-      - mumble.microphone_disable: mumble_client
+      - if:
+          condition:
+            - lambda: 'return id(mumble_client).get_mode() != 2;'
+          then:
+            - mumble.microphone_disable: mumble_client
   - platform: template
     name: "Voice Received"
     id: mumble_voice_active
@@ -172,6 +186,7 @@ select:
     options:
       - "always_on"
       - "push_to_talk"
+      - "communicator"
   - platform: template
     id: mumble_crypto
     name: "7. Crypto"
@@ -193,6 +208,14 @@ button:
     entity_category: diagnostic
     on_press:
       - mumble.reset_config: mumble_client
+      - number.set:
+          id: mumble_speaker_volume
+          value: 65
+  - platform: restart
+    name: "Reboot"
+    id: mumble_reboot
+    icon: "mdi:restart"
+    entity_category: diagnostic
 text_sensor:
   - platform: template
     name: "Transport"
@@ -236,7 +259,7 @@ number:
     min_value: 0
     max_value: 100
     step: 5
-    initial_value: 80
+    initial_value: 65
     set_action:
       - speaker.volume_set:
           id: echo_speaker

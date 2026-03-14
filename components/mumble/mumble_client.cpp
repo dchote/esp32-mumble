@@ -98,6 +98,13 @@ void MumbleClient::loop() {
       return;
     }
     case ConnectionState::CONNECTING: {
+      if (!network::is_connected()) {
+        ESP_LOGW(TAG, "Network down during connect, disconnecting");
+        if (tls_client_ != nullptr) tls_client_->stop();
+        state_ = ConnectionState::DISCONNECTED;
+        network_connected_since_ms_ = 0;
+        return;
+      }
       int poll = tls_client_ != nullptr ? tls_client_->connect_poll() : -1;
       if (poll == 1) {
         recv_buf_.clear();
@@ -118,6 +125,14 @@ void MumbleClient::loop() {
     case ConnectionState::AUTHENTICATING:
     case ConnectionState::CONNECTED:
       break;
+  }
+
+  // Proactive disconnect when network goes down to avoid TLS read spam (esp-tls -0x004C).
+  // network::is_connected() reflects WiFi state; when it's false we stop immediately.
+  if (!network::is_connected()) {
+    ESP_LOGW(TAG, "Network down, disconnecting");
+    disconnect();
+    return;
   }
 
   if (tls_client_ == nullptr || !tls_client_->connected()) {
@@ -152,13 +167,11 @@ void MumbleClient::loop() {
     if (n <= 0) {
       recv_buf_.resize(old_size);
       if (n < 0) {
-        // Arduino WiFiClientSecure returns -1 when no data available (not just on error).
-        // Only disconnect if the connection is actually dead.
-        if (!tls_client_->connected()) {
-          ESP_LOGW(TAG, "TLS read error, disconnecting");
-          disconnect();
-          return;
-        }
+        // Fatal read error (e.g. esp-tls -0x004C on WiFi disconnect). ESP-IDF's
+        // connected() can lag; disconnect immediately to stop TLS error spam.
+        ESP_LOGW(TAG, "TLS read error, disconnecting");
+        disconnect();
+        return;
       }
       break;
     }
@@ -452,7 +465,11 @@ void MumbleClient::on_reject(const uint8_t *payload, size_t len) {
            (unsigned) reject_count_, (unsigned) MAX_REJECT_ATTEMPTS,
            (unsigned) m.type, m.reason.c_str());
   last_connect_attempt_ms_ = mumble_millis();  // Prevent immediate retry
-  reconnect_delay_ms_ = std::max(reconnect_delay_ms_, static_cast<uint32_t>(30000));  // 30s backoff on reject
+  if (m.type == REJECT_USERNAME_IN_USE) {
+    reconnect_delay_ms_ = 1000;  // 1s retry for username-in-use (e.g. stale session after flash)
+  } else {
+    reconnect_delay_ms_ = std::max(reconnect_delay_ms_, static_cast<uint32_t>(30000));  // 30s backoff on other rejects
+  }
   disconnect();
 }
 

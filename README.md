@@ -2,7 +2,7 @@
 
 An ESP32-S3 Mumble voice chat client for ESPHome, turning microcontroller boards into always-on intercoms and push-to-talk devices.
 
-> **Status: Voice-functional alpha** — Voice receive and transmit working. Legacy (default) and Lite crypto, HA integration. Tested with go-mumble-server. **Box and Box-3** use ESP-IDF with lwIP netconn for UDP. **Generic and Atom Echo** use Arduino. UDP when active; TCP tunnel fallback when UDP unreachable.
+> **Status: Voice-functional alpha** — Voice receive and transmit working with three modes: always-on, push-to-talk, and communicator. Legacy (default) and Lite crypto, HA integration. Tested with go-mumble-server. **Box and Box-3** use ESP-IDF with lwIP netconn for UDP. **Generic and Atom Echo** use Arduino. UDP when active; TCP tunnel fallback when UDP unreachable.
 
 ## What Is This?
 
@@ -12,13 +12,32 @@ The firmware runs as an [ESPHome](https://esphome.io/) external component, integ
 
 ### Key Capabilities
 
+- **Three operating modes**: Always-on intercom, push-to-talk, and **Communicator** (Star Trek-style half-duplex)
 - **Crypto modes**: **Legacy** (default) — OCB2-AES128; **Lite** — cleartext UDP for trusted LAN; **Secure** — AES-256-GCM when server negotiates it (go-mumble-server)
-- **Always-on intercom** or **push-to-talk** operation
 - **Opus** audio encoding/decoding at 16 kHz
 - **Microphone capture and transmit** (Opus encode, VAD, echo suppression)
 - **Acoustic echo cancellation** for open-mic use
-- **Home Assistant** entities for server config, mode (always-on / PTT), mute, volume, channel, and status
+- **Home Assistant** entities for server config, mode, mute, volume, channel, and status
 - **Multi-room** intercom via Mumble channels
+
+---
+
+### Communicator Mode
+
+Communicator mode turns any supported board into a **Star Trek-style half-duplex intercom**. A single button press opens a communication session with an audible chime, transmits your voice, and automatically closes when you stop talking.
+
+**How it works:**
+
+1. **Press the button** — an open chime plays, then the microphone goes live
+2. **Speak** — audio is transmitted via Mumble with VAD (voice activity detection); silence is not sent
+3. **Stop speaking** — after 2 seconds of silence the session auto-closes with a close chime
+4. **Press again during a session** — immediately cancels and plays the close chime
+
+While a communicator session is active, incoming voice is suppressed so the bus stays on the microphone. The chime is embedded directly in the firmware as raw PCM and played through the component's own bus-aware speaker path — no media player needed.
+
+Communicator mode is selectable from the **Mode** entity in Home Assistant (alongside Always On and Push to Talk) and persists across reboots. On boards with a physical button (Box, Box-3, Atom Echo), the same button handles all three modes automatically.
+
+---
 
 ## Supported Hardware
 
@@ -70,7 +89,7 @@ For Box/Box-3 (ESP-IDF): first flash must be via USB, not OTA.
 
 See [docs/build.md](docs/build.md) for full build and flash instructions.
 
-Configure Mumble server, port, username, password, channel, mode, and crypto from the Home Assistant UI after adding the device; **crypto defaults to Legacy** (OCB2-AES128). Values persist in NVS and are restored on boot. Username defaults to `esp32-<MAC>`; you can overwrite it. Changing server, username, password, channel, or crypto forces a reconnect. Use **Speaker Volume** to adjust playback level and **Microphone Enabled** to enable or disable transmitting — both persist across reboots. On Box/Box-3, **Speaker Power** controls the hardware amplifier. Diagnostics show connection status, ping. **Voice Received** (Sensors) indicates when voice is being received. The **Reset Config** button restores all settings to defaults. See `esphome/generic-esp32s3.yaml` for the full pattern.
+Configure Mumble server, port, username, password, channel, mode, and crypto from the Home Assistant UI after adding the device; **crypto defaults to Legacy** (OCB2-AES128). Values persist in NVS and are restored on boot. Username defaults to `esp32-<MAC>`; you can overwrite it. Changing server, username, password, channel, or crypto forces a reconnect. **Mode** selects between Always On, Push to Talk, and Communicator — switching modes takes effect immediately (mic is disabled when leaving always-on). Use **Speaker Volume** to adjust playback level. On Box/Box-3, **Speaker Power** controls the hardware amplifier. Diagnostics show connection status, ping, and voice activity. The **Reset Config** button restores all settings to defaults. See `esphome/generic-esp32s3.yaml` for the full pattern.
 
 ## Project Structure
 
@@ -83,7 +102,8 @@ esp32-mumble/
 ├── scripts/
 │   ├── build.sh
 │   ├── flash.sh
-│   └── patch_mbedtls_requires.py  # ESP-IDF Box: adds mbedtls to REQUIRES
+│   ├── generate_communicator_chime.py  # Generates communicator_chime_data.h from WAV
+│   └── patch_mbedtls_requires.py       # ESP-IDF Box: adds mbedtls to REQUIRES
 ├── docs/
 │   ├── build.md         # Build and flash instructions
 │   ├── features/
@@ -91,7 +111,8 @@ esp32-mumble/
 │   │   ├── 0002-initial-code-framework.md
 │   │   ├── 0003-mumble-connection-protocol.md
 │   │   ├── 0004-udp-voice-playback.md
-│   │   └── 0008-voice-capture-optimizations.md
+│   │   ├── 0008-voice-capture-optimizations.md
+│   │   └── 0009-communicator-mode.md
 │   ├── product-overview.md
 │   └── technical-overview.md
 ├── esphome/             # Example device configs

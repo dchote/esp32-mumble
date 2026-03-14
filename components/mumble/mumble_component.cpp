@@ -1,4 +1,5 @@
 #include "mumble_component.h"
+#include "communicator_chime_data.h"
 #include "mumble_channel_select.h"
 #include "mumble_diag.h"
 #include "mumble_socket.h"
@@ -95,8 +96,9 @@ std::string MumbleComponent::get_channel() const {
 uint8_t MumbleComponent::get_mode() const {
   if (mode_select_ != nullptr && !mode_select_->current_option().empty()) {
     const std::string &s = mode_select_->current_option();
-    if (s == "push_to_talk") return 1;
     if (s == "always_on") return 0;
+    if (s == "push_to_talk") return 1;
+    if (s == "communicator") return 2;
   }
   return mode_;
 }
@@ -112,12 +114,124 @@ uint8_t MumbleComponent::get_crypto() const {
 
 void MumbleComponent::set_microphone_enabled(bool enabled) {
   microphone_enabled_ = enabled;
+  if (enabled && voice_active_) {
+    voice_active_ = false;
+    jitter_buffer_.reset();
+    ESP_LOGI(TAG, "Voice RX interrupted by TX request");
+  }
   ESP_LOGD(TAG, "Microphone %s", microphone_enabled_ ? "enabled" : "disabled");
 }
 
 void MumbleComponent::trigger_ptt() {
   // PTT: press-and-hold to talk (future). For now, toggle mic when PTT pin triggers.
   set_microphone_enabled(!microphone_enabled_);
+}
+
+void MumbleComponent::start_communicator_transmit() {
+  if (comm_state_ != CommunicatorState::IDLE) return;
+  comm_state_ = CommunicatorState::MIC_ACTIVE;
+  comm_had_tx_ = false;
+  comm_silence_start_ms_ = 0;
+  ESP_LOGI(TAG, "Communicator MIC_ACTIVE");
+}
+
+void MumbleComponent::play_communicator_chime_then_transmit() {
+  if (comm_state_ != CommunicatorState::IDLE) return;
+  if (!speaker_sink_.has_speaker()) {
+    start_communicator_transmit();
+    return;
+  }
+  if (COMMUNICATOR_CHIME_SIZE == 0) {
+    start_communicator_transmit();
+    return;
+  }
+  comm_state_ = CommunicatorState::OPEN_CHIME;
+  chime_playing_ = true;
+  chime_wrote_all_ = false;
+  chime_stop_requested_ = false;
+  chime_close_ = false;
+  chime_offset_ = 0;
+  ESP_LOGI(TAG, "Playing communicator open chime (%u bytes)", (unsigned) COMMUNICATOR_CHIME_SIZE);
+}
+
+void MumbleComponent::communicator_toggle() {
+  if (get_communicator_active()) {
+    communicator_cancel();
+  } else {
+    if (voice_active_) {
+      voice_active_ = false;
+      jitter_buffer_.reset();
+      ESP_LOGI(TAG, "Voice RX interrupted by communicator");
+    }
+    play_communicator_chime_then_transmit();
+  }
+}
+
+void MumbleComponent::communicator_cancel() {
+  if (comm_state_ == CommunicatorState::IDLE || comm_state_ == CommunicatorState::OPEN_CHIME ||
+      comm_state_ == CommunicatorState::CLOSE_CHIME)
+    return;
+  comm_state_ = CommunicatorState::CLOSE_CHIME;
+  on_communicator_end_callback_.call();
+  if (speaker_sink_.has_speaker() && COMMUNICATOR_CHIME_SIZE > 0) {
+    chime_playing_ = true;
+    chime_wrote_all_ = false;
+    chime_stop_requested_ = false;
+    chime_close_ = true;
+    chime_offset_ = 0;
+  } else {
+    comm_state_ = CommunicatorState::IDLE;
+    comm_silence_start_ms_ = 0;
+    comm_had_tx_ = false;
+  }
+  ESP_LOGI(TAG, "Communicator cancelled, playing close chime");
+}
+
+bool MumbleComponent::get_communicator_active() const {
+  return comm_state_ == CommunicatorState::OPEN_CHIME ||
+         comm_state_ == CommunicatorState::MIC_ACTIVE ||
+         comm_state_ == CommunicatorState::SILENCE_WINDOW ||
+         comm_state_ == CommunicatorState::CLOSE_CHIME;
+}
+
+void MumbleComponent::communicator_loop() {
+  if (get_mode() != 2) return;
+  if (comm_state_ != CommunicatorState::MIC_ACTIVE && comm_state_ != CommunicatorState::SILENCE_WINDOW)
+    return;
+
+  uint32_t now = mumble_millis();
+
+  if (voice_sending_)
+    comm_had_tx_ = true;
+
+  if (comm_state_ == CommunicatorState::MIC_ACTIVE) {
+    if (!voice_sending_ && comm_had_tx_) {
+      comm_state_ = CommunicatorState::SILENCE_WINDOW;
+      comm_silence_start_ms_ = now;
+      ESP_LOGI(TAG, "Communicator silence window started");
+    }
+  } else if (comm_state_ == CommunicatorState::SILENCE_WINDOW) {
+    if (voice_sending_) {
+      comm_state_ = CommunicatorState::MIC_ACTIVE;
+      comm_silence_start_ms_ = 0;
+      ESP_LOGI(TAG, "Communicator voice resumed, back to MIC_ACTIVE");
+    } else if ((now - comm_silence_start_ms_) >= COMMUNICATOR_SILENCE_MS) {
+      comm_state_ = CommunicatorState::CLOSE_CHIME;
+      on_communicator_end_callback_.call();
+      if (speaker_sink_.has_speaker() && COMMUNICATOR_CHIME_SIZE > 0) {
+        chime_playing_ = true;
+        chime_wrote_all_ = false;
+        chime_stop_requested_ = false;
+        chime_close_ = true;
+        chime_offset_ = 0;
+      } else {
+        comm_state_ = CommunicatorState::IDLE;
+        comm_silence_start_ms_ = 0;
+        comm_had_tx_ = false;
+      }
+      ESP_LOGI(TAG, "Communicator 10s silence, playing close chime");
+    }
+  }
 }
 
 void MumbleComponent::join_channel_by_id(uint32_t channel_id) {
@@ -169,6 +283,12 @@ void MumbleComponent::reset_config() {
     crypto_select_->make_call().set_option("legacy").perform();
   }
   set_microphone_enabled(false);
+  comm_state_ = CommunicatorState::IDLE;
+  comm_had_tx_ = false;
+  chime_playing_ = false;
+  chime_wrote_all_ = false;
+  chime_stop_requested_ = false;
+  chime_offset_ = 0;
 }
 
 void MumbleComponent::log_connection_config() const {
@@ -191,7 +311,7 @@ void MumbleComponent::setup() {
   publish_empty_text_defaults();     // Prevent HA showing "unknown" for empty fields
   log_connection_config();
   ESP_LOGCONFIG(TAG, "  Mode: %s",
-                get_mode() == 0 ? "always_on" : "push_to_talk");
+                get_mode() == 0 ? "always_on" : (get_mode() == 1 ? "push_to_talk" : "communicator"));
   ESP_LOGCONFIG(TAG, "  Crypto: %s", get_crypto() == 0 ? "lite" : "legacy");
 
   client_.set_server(get_server());
@@ -218,7 +338,7 @@ void MumbleComponent::setup() {
     microphone_->add_data_callback([this](const std::vector<uint8_t> &data) {
       on_microphone_data(data);
     });
-    set_microphone_enabled(true);
+    set_microphone_enabled(get_mode() == 0);  // always_on: mic on; PTT/communicator: mic off
   }
 }
 
@@ -244,6 +364,17 @@ void MumbleComponent::loop() {
   last_password_ = password;
   last_channel_ = channel;
   last_crypto_ = crypto;
+
+  uint8_t mode = get_mode();
+  if (mode != last_mode_) {
+    if (last_mode_ != 0xff)
+      ESP_LOGI(TAG, "Mode changed to %s",
+               mode == 0 ? "always_on" : (mode == 1 ? "push_to_talk" : "communicator"));
+    if (last_mode_ != 0xff && get_communicator_active())
+      communicator_cancel();
+    set_microphone_enabled(mode == 0);
+    last_mode_ = mode;
+  }
 
   client_.set_server(server);
   client_.set_port(port);
@@ -311,8 +442,10 @@ void MumbleComponent::loop() {
       udp_.loop();
     }
     manage_i2s_bus();
+    chime_playout();
     audio_playout();
     audio_capture();
+    communicator_loop();
   } else if (udp_.is_started()) {
     udp_.stop();
     udp_.set_crypt_state(nullptr);
@@ -329,6 +462,12 @@ void MumbleComponent::loop() {
       tx_state_ = TxState::IDLE;
       voice_sending_ = false;
     }
+    comm_state_ = CommunicatorState::IDLE;
+    comm_had_tx_ = false;
+    chime_playing_ = false;
+    chime_wrote_all_ = false;
+    chime_stop_requested_ = false;
+    chime_offset_ = 0;
   }
 
   float rtt = client_.get_ping_rtt_ms();
@@ -340,6 +479,10 @@ void MumbleComponent::loop() {
 
 void MumbleComponent::on_voice_packet(const uint8_t *data, size_t len) {
   voice_recv_count_++;
+
+  if (get_communicator_active()) {
+    return;  // Suppress incoming voice during communicator; bus is for chime/mic
+  }
 
   VoicePacket pkt;
   if (!parse_voice_packet(data, len, &pkt)) {
@@ -356,6 +499,7 @@ void MumbleComponent::on_voice_packet(const uint8_t *data, size_t len) {
       if (n > 0) {
         if (!voice_active_) {
           voice_active_ = true;
+          voice_active_since_ms_ = mumble_millis();
           ESP_LOGI(TAG, "Voice RX started");
         }
         last_voice_push_ms_ = mumble_millis();
@@ -374,10 +518,21 @@ void MumbleComponent::on_voice_packet(const uint8_t *data, size_t len) {
 
 void MumbleComponent::audio_playout() {
   if (!speaker_sink_.has_speaker() || !voice_active_) return;
-  if (bus_owner_ != BusOwner::SPEAKER || bus_releasing_) return;
-  if (speaker_ != nullptr && !speaker_->is_running()) return;
 
   uint32_t now = mumble_millis();
+
+  // Hard safety timeout: force-clear voice_active_ if stuck for too long
+  if ((now - voice_active_since_ms_) > VOICE_HARD_TIMEOUT_MS) {
+    voice_active_ = false;
+    last_voice_active_ms_ = now;
+    jitter_buffer_.reset();
+    ESP_LOGW(TAG, "Voice RX hard timeout (%us), forcing stop",
+             (unsigned)(VOICE_HARD_TIMEOUT_MS / 1000));
+    return;
+  }
+
+  if (bus_owner_ != BusOwner::SPEAKER || bus_releasing_) return;
+  if (speaker_ != nullptr && !speaker_->is_running()) return;
 
   int frames_written = 0;
   while (frames_written < 8) {
@@ -397,17 +552,82 @@ void MumbleComponent::audio_playout() {
   }
 }
 
+void MumbleComponent::chime_playout() {
+  if (!chime_playing_ || !speaker_sink_.has_speaker()) return;
+  if (bus_owner_ != BusOwner::SPEAKER || bus_releasing_) return;
+
+  // After all data written: gracefully finish and wait for speaker to drain.
+  if (chime_wrote_all_) {
+    if (!chime_stop_requested_) {
+      speaker_sink_.finish();
+      chime_stop_requested_ = true;
+    }
+    if (speaker_ != nullptr && speaker_->is_stopped()) {
+      chime_playing_ = false;
+      chime_wrote_all_ = false;
+      chime_stop_requested_ = false;
+      bool was_close = chime_close_;
+      chime_close_ = false;
+      chime_offset_ = 0;
+      if (was_close) {
+        comm_state_ = CommunicatorState::IDLE;
+        comm_silence_start_ms_ = 0;
+        comm_had_tx_ = false;
+        ESP_LOGI(TAG, "Communicator close chime done");
+      } else {
+        comm_state_ = CommunicatorState::MIC_ACTIVE;
+        comm_had_tx_ = false;
+        comm_silence_start_ms_ = 0;
+        ESP_LOGI(TAG, "Communicator MIC_ACTIVE");
+      }
+    }
+    return;
+  }
+
+  // Speaker must be running before we can write audio data
+  if (speaker_ != nullptr && !speaker_->is_running()) return;
+
+  constexpr size_t CHUNK_BYTES = 640;  // 320 samples * 2 bytes
+  size_t remain = COMMUNICATOR_CHIME_SIZE > chime_offset_ ? COMMUNICATOR_CHIME_SIZE - chime_offset_ : 0;
+  if (remain == 0) {
+    chime_wrote_all_ = true;
+    return;
+  }
+  size_t to_send = (remain < CHUNK_BYTES) ? remain : CHUNK_BYTES;
+  if (to_send % sizeof(int16_t) != 0) to_send &= ~1u;
+  if (to_send == 0) return;
+  size_t num_samples = to_send / sizeof(int16_t);
+  const int16_t *src =
+      reinterpret_cast<const int16_t *>(communicator_chime_data + chime_offset_);
+  for (size_t i = 0; i < num_samples; i++) {
+    pcm_buf_[i] = static_cast<int16_t>(static_cast<int32_t>(src[i]) * CHIME_VOLUME_SCALE);
+  }
+  size_t written = speaker_sink_.write(pcm_buf_, num_samples);
+  chime_offset_ += written;
+}
+
 void MumbleComponent::manage_i2s_bus() {
   BusOwner desired = BusOwner::NONE;
-  if (voice_active_ && speaker_ != nullptr) {
+  bool want_tx = should_transmit();
+  if (chime_playing_ && speaker_ != nullptr) {
+    desired = BusOwner::SPEAKER;
+  } else if (want_tx && microphone_ != nullptr) {
+    // TX intent takes priority over RX playback
+    desired = BusOwner::MIC;
+  } else if (voice_active_ && speaker_ != nullptr) {
     desired = BusOwner::SPEAKER;
   } else if (bus_owner_ == BusOwner::SPEAKER && speaker_ != nullptr && !speaker_->is_stopped()) {
-    // Keep speaker until buffer drains; don't cut off playback
     desired = BusOwner::SPEAKER;
   } else if (microphone_ != nullptr && connected_) {
-    // Keep mic bus whenever connected; don't release on mute - ES7210 breaks after stop/start
-    if (should_transmit() || bus_owner_ == BusOwner::MIC)
+    if (bus_owner_ == BusOwner::MIC)
       desired = BusOwner::MIC;
+  }
+
+  // If bus is nominally SPEAKER but the speaker has stopped (e.g. after chime drain),
+  // force-release so it can be properly re-acquired and re-started.
+  if (bus_owner_ == BusOwner::SPEAKER && !bus_releasing_ && !chime_playing_ &&
+      speaker_ != nullptr && speaker_->is_stopped()) {
+    bus_owner_ = BusOwner::NONE;
   }
 
   if (desired == bus_owner_ && !bus_releasing_) return;
@@ -532,7 +752,12 @@ void MumbleComponent::on_microphone_data(const std::vector<uint8_t> &data) {
 }
 
 bool MumbleComponent::should_transmit() const {
-  return microphone_enabled_ && connected_;
+  if (!connected_) return false;
+  if (get_mode() == 2) {
+    return comm_state_ == CommunicatorState::MIC_ACTIVE ||
+           comm_state_ == CommunicatorState::SILENCE_WINDOW;
+  }
+  return microphone_enabled_;
 }
 
 int32_t MumbleComponent::frame_rms(const int16_t *pcm, size_t samples) {

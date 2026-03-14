@@ -157,10 +157,10 @@ bool JitterBuffer::has_playout_ready() const {
 
 // --- EsphomeSpeakerSink ---
 
-void EsphomeSpeakerSink::write(const int16_t *pcm, size_t samples) {
-  if (speaker_ == nullptr || pcm == nullptr || samples == 0) return;
+size_t EsphomeSpeakerSink::write(const int16_t *pcm, size_t samples) {
+  if (speaker_ == nullptr || pcm == nullptr || samples == 0) return 0;
   size_t bytes = samples * sizeof(int16_t);
-  speaker_->play(reinterpret_cast<const uint8_t *>(pcm), bytes);
+  return speaker_->play(reinterpret_cast<const uint8_t *>(pcm), bytes);
 }
 
 void EsphomeSpeakerSink::start() {
@@ -173,6 +173,12 @@ void EsphomeSpeakerSink::start() {
 void EsphomeSpeakerSink::stop() {
   if (speaker_ != nullptr) {
     speaker_->stop();
+  }
+}
+
+void EsphomeSpeakerSink::finish() {
+  if (speaker_ != nullptr) {
+    speaker_->finish();
   }
 }
 
