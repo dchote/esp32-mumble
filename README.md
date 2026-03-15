@@ -4,6 +4,10 @@ An ESP32-S3 Mumble voice chat client for ESPHome, turning microcontroller boards
 
 > **Status: Voice-functional alpha** — Voice receive and transmit working with three modes: always-on, push-to-talk, and communicator. Legacy (default) and Lite crypto, HA integration. Tested with go-mumble-server. **Box and Box-3** use ESP-IDF with lwIP netconn for UDP. **Generic and Atom Echo** use Arduino. UDP when active; TCP tunnel fallback when UDP unreachable.
 
+![ESP32-S3-BOX running ESP32-Mumble](images/esp32-s3-box.jpg)
+
+*The project running on an ESP32-S3-BOX connected to a local go-mumble-server instance.*
+
 ## What Is This?
 
 ESP32-Mumble implements the [Mumble](https://www.mumble.info/) voice chat protocol on ESP32-S3 hardware. **Default crypto is Legacy** (OCB2-AES128, standard Mumble); **Lite** (cleartext UDP, minimal CPU) is optional for trusted LAN. Connects to [go-mumble-server](https://github.com/dchote/go-mumble-server) or Murmur.

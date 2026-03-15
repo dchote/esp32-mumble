@@ -19,6 +19,51 @@ namespace mumble {
 
 static const char *const TAG = "mumble";
 
+/** Strip HTML tags and decode common entities for plaintext display. */
+static std::string strip_html(const std::string &in) {
+  std::string out;
+  out.reserve(in.size());
+  for (size_t i = 0; i < in.size();) {
+    if (in[i] == '<') {
+      size_t end = in.find('>', i);
+      if (end == std::string::npos)
+        break;
+      i = end + 1;
+      continue;
+    }
+    if (in[i] == '&') {
+      if (in.compare(i, 5, "&amp;") == 0) {
+        out += '&';
+        i += 5;
+        continue;
+      }
+      if (in.compare(i, 4, "&lt;") == 0) {
+        out += '<';
+        i += 4;
+        continue;
+      }
+      if (in.compare(i, 4, "&gt;") == 0) {
+        out += '>';
+        i += 4;
+        continue;
+      }
+      if (in.compare(i, 6, "&quot;") == 0) {
+        out += '"';
+        i += 6;
+        continue;
+      }
+      if (in.compare(i, 6, "&apos;") == 0) {
+        out += '\'';
+        i += 6;
+        continue;
+      }
+    }
+    out += in[i];
+    i++;
+  }
+  return out;
+}
+
 std::string MumbleComponent::get_server() const {
   if (server_text_ != nullptr && !server_text_->state.empty()) {
     return server_text_->state;
@@ -369,6 +414,10 @@ void MumbleComponent::setup() {
     }
     if (last_text_sender_name_.empty())
       last_text_sender_name_ = "?";
+    chat_history_.push_back(
+        ChatMessage{last_text_sender_name_, strip_html(m.message)});
+    while (chat_history_.size() > MAX_CHAT_MESSAGES)
+      chat_history_.pop_front();
     on_text_message_callback_.call();
   });
   if (microphone_ != nullptr) {

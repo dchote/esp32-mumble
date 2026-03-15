@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cmath>
+#include <deque>
 #include "esphome/core/component.h"
 #include "mumble_audio.h"
 #include "mumble_client.h"
@@ -18,6 +19,11 @@
 
 namespace esphome {
 namespace mumble {
+
+struct ChatMessage {
+  std::string sender;
+  std::string message;
+};
 
 class MumbleChannelSelect;
 
@@ -87,6 +93,8 @@ class MumbleComponent : public Component {
   uint32_t get_last_text_sender_session() const { return last_text_sender_session_; }
   const std::string &get_last_text_sender_name() const { return last_text_sender_name_; }
   uint32_t get_last_text_channel_id() const { return last_text_channel_id_; }
+  /** Recent chat messages (sender + plaintext) for display. Oldest first. */
+  const std::deque<ChatMessage> &get_chat_messages() const { return chat_history_; }
   void add_on_text_message_callback(std::function<void()> &&callback) {
     on_text_message_callback_.add(std::move(callback));
   }
@@ -198,10 +206,12 @@ class MumbleComponent : public Component {
   bool comm_had_tx_{false};  // true once voice_sending_ was true (starts silence window)
   uint32_t comm_silence_start_ms_{0};
   CallbackManager<void()> on_communicator_end_callback_;
+  static constexpr size_t MAX_CHAT_MESSAGES = 10;
   std::string last_text_message_;
   uint32_t last_text_sender_session_{0};
   std::string last_text_sender_name_;
   uint32_t last_text_channel_id_{0};
+  std::deque<ChatMessage> chat_history_;
   CallbackManager<void()> on_text_message_callback_;
   bool bot_mode_{false};
   uint8_t voice_target_id_{0};

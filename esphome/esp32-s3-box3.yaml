@@ -95,7 +95,7 @@ spi:
     mosi_pin: GPIO6
 
 # Display (required by touchscreen). Box-3: ILI9342. Styling matches esp32-s3-box (card layout).
-# Status display: active writes may help touchscreen; shows server, ping, mute, voice RX/TX.
+# Status display: active writes may help touchscreen; shows server, ping, mic/RX/TX, chat.
 display:
   - platform: ili9xxx
     model: ili9342
@@ -123,22 +123,35 @@ display:
       it.fill(bg);
       it.filled_rectangle(6, 6, w - 12, h - 12, card);
       it.rectangle(6, 6, w - 12, h - 12, accent);
-      it.print(14, 14, id(font_title), dim, "MUMBLE");
+      it.print(14, 10, id(font_title), dim, "ESP32-Mumble");
       auto srv = id(mumble_server_host).state;
       if (srv.empty()) srv = "--";
       else if (srv.length() > 22) srv = srv.substr(0, 19) + "...";
-      it.print(14, 36, id(font_server), fg, srv.c_str());
-      it.horizontal_line(14, 62, w - 28);
+      it.print(14, 30, id(font_small), fg, srv.c_str());
       float p = id(mumble_ping_sensor).state;
-      if (isnan(p)) it.print(14, 72, id(font_small), dim, "Ping: --");
-      else it.printf(14, 72, id(font_small), fg, "Ping: %.0f ms", p);
-      int y = 100;
+      if (isnan(p)) it.print(w - 14, 30, id(font_small), dim, TextAlign::TOP_RIGHT, "Ping: --");
+      else it.printf(w - 14, 30, id(font_small), fg, TextAlign::TOP_RIGHT, "Ping: %.0f ms", p);
+      it.horizontal_line(14, 51, w - 28);
       bool muted = id(button_microphone).state;
       bool rx = id(mumble_voice_active).state;
       bool tx = id(mumble_voice_sending).state;
-      it.printf(14, y, id(font_small), muted ? Color(240, 100, 100) : dim, "Mic: %s  ", muted ? "MUTED" : "UNMUTED");
-      it.printf(14, y + 20, id(font_small), rx ? Color(100, 220, 120) : dim, "RX: %s  ", rx ? "on" : "off");
-      it.printf(14, y + 40, id(font_small), tx ? Color(100, 180, 255) : dim, "TX: %s  ", tx ? "on" : "off");
+      it.printf(14, 55, id(font_small), muted ? Color(240, 100, 100) : dim, "Mic: %s", muted ? "MUTED" : "UNMUTED");
+      it.printf(w / 2, 55, id(font_small), rx ? Color(100, 220, 120) : dim, TextAlign::TOP_CENTER, "RX: %s", rx ? "on" : "off");
+      it.printf(w - 14, 55, id(font_small), tx ? Color(100, 180, 255) : dim, TextAlign::TOP_RIGHT, "TX: %s", tx ? "on" : "off");
+      it.horizontal_line(14, 76, w - 28);
+      const int chat_y0 = 80;
+      const int line_height = 16;
+      const int max_chat_lines = (h - 12 - chat_y0) / line_height;
+      const int max_chars = 34;
+      const auto &msgs = id(mumble_client).get_chat_messages();
+      size_t start = msgs.size() > (size_t) max_chat_lines ? msgs.size() - max_chat_lines : 0;
+      int y = chat_y0;
+      for (size_t i = start; i < msgs.size() && y + line_height <= h - 6; i++) {
+        std::string line = msgs[i].sender + ": " + msgs[i].message;
+        if (line.length() > (size_t) max_chars) line = line.substr(0, max_chars - 3) + "...";
+        it.print(14, y, id(font_small), fg, line.c_str());
+        y += line_height;
+      }
 
 # Touchscreen (GT911): red circle button below display is index 0
 touchscreen:
