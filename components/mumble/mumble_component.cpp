@@ -229,13 +229,35 @@ void MumbleComponent::communicator_loop() {
         comm_silence_start_ms_ = 0;
         comm_had_tx_ = false;
       }
-      ESP_LOGI(TAG, "Communicator 10s silence, playing close chime");
+      ESP_LOGI(TAG, "Communicator 2s silence, playing close chime");
     }
   }
 }
 
 void MumbleComponent::join_channel_by_id(uint32_t channel_id) {
   client_.join_channel_by_id(channel_id);
+}
+
+void MumbleComponent::send_text_message(const std::string &message, uint32_t channel_id) {
+  uint32_t ch = (channel_id != 0) ? channel_id : client_.get_current_channel_id();
+  client_.send_text_message(message, ch);
+}
+
+bool MumbleComponent::send_voice_target(uint8_t id,
+                                        const std::vector<MsgVoiceTargetTarget> &targets) {
+  return client_.send_voice_target(id, targets);
+}
+
+void MumbleComponent::send_self_mute(bool mute) {
+  client_.send_self_mute(mute);
+}
+
+void MumbleComponent::send_self_deaf(bool deaf) {
+  client_.send_self_deaf(deaf);
+}
+
+void MumbleComponent::send_kick_user(uint32_t session_id, const std::string &reason) {
+  client_.send_kick(session_id, reason);
 }
 
 void MumbleComponent::on_shutdown() {
@@ -320,6 +342,7 @@ void MumbleComponent::setup() {
   client_.set_password(get_password());
   client_.set_channel(get_channel());
   client_.set_crypto(get_crypto());
+  client_.set_bot_mode(bot_mode_);
 
   if (speaker_ != nullptr) {
     opus_decoder_.init(16000, 1);
@@ -333,6 +356,21 @@ void MumbleComponent::setup() {
       on_voice_packet(data, len);
     });
   }
+  client_.set_text_message_callback([this](const MsgTextMessage &m) {
+    last_text_message_ = m.message;
+    last_text_sender_session_ = m.actor;
+    last_text_channel_id_ = m.channel_id.empty() ? 0u : m.channel_id[0];
+    last_text_sender_name_.clear();
+    for (const UserInfo &u : client_.get_users()) {
+      if (u.session == m.actor) {
+        last_text_sender_name_ = u.name;
+        break;
+      }
+    }
+    if (last_text_sender_name_.empty())
+      last_text_sender_name_ = "?";
+    on_text_message_callback_.call();
+  });
   if (microphone_ != nullptr) {
     opus_encoder_.init(16000, 1);
     microphone_->add_data_callback([this](const std::vector<uint8_t> &data) {
@@ -374,6 +412,21 @@ void MumbleComponent::loop() {
       communicator_cancel();
     set_microphone_enabled(mode == 0);
     last_mode_ = mode;
+  }
+
+  // Hardware mute pin: when active (LOW = muted), disable mic and send self_mute to server
+  if (mute_pin_ != nullptr) {
+    bool pin_muted = (mute_pin_->digital_read() == false);  // LOW = muted (common for switch to GND)
+    if (pin_muted != last_mute_pin_muted_) {
+      last_mute_pin_muted_ = pin_muted;
+      if (pin_muted) {
+        set_microphone_enabled(false);
+        client_.send_self_mute(true);
+      } else {
+        set_microphone_enabled(mode == 0);
+        client_.send_self_mute(false);
+      }
+    }
   }
 
   client_.set_server(server);
@@ -774,7 +827,7 @@ void MumbleComponent::send_voice_packet(const uint8_t *opus_data, size_t opus_le
                                         bool is_terminator) {
   if (opus_len > MumbleUdp::MAX_PACKET_SIZE - 32) return;  // leave room for header/varints
   size_t n = build_voice_packet(tx_packet_buf_, sizeof(tx_packet_buf_), tx_sequence_++,
-                               opus_data, opus_len, is_terminator);
+                               opus_data, opus_len, is_terminator, voice_target_id_);
   if (n == 0) {
     ESP_LOGW(TAG, "build_voice_packet returned 0 (opus_len=%u, term=%d)", (unsigned) opus_len, is_terminator);
     return;

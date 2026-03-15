@@ -7,7 +7,7 @@ namespace esphome {
 namespace mumble {
 
 // Mumble custom varint encoding (UDP voice packets).
-// NOT protobuf LEB128 - see research/go-mumble-server/pkg/mumble/audio/varint.go
+// Mumble custom varint (not protobuf LEB128). See Mumble UDP voice packet format.
 
 constexpr size_t MUMBLE_VARINT_MAX_LEN = 10;
 

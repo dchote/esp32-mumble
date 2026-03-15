@@ -1,10 +1,12 @@
 #pragma once
 
 #include "mumble_messages.h"
+#include "mumble_permissions.h"
 #include "mumble_protocol.h"
 #include "mumble_socket.h"
 #include <cstdint>
 #include <functional>
+#include <map>
 #include <string>
 #include <vector>
 
@@ -54,6 +56,8 @@ class MumbleClient {
   void set_crypto(uint8_t crypto) { crypto_mode_ = crypto; }
   /** Optional: PEM of CA cert for server verification. When set, setInsecure() is not used. */
   void set_ca_cert(const std::string &pem) { ca_cert_ = pem; }
+  /** When true, send client_type=1 (bot) in Authenticate so server can treat this as a bot. */
+  void set_bot_mode(bool bot) { bot_mode_ = bot; }
 
   bool connect();
   void disconnect();
@@ -103,8 +107,81 @@ class MumbleClient {
     voice_packet_callback_ = std::move(cb);
   }
 
+  // Typed event callbacks (optional; fired after internal state update)
+  using TextMessageCallback = std::function<void(const MsgTextMessage &)>;
+  void set_text_message_callback(TextMessageCallback cb) { text_message_callback_ = std::move(cb); }
+  using PermissionDeniedCallback = std::function<void(const MsgPermissionDenied &)>;
+  void set_permission_denied_callback(PermissionDeniedCallback cb) {
+    permission_denied_callback_ = std::move(cb);
+  }
+  using ChannelStateCallback = std::function<void(const MsgChannelState &)>;
+  void set_channel_state_callback(ChannelStateCallback cb) { channel_state_callback_ = std::move(cb); }
+  using ChannelRemoveCallback = std::function<void(uint32_t channel_id)>;
+  void set_channel_remove_callback(ChannelRemoveCallback cb) { channel_remove_callback_ = std::move(cb); }
+  using UserStateCallback = std::function<void(const MsgUserState &)>;
+  void set_user_state_callback(UserStateCallback cb) { user_state_callback_ = std::move(cb); }
+  using UserRemoveCallback = std::function<void(const MsgUserRemove &)>;
+  void set_user_remove_callback(UserRemoveCallback cb) { user_remove_callback_ = std::move(cb); }
+  using RawMessageCallback = std::function<void(uint16_t msg_type, const uint8_t *payload, size_t len)>;
+  void set_raw_message_callback(RawMessageCallback cb) { raw_message_callback_ = std::move(cb); }
+
   /** Send voice packet via TCP UDPTunnel (message type 1). Used when UDP is not active. */
   bool send_udp_tunnel(const uint8_t *data, size_t len);
+
+  /** Send text message to a channel (channel_id 0 = root). */
+  bool send_text_message(const std::string &message, uint32_t channel_id);
+  /** Send text message to specific user sessions. */
+  bool send_text_message(const std::string &message, const std::vector<uint32_t> &sessions);
+  /** Send text message to channel subtree (all users in channel and subchannels). */
+  bool send_tree_message(const std::string &message, uint32_t channel_id);
+
+  /** Set self-mute state (send UserState with self_mute). */
+  bool send_self_mute(bool mute);
+  /** Set self-deaf state (send UserState with self_deaf). */
+  bool send_self_deaf(bool deaf);
+  /** Set own comment (send UserState with comment). */
+  bool send_user_comment(const std::string &comment);
+  /** Kick user by session (send UserRemove with session, reason, actor=our session). */
+  bool send_kick(uint32_t session, const std::string &reason);
+  /** Ban and kick user (send UserRemove with session, reason, actor, ban=true). */
+  bool send_ban(uint32_t session, const std::string &reason);
+  /** Request ban list from server (send BanList with query=true). */
+  bool send_ban_list_query();
+  /** Send QueryUsers to resolve ids to names and/or names to ids. */
+  bool send_query_users(const std::vector<uint32_t> &ids,
+                        const std::vector<std::string> &names);
+  /** Request UserStats for a session. */
+  bool send_user_stats(uint32_t session, bool stats_only = false);
+
+  /** Request effective permissions for a channel (server responds with PermissionQuery). */
+  bool send_permission_query(uint32_t channel_id);
+  /** Request ACL for a channel (server responds with ACL message). */
+  bool send_acl_query(uint32_t channel_id);
+  /** Check cached permission for channel (returns false if not in cache). */
+  bool has_permission(uint32_t channel_id, uint32_t permission) const;
+
+  /** Create a new channel (channel_id=0, parent_id, name, temporary). */
+  bool send_create_channel(uint32_t parent_id, const std::string &name, bool temporary = false);
+  /** Update channel. Pass nullptr/empty for name to skip; position INT32_MIN to skip; max_users UINT32_MAX to skip. */
+  bool send_edit_channel(uint32_t channel_id, const std::string *name = nullptr,
+                        int32_t position = INT32_MIN, uint32_t max_users = UINT32_MAX);
+  /** Remove a channel (send ChannelRemove). */
+  bool send_remove_channel(uint32_t channel_id);
+  /** Set channel links (send ChannelState with channel_id and links list). */
+  bool send_channel_links(uint32_t channel_id, const std::vector<uint32_t> &links);
+
+  /** Register a voice target with the server (id 1-30). Targets: sessions and/or channel+options. */
+  bool send_voice_target(uint8_t id, const std::vector<MsgVoiceTargetTarget> &targets);
+
+  /** Request blobs (textures, comments, channel descriptions) by session/channel ids. */
+  bool send_request_blob(const std::vector<uint32_t> &session_texture,
+                         const std::vector<uint32_t> &session_comment,
+                         const std::vector<uint32_t> &channel_description);
+  /** Trigger a context action (plugin-defined). */
+  bool send_context_action(uint32_t session, uint32_t channel_id, const std::string &action);
+  /** Send plugin data to specific sessions. */
+  bool send_plugin_data(const std::string &data_id, const std::vector<uint8_t> &data,
+                       const std::vector<uint32_t> &receiver_sessions);
 
  private:
   bool write_all(const uint8_t *buf, size_t len);
@@ -127,6 +204,20 @@ class MumbleClient {
   void on_codec_version(const uint8_t *payload, size_t len);
   void on_server_config(const uint8_t *payload, size_t len);
   void on_udp_tunnel(const uint8_t *payload, size_t len);
+  void on_ban_list(const uint8_t *payload, size_t len);
+  void on_text_message(const uint8_t *payload, size_t len);
+  void on_permission_denied(const uint8_t *payload, size_t len);
+  void on_acl(const uint8_t *payload, size_t len);
+  void on_query_users(const uint8_t *payload, size_t len);
+  void on_context_action_modify(const uint8_t *payload, size_t len);
+  void on_context_action(const uint8_t *payload, size_t len);
+  void on_user_list(const uint8_t *payload, size_t len);
+  void on_voice_target(const uint8_t *payload, size_t len);
+  void on_user_stats(const uint8_t *payload, size_t len);
+  void on_request_blob(const uint8_t *payload, size_t len);
+  void on_suggest_config(const uint8_t *payload, size_t len);
+  void on_plugin_data_transmission(const uint8_t *payload, size_t len);
+  void on_permission_query(const uint8_t *payload, size_t len);
 
   void update_channel(const MsgChannelState &m);
   void remove_channel(uint32_t id);
@@ -140,6 +231,7 @@ class MumbleClient {
   std::string channel_;
   uint8_t crypto_mode_{0};
   std::string ca_cert_;
+  bool bot_mode_{false};
 
   // Crypto material from CryptSetup (stored until crypt state is initialized)
   std::vector<uint8_t> crypt_key_;
@@ -181,7 +273,15 @@ class MumbleClient {
   static constexpr uint32_t CONNECT_TIMEOUT_MS = 10000;
   static constexpr uint32_t WIFI_STABILITY_DELAY_MS = 5000;  // Wait after WiFi before Mumble connect
   bool channel_join_sent_{false};
+  std::map<uint32_t, uint32_t> permission_cache_;  // channel_id -> effective permissions
   VoicePacketCallback voice_packet_callback_;
+  TextMessageCallback text_message_callback_;
+  PermissionDeniedCallback permission_denied_callback_;
+  ChannelStateCallback channel_state_callback_;
+  ChannelRemoveCallback channel_remove_callback_;
+  UserStateCallback user_state_callback_;
+  UserRemoveCallback user_remove_callback_;
+  RawMessageCallback raw_message_callback_;
 };
 
 }  // namespace mumble

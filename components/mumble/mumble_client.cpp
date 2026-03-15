@@ -241,6 +241,9 @@ bool MumbleClient::send_udp_tunnel(const uint8_t *data, size_t len) {
 }
 
 void MumbleClient::handle_message(uint16_t type, const uint8_t *payload, size_t len) {
+  auto fire_raw = [this, type, payload, len]() {
+    if (raw_message_callback_) raw_message_callback_(type, payload, len);
+  };
   switch (type) {
     case MSG_VERSION:
       on_version(payload, len);
@@ -278,13 +281,53 @@ void MumbleClient::handle_message(uint16_t type, const uint8_t *payload, size_t 
     case MSG_UDP_TUNNEL:
       on_udp_tunnel(payload, len);
       break;
+    case MSG_BAN_LIST:
+      on_ban_list(payload, len);
+      break;
+    case MSG_TEXT_MESSAGE:
+      on_text_message(payload, len);
+      break;
+    case MSG_PERMISSION_DENIED:
+      on_permission_denied(payload, len);
+      break;
+    case MSG_ACL:
+      on_acl(payload, len);
+      break;
+    case MSG_QUERY_USERS:
+      on_query_users(payload, len);
+      break;
+    case MSG_CONTEXT_ACTION_MODIFY:
+      on_context_action_modify(payload, len);
+      break;
+    case MSG_CONTEXT_ACTION:
+      on_context_action(payload, len);
+      break;
+    case MSG_USER_LIST:
+      on_user_list(payload, len);
+      break;
+    case MSG_VOICE_TARGET:
+      on_voice_target(payload, len);
+      break;
     case MSG_PERMISSION_QUERY:
-      ESP_LOGD(TAG, "Ignoring PermissionQuery (type 20)");
+      on_permission_query(payload, len);
+      break;
+    case MSG_USER_STATS:
+      on_user_stats(payload, len);
+      break;
+    case MSG_REQUEST_BLOB:
+      on_request_blob(payload, len);
+      break;
+    case MSG_SUGGEST_CONFIG:
+      on_suggest_config(payload, len);
+      break;
+    case MSG_PLUGIN_DATA_TRANSMISSION:
+      on_plugin_data_transmission(payload, len);
       break;
     default:
       ESP_LOGD(TAG, "Unhandled message type %u", (unsigned) type);
       break;
   }
+  fire_raw();
 }
 
 void MumbleClient::send_version() {
@@ -310,7 +353,7 @@ void MumbleClient::send_authenticate() {
   a.username = username_;
   a.password = password_;
   a.opus = true;
-  a.client_type = 0;
+  a.client_type = bot_mode_ ? 1 : 0;
 
   std::vector<uint8_t> buf;
   a.marshal(buf);
@@ -357,6 +400,200 @@ void MumbleClient::join_channel_by_id(uint32_t channel_id) {
   if (send_message(MSG_USER_STATE, buf.data(), buf.size())) {
     ESP_LOGI(TAG, "Joined channel id=%u", (unsigned) channel_id);
   }
+}
+
+bool MumbleClient::send_text_message(const std::string &message, uint32_t channel_id) {
+  MsgTextMessage m;
+  m.channel_id.push_back(channel_id);
+  m.message = message;
+  std::vector<uint8_t> buf;
+  m.marshal(buf);
+  return send_message(MSG_TEXT_MESSAGE, buf.data(), buf.size());
+}
+
+bool MumbleClient::send_text_message(const std::string &message,
+                                     const std::vector<uint32_t> &sessions) {
+  MsgTextMessage m;
+  m.session = sessions;
+  m.message = message;
+  std::vector<uint8_t> buf;
+  m.marshal(buf);
+  return send_message(MSG_TEXT_MESSAGE, buf.data(), buf.size());
+}
+
+bool MumbleClient::send_tree_message(const std::string &message, uint32_t channel_id) {
+  MsgTextMessage m;
+  m.tree_id.push_back(channel_id);
+  m.message = message;
+  std::vector<uint8_t> buf;
+  m.marshal(buf);
+  return send_message(MSG_TEXT_MESSAGE, buf.data(), buf.size());
+}
+
+bool MumbleClient::send_self_mute(bool mute) {
+  MsgUserState m;
+  m.session = session_id_;
+  m.self_mute = mute;
+  std::vector<uint8_t> buf;
+  m.marshal(buf);
+  return send_message(MSG_USER_STATE, buf.data(), buf.size());
+}
+
+bool MumbleClient::send_self_deaf(bool deaf) {
+  MsgUserState m;
+  m.session = session_id_;
+  m.self_deaf = deaf;
+  std::vector<uint8_t> buf;
+  m.marshal(buf);
+  return send_message(MSG_USER_STATE, buf.data(), buf.size());
+}
+
+bool MumbleClient::send_user_comment(const std::string &comment) {
+  MsgUserState m;
+  m.session = session_id_;
+  m.comment = comment;
+  std::vector<uint8_t> buf;
+  m.marshal(buf);
+  return send_message(MSG_USER_STATE, buf.data(), buf.size());
+}
+
+bool MumbleClient::send_kick(uint32_t session, const std::string &reason) {
+  MsgUserRemove m;
+  m.session = session;
+  m.actor = session_id_;
+  m.reason = reason;
+  m.ban = false;
+  std::vector<uint8_t> buf;
+  m.marshal(buf);
+  return send_message(MSG_USER_REMOVE, buf.data(), buf.size());
+}
+
+bool MumbleClient::send_ban(uint32_t session, const std::string &reason) {
+  MsgUserRemove m;
+  m.session = session;
+  m.actor = session_id_;
+  m.reason = reason;
+  m.ban = true;
+  std::vector<uint8_t> buf;
+  m.marshal(buf);
+  return send_message(MSG_USER_REMOVE, buf.data(), buf.size());
+}
+
+bool MumbleClient::send_ban_list_query() {
+  MsgBanList m;
+  m.query = true;
+  std::vector<uint8_t> buf;
+  m.marshal(buf);
+  return send_message(MSG_BAN_LIST, buf.data(), buf.size());
+}
+
+bool MumbleClient::send_query_users(const std::vector<uint32_t> &ids,
+                                    const std::vector<std::string> &names) {
+  MsgQueryUsers m;
+  m.ids = ids;
+  m.names = names;
+  std::vector<uint8_t> buf;
+  m.marshal(buf);
+  return send_message(MSG_QUERY_USERS, buf.data(), buf.size());
+}
+
+bool MumbleClient::send_user_stats(uint32_t session, bool stats_only) {
+  MsgUserStats m;
+  m.session = session;
+  m.stats_only = stats_only;
+  std::vector<uint8_t> buf;
+  m.marshal(buf);
+  return send_message(MSG_USER_STATS, buf.data(), buf.size());
+}
+
+bool MumbleClient::send_create_channel(uint32_t parent_id, const std::string &name,
+                                       bool temporary) {
+  MsgChannelState m;
+  m.channel_id = 0;  // new channel
+  m.parent = parent_id;
+  m.has_parent = true;
+  m.name = name;
+  m.temporary = temporary;
+  std::vector<uint8_t> buf;
+  m.marshal(buf);
+  return send_message(MSG_CHANNEL_STATE, buf.data(), buf.size());
+}
+
+bool MumbleClient::send_edit_channel(uint32_t channel_id, const std::string *name,
+                                     int32_t position, uint32_t max_users) {
+  MsgChannelState m;
+  m.channel_id = channel_id;
+  if (name != nullptr && !name->empty()) m.name = *name;
+  if (position != INT32_MIN) m.position = position;
+  if (max_users != UINT32_MAX) m.max_users = max_users;
+  std::vector<uint8_t> buf;
+  m.marshal(buf);
+  return send_message(MSG_CHANNEL_STATE, buf.data(), buf.size());
+}
+
+bool MumbleClient::send_remove_channel(uint32_t channel_id) {
+  MsgChannelRemove m;
+  m.channel_id = channel_id;
+  std::vector<uint8_t> buf;
+  m.marshal(buf);
+  return send_message(MSG_CHANNEL_REMOVE, buf.data(), buf.size());
+}
+
+bool MumbleClient::send_channel_links(uint32_t channel_id,
+                                      const std::vector<uint32_t> &links) {
+  MsgChannelState m;
+  m.channel_id = channel_id;
+  m.links = links;
+  std::vector<uint8_t> buf;
+  m.marshal(buf);
+  return send_message(MSG_CHANNEL_STATE, buf.data(), buf.size());
+}
+
+bool MumbleClient::send_voice_target(uint8_t id,
+                                     const std::vector<MsgVoiceTargetTarget> &targets) {
+  if (id == 0 || id > 30) return false;
+  MsgVoiceTarget m;
+  m.id = id;
+  m.targets = targets;
+  std::vector<uint8_t> buf;
+  m.marshal(buf);
+  return send_message(MSG_VOICE_TARGET, buf.data(), buf.size());
+}
+
+bool MumbleClient::send_request_blob(const std::vector<uint32_t> &session_texture,
+                                     const std::vector<uint32_t> &session_comment,
+                                     const std::vector<uint32_t> &channel_description) {
+  MsgRequestBlob m;
+  m.session_texture = session_texture;
+  m.session_comment = session_comment;
+  m.channel_description = channel_description;
+  std::vector<uint8_t> buf;
+  m.marshal(buf);
+  return send_message(MSG_REQUEST_BLOB, buf.data(), buf.size());
+}
+
+bool MumbleClient::send_context_action(uint32_t session, uint32_t channel_id,
+                                       const std::string &action) {
+  MsgContextAction m;
+  m.session = session;
+  m.channel_id = channel_id;
+  m.action = action;
+  std::vector<uint8_t> buf;
+  m.marshal(buf);
+  return send_message(MSG_CONTEXT_ACTION, buf.data(), buf.size());
+}
+
+bool MumbleClient::send_plugin_data(const std::string &data_id,
+                                    const std::vector<uint8_t> &data,
+                                    const std::vector<uint32_t> &receiver_sessions) {
+  MsgPluginDataTransmission m;
+  m.sender_session = session_id_;
+  m.data_id = data_id;
+  m.data = data;
+  m.receiver_sessions = receiver_sessions;
+  std::vector<uint8_t> buf;
+  m.marshal(buf);
+  return send_message(MSG_PLUGIN_DATA_TRANSMISSION, buf.data(), buf.size());
 }
 
 void MumbleClient::on_version(const uint8_t *payload, size_t len) {
@@ -411,24 +648,28 @@ void MumbleClient::on_channel_state(const uint8_t *payload, size_t len) {
   MsgChannelState m;
   if (!m.unmarshal(payload, len)) return;
   update_channel(m);
+  if (channel_state_callback_) channel_state_callback_(m);
 }
 
 void MumbleClient::on_channel_remove(const uint8_t *payload, size_t len) {
   MsgChannelRemove m;
   if (!m.unmarshal(payload, len)) return;
   remove_channel(m.channel_id);
+  if (channel_remove_callback_) channel_remove_callback_(m.channel_id);
 }
 
 void MumbleClient::on_user_state(const uint8_t *payload, size_t len) {
   MsgUserState m;
   if (!m.unmarshal(payload, len)) return;
   update_user(m);
+  if (user_state_callback_) user_state_callback_(m);
 }
 
 void MumbleClient::on_user_remove(const uint8_t *payload, size_t len) {
   MsgUserRemove m;
   if (!m.unmarshal(payload, len)) return;
   remove_user(m.session);
+  if (user_remove_callback_) user_remove_callback_(m);
 }
 
 void MumbleClient::on_server_sync(const uint8_t *payload, size_t len) {
@@ -437,6 +678,7 @@ void MumbleClient::on_server_sync(const uint8_t *payload, size_t len) {
   session_id_ = m.session;
   max_bandwidth_ = m.max_bandwidth;
   welcome_text_ = m.welcome_text;
+  permission_cache_[0] = m.permissions;  // Root channel permissions
   state_ = ConnectionState::CONNECTED;
   last_ping_ms_ = 0;  // Reset so (now - last_ping_ms_) doesn't immediately exceed PING_TIMEOUT_MS on reconnect
   reconnect_delay_ms_ = 1000;
@@ -502,6 +744,124 @@ void MumbleClient::on_udp_tunnel(const uint8_t *payload, size_t len) {
   if (voice_packet_callback_) {
     voice_packet_callback_(payload, len);
   }
+}
+
+void MumbleClient::on_ban_list(const uint8_t *payload, size_t len) {
+  MsgBanList m;
+  if (!m.unmarshal(payload, len)) return;
+  ESP_LOGD(TAG, "BanList: query=%d bans=%u", m.query ? 1 : 0, (unsigned) m.bans.size());
+}
+
+void MumbleClient::on_text_message(const uint8_t *payload, size_t len) {
+  MsgTextMessage m;
+  if (!m.unmarshal(payload, len)) return;
+  ESP_LOGD(TAG, "TextMessage: actor=%u message='%s'", (unsigned) m.actor, m.message.c_str());
+  if (text_message_callback_) text_message_callback_(m);
+}
+
+void MumbleClient::on_permission_denied(const uint8_t *payload, size_t len) {
+  MsgPermissionDenied m;
+  if (!m.unmarshal(payload, len)) return;
+  ESP_LOGD(TAG, "PermissionDenied: perm=%u ch=%u session=%u reason='%s'",
+           (unsigned) m.permission, (unsigned) m.channel_id, (unsigned) m.session, m.reason.c_str());
+  if (permission_denied_callback_) permission_denied_callback_(m);
+}
+
+void MumbleClient::on_acl(const uint8_t *payload, size_t len) {
+  MsgACL m;
+  if (!m.unmarshal(payload, len)) return;
+  ESP_LOGD(TAG, "ACL: channel_id=%u inherit=%d query=%d",
+           (unsigned) m.channel_id, m.inherit_acls ? 1 : 0, m.query ? 1 : 0);
+}
+
+void MumbleClient::on_query_users(const uint8_t *payload, size_t len) {
+  MsgQueryUsers m;
+  if (!m.unmarshal(payload, len)) return;
+  ESP_LOGD(TAG, "QueryUsers: ids=%u names=%u", (unsigned) m.ids.size(), (unsigned) m.names.size());
+}
+
+void MumbleClient::on_context_action_modify(const uint8_t *payload, size_t len) {
+  MsgContextActionModify m;
+  if (!m.unmarshal(payload, len)) return;
+  ESP_LOGD(TAG, "ContextActionModify: action='%s'", m.action.c_str());
+}
+
+void MumbleClient::on_context_action(const uint8_t *payload, size_t len) {
+  MsgContextAction m;
+  if (!m.unmarshal(payload, len)) return;
+  ESP_LOGD(TAG, "ContextAction: session=%u ch=%u action='%s'",
+           (unsigned) m.session, (unsigned) m.channel_id, m.action.c_str());
+}
+
+void MumbleClient::on_user_list(const uint8_t *payload, size_t len) {
+  MsgUserList m;
+  if (!m.unmarshal(payload, len)) return;
+  ESP_LOGD(TAG, "UserList: users=%u", (unsigned) m.users.size());
+}
+
+void MumbleClient::on_voice_target(const uint8_t *payload, size_t len) {
+  MsgVoiceTarget m;
+  if (!m.unmarshal(payload, len)) return;
+  ESP_LOGD(TAG, "VoiceTarget: id=%u targets=%u", (unsigned) m.id, (unsigned) m.targets.size());
+}
+
+void MumbleClient::on_user_stats(const uint8_t *payload, size_t len) {
+  MsgUserStats m;
+  if (!m.unmarshal(payload, len)) return;
+  ESP_LOGD(TAG, "UserStats: session=%u", (unsigned) m.session);
+}
+
+void MumbleClient::on_request_blob(const uint8_t *payload, size_t len) {
+  MsgRequestBlob m;
+  if (!m.unmarshal(payload, len)) return;
+  ESP_LOGD(TAG, "RequestBlob: tex=%u comment=%u desc=%u",
+           (unsigned) m.session_texture.size(), (unsigned) m.session_comment.size(),
+           (unsigned) m.channel_description.size());
+}
+
+void MumbleClient::on_suggest_config(const uint8_t *payload, size_t len) {
+  MsgSuggestConfig m;
+  if (!m.unmarshal(payload, len)) return;
+  ESP_LOGD(TAG, "SuggestConfig: v1=%u positional=%d ptt=%d",
+           (unsigned) m.version_v1, m.positional ? 1 : 0, m.push_to_talk ? 1 : 0);
+}
+
+void MumbleClient::on_plugin_data_transmission(const uint8_t *payload, size_t len) {
+  MsgPluginDataTransmission m;
+  if (!m.unmarshal(payload, len)) return;
+  ESP_LOGD(TAG, "PluginDataTransmission: sender=%u data_id='%s' data_len=%u",
+           (unsigned) m.sender_session, m.data_id.c_str(), (unsigned) m.data.size());
+}
+
+void MumbleClient::on_permission_query(const uint8_t *payload, size_t len) {
+  MsgPermissionQuery m;
+  if (!m.unmarshal(payload, len)) return;
+  permission_cache_[m.channel_id] = m.permissions;
+  ESP_LOGD(TAG, "PermissionQuery: channel_id=%u permissions=0x%x",
+           (unsigned) m.channel_id, (unsigned) m.permissions);
+}
+
+bool MumbleClient::send_permission_query(uint32_t channel_id) {
+  MsgPermissionQuery m;
+  m.channel_id = channel_id;
+  std::vector<uint8_t> buf;
+  m.marshal(buf);
+  return send_message(MSG_PERMISSION_QUERY, buf.data(), buf.size());
+}
+
+bool MumbleClient::send_acl_query(uint32_t channel_id) {
+  MsgACL m;
+  m.channel_id = channel_id;
+  m.query = true;
+  std::vector<uint8_t> buf;
+  m.marshal(buf);
+  return send_message(MSG_ACL, buf.data(), buf.size());
+}
+
+bool MumbleClient::has_permission(uint32_t channel_id, uint32_t permission) const {
+  auto it = permission_cache_.find(channel_id);
+  if (it == permission_cache_.end()) return false;
+  return (it->second & permission) == permission;
 }
 
 void MumbleClient::update_channel(const MsgChannelState &m) {
@@ -593,6 +953,7 @@ uint32_t MumbleClient::get_current_channel_id() const {
   return 0;
 }
 
+// Cap channel list size for HA select (avoids huge option lists)
 static constexpr size_t MAX_CHANNEL_OPTIONS = 64;
 
 void MumbleClient::build_channel_tree_options(std::vector<std::string> &out_strings,

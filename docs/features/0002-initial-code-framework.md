@@ -44,5 +44,5 @@ The project had documentation (0001) but no source code. A skeletal but complete
 ## References
 
 - Plan: Initial Code Framework and Build Infrastructure
-- [go-mumble-server protocol docs](research/go-mumble-server/docs/protocol/)
+- [Mumble protocol](https://mumble.info/) and server implementation docs for wire format reference
 - [sh123/esp32_opus_arduino](https://github.com/sh123/esp32_opus_arduino) (libopus dependency for future audio work)

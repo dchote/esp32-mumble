@@ -82,7 +82,7 @@ go-mumble-server negotiates security per client during the Version exchange. The
 
 **CryptSetup** — Key length indicates mode: 0 = Lite, 16 = Legacy, 32 = Secure. Legacy nonce resync: client may send CryptSetup with only `client_nonce`; server replies with `server_nonce`. The client triggers proactive resync before the Legacy nonce wraps (~256 packets).
 
-**OCB2 implementation** — The Legacy OCB2-AES128 codec (`mumble_ocb2.cpp`) is ported from [mumble-voip/grumble](https://github.com/mumble-voip/grumble) and must match its byte layout exactly for interoperability with go-mumble-server. Key requirements: GF(2^128) doubling uses block\[0\] as MSB (big-endian); partial-block length is encoded at bytes 14–15; polynomial 0x87 for reduction.
+**OCB2 implementation** — The Legacy OCB2-AES128 codec (`mumble_ocb2.cpp`) is ported from [mumble-voip/grumble](https://github.com/mumble-voip/grumble) and must match its byte layout for interoperability with Mumble servers. Key requirements: GF(2^128) doubling uses block\[0\] as MSB (big-endian); partial-block length is encoded at bytes 14–15; polynomial 0x87 for reduction.
 
 ### TCP Wire Format
 
@@ -109,7 +109,7 @@ Message types relevant to this client:
 | 15 | CryptSetup | S→C | Encryption key and nonces |
 | 21 | CodecVersion | S→C | Supported codecs |
 
-Message payloads use a field-tagged, length-delimited wire format (similar layout to Mumble protobuf). The implementation uses a minimal hand-written encoder/decoder — **no protobuf library** — to reduce flash and RAM usage. See go-mumble-server's `pkg/mumble/protocol/wire` for reference.
+Message payloads use a field-tagged, length-delimited wire format (similar layout to Mumble protobuf). The implementation uses a minimal hand-written encoder/decoder — **no protobuf library** — to reduce flash and RAM usage.
 
 ### UDP Voice Packet Format
 
@@ -132,7 +132,7 @@ Server-to-client (adds sender session):
 
 - Codec field: `4` = Opus (the only codec this client supports).
 - Target field: `0` = normal (current channel), `31` = server loopback (useful for testing).
-- Varint encoding uses Mumble's **custom** format (not standard LEB128): the first-byte bit pattern determines byte count. See `research/go-mumble-server/docs/protocol/voice-data.md` and gumble's varint package. Do not assume protobuf-style 7-bit groups.
+- Varint encoding uses Mumble's **custom** format (not standard LEB128): the first-byte bit pattern determines byte count. Do not assume protobuf-style 7-bit groups.
 
 This client uses the **legacy binary format**; the server also supports a modern wire format (Mumble 1.5+) but legacy is sufficient and widely compatible.
 
@@ -142,11 +142,7 @@ UDP connectivity is confirmed by a ping/echo exchange. The client sends a codec-
 
 ### Protocol Reference
 
-The authoritative protocol documentation lives in `research/go-mumble-server/docs/protocol/`:
-
-- [control-messages.md](research/go-mumble-server/docs/protocol/control-messages.md) — TCP message catalog and framing
-- [voice-data.md](research/go-mumble-server/docs/protocol/voice-data.md) — UDP voice packet format and varint encoding
-- [security-modes.md](research/go-mumble-server/docs/protocol/security-modes.md) — Crypto modes (Lite, Legacy, Secure)
+For protocol details (TCP message catalog, UDP voice format, varint encoding, crypto modes), see the [Mumble protocol documentation](https://mumble.info/) and your server’s implementation (e.g. Murmur, go-mumble-server).
 
 ## Audio Pipeline
 
@@ -209,21 +205,22 @@ The pipeline order is: multi-channel capture → beamforming/downmix (to mono) �
 ```
 components/
   mumble/
-    __init__.py          # ESPHome component registration, YAML schema
-    mumble_component.h   # Main component; settings, mic/speaker bus management, PTT
-    mumble_component.cpp
-    mumble_client.h      # MumbleClient C++ class (connection, protocol)
-    mumble_client.cpp
-    mumble_socket.h      # Abstract TlsClient and UdpSocket interfaces
-    mumble_socket.cpp    # ESP-IDF backend (esp_tls, lwip) or Arduino backend
-    mumble_audio.h       # Audio pipeline (capture, playback, Opus)
-    mumble_audio.cpp
-    mumble_protocol.h    # Wire format encoding/decoding, message structs
-    mumble_protocol.cpp
-    mumble_varint.h      # Varint encode/decode
-    mumble_gcm.h/.cpp    # AES-256-GCM for Secure mode (mbedtls)
-    mumble_ocb2.h/.cpp   # OCB2-AES128 for Legacy UDP encryption (ported from grumble)
-    mumble_udp.h/.cpp    # UDP send/recv, ping, voice packet framing
+    __init__.py               # ESPHome component registration, YAML schema
+    mumble_component.h/.cpp   # Main component; settings, mic/speaker bus, PTT, mute pin
+    mumble_client.h/.cpp      # MumbleClient (connection, protocol, messages)
+    mumble_socket.h/.cpp      # TlsClient and UdpSocket (ESP-IDF or Arduino backend)
+    mumble_audio.h/.cpp       # Audio pipeline (capture, playback, Opus, jitter buffer)
+    mumble_protocol.h/.cpp    # Wire format encoding/decoding (TCP header, framing)
+    mumble_messages.h/.cpp    # Message structs and marshal/unmarshal (all 27 types)
+    mumble_varint.h/.cpp      # Varint encode/decode (Mumble custom format)
+    mumble_permissions.h      # Permission constants (ACL, etc.)
+    mumble_voice.h/.cpp       # Voice packet build/parse (UDP)
+    mumble_channel_select.h/.cpp  # Optional HA channel select (server tree)
+    mumble_diag.h/.cpp        # Diagnostics (ping, etc.)
+    communicator_chime_data.h # Embedded PCM for communicator chimes
+    mumble_gcm.h/.cpp         # AES-256-GCM for Secure mode (mbedtls)
+    mumble_ocb2.h/.cpp       # OCB2-AES128 for Legacy UDP (ported from grumble)
+    mumble_udp.h/.cpp        # UDP send/recv, ping, voice packet framing
 ```
 
 **Framework backends**: The component uses a socket abstraction (`TlsClient`, `UdpSocket`) with two backends: **Arduino** (WiFiClientSecure, WiFiUDP) and **ESP-IDF** (esp_tls, lwIP **netconn** for UDP, BSD sockets for TCP). **ESP32-S3 Box and Box-3** use ESP-IDF with lwIP netconn (`netconn_sendto`). **Generic, M5Stack Atom Echo, and others** use Arduino.
@@ -305,10 +302,12 @@ mumble:
 | `microphone_id` | id | none | ESPHome microphone component for capture (required for transmit) |
 | `speaker_id` | id | none | ESPHome speaker component for playback |
 | `ptt_pin` | pin | none | GPIO for push-to-talk button (optional; wire button to mumble.microphone_enable/disable in YAML) |
-| `mute_pin` | pin | none | GPIO for hardware mute switch |
+| `mute_pin` | pin | none | GPIO for hardware mute switch (LOW = muted; syncs self_mute and mic). Not used on Box/Box-3 (mute circuit is hardware-isolated). |
 | `crypto` | enum | `legacy` | Crypto mode: `legacy` (default, OCB2-AES128) or `lite` (cleartext UDP). Use `crypto_select_id` for HA entity. Changing crypto forces reconnect. |
 | `ca_cert` | string | (empty) | Optional PEM of CA certificate for server verification. When set, TLS verification is enabled; when empty, insecure mode (trusted LAN only). |
+| `bot_mode` | bool | false | When true, Authenticate sends `client_type=1` (bot). |
 | `on_communicator_end` | automation | none | Fired when communicator sequence ends (timeout or cancel); wire to play close chime (Box/Box-3). |
+| `on_text_message` | automation | none | Fired when a text message is received (e.g. for bot/automation). |
 
 **ESP32-S3 Box / Box-3 (ESP-IDF)** — Both use `framework: type: esp-idf` with lwIP netconn for UDP. First flash must be via USB, not OTA.
 
@@ -422,5 +421,5 @@ The build uses ESPHome/PlatformIO. The Opus library is **vendored locally** in `
 | AEC quality | Echo leaks in always-on mode | Start with ESP-SR AFE. Allow fallback to push-to-talk if AEC is insufficient for a board. |
 | RAM budget | Opus + TLS + ESPHome may exceed SRAM | Use PSRAM for audio buffers and Opus state. Optimize TLS buffer sizes. Target boards with 8 MB PSRAM. |
 | TLS handshake time | Slow reconnects | Cache TLS sessions. Use TLS 1.2 with minimal cipher suite. |
-| Wire format encoding | Compatibility with upstream Mumble | Hand-written encoder (field-tagged, no protobuf lib) matched to go-mumble-server's wire format. Integration test against live server. |
-| Legacy crypto (OCB2-AES128) | Compatibility with server | Implemented; ported from grumble. Byte layout and GF operations match go-mumble-server. Lite and Secure (AES-256-GCM) supported; optional `ca_cert` for TLS verification. |
+| Wire format encoding | Compatibility with upstream Mumble | Hand-written encoder (field-tagged, no protobuf lib) matched to Mumble wire format. Integration test against live server. |
+| Legacy crypto (OCB2-AES128) | Compatibility with server | Implemented; ported from grumble. Byte layout and GF operations match standard Mumble. Lite and Secure (AES-256-GCM) supported; optional `ca_cert` for TLS verification. |

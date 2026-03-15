@@ -142,8 +142,6 @@ The client uses **Legacy** crypto by default; **Lite** is optional for trusted L
 
 The following are explicitly out of scope for the initial version:
 
-- Text messaging
-- ACL or permission management
 - Server administration from the device
 - Client certificate / client-initiated Secure tier (server can negotiate Secure; client accepts it)
 - CELT or Speex codec support

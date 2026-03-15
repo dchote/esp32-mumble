@@ -3,7 +3,7 @@
 namespace esphome {
 namespace mumble {
 
-// Port of research/go-mumble-server/pkg/mumble/audio/varint.go
+// Mumble custom varint encoding for UDP voice packets.
 static uint32_t read_be32(const uint8_t *b) {
   return (uint32_t) b[0] << 24 | (uint32_t) b[1] << 16 |
          (uint32_t) b[2] << 8 | (uint32_t) b[3];

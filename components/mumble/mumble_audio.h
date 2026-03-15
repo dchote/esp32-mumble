@@ -72,6 +72,7 @@ class JitterBuffer {
   size_t pop(int16_t *out_pcm, size_t max_samples);
 
   bool has_playout_ready() const;
+  bool has_playout_started() const { return playout_started_; }
 
  private:
   struct Frame {

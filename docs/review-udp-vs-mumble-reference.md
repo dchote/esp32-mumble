@@ -1,8 +1,6 @@
 # UDP Implementation Review vs. Mumble Reference
 
-Comparison of the ESP32 Mumble client against:
-- **Mumble C++ client/server** (`/Users/daniel/Projects/New/go-mumble-server/research/mumble`)
-- **go-mumble-server** (`/Users/daniel/Projects/New/go-mumble-server`)
+Comparison of the ESP32 Mumble client against the Mumble protocol and reference server implementations (e.g. Murmur, go-mumble-server).
 
 ## Summary
 

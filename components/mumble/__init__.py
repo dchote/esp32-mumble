@@ -36,6 +36,14 @@ CONF_CRYPTO_SELECT = "crypto_select_id"
 CONF_MICROPHONE = "microphone_id"
 CONF_SPEAKER = "speaker_id"
 CONF_ON_COMMUNICATOR_END = "on_communicator_end"
+CONF_ON_TEXT_MESSAGE = "on_text_message"
+CONF_MESSAGE = "message"
+CONF_CHANNEL_ID = "channel_id"
+CONF_BOT_MODE = "bot_mode"
+CONF_SESSION_ID = "session_id"
+CONF_REASON = "reason"
+CONF_MUTE = "mute"
+CONF_DEAF = "deaf"
 
 CONF_ALWAYS_ON = "always_on"
 CONF_PUSH_TO_TALK = "push_to_talk"
@@ -107,10 +115,18 @@ CONFIG_SCHEMA = cv.All(
                 MUMBLE_CRYPTO, lower=True
             ),
             cv.Optional(CONF_CA_CERT, default=""): cv.string,
+            cv.Optional(CONF_BOT_MODE, default=False): cv.boolean,
             cv.Optional(CONF_ON_COMMUNICATOR_END): automation.validate_automation(
                 {
                     cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
                         mumble_ns.class_("MumbleCommunicatorEndTrigger", automation.Trigger.template())
+                    ),
+                }
+            ),
+            cv.Optional(CONF_ON_TEXT_MESSAGE): automation.validate_automation(
+                {
+                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
+                        mumble_ns.class_("MumbleTextMessageTrigger", automation.Trigger.template())
                     ),
                 }
             ),
@@ -139,6 +155,7 @@ async def to_code(config):
     cg.add(var.set_mode(MUMBLE_MODE[config[CONF_MODE]]))
     cg.add(var.set_crypto(MUMBLE_CRYPTO[config[CONF_CRYPTO]]))
     cg.add(var.set_ca_cert(config.get(CONF_CA_CERT, "")))
+    cg.add(var.set_bot_mode(config.get(CONF_BOT_MODE, False)))
 
     if CONF_SERVER_TEXT in config:
         server_text = await cg.get_variable(config[CONF_SERVER_TEXT])
@@ -184,8 +201,12 @@ async def to_code(config):
         cg.add(var.set_ptt_pin(pin))
     if CONF_MUTE_PIN in config:
         pin = await cg.gpio_pin_expression(config[CONF_MUTE_PIN])
+        cg.add(var.set_mute_pin(pin))
 
     for conf in config.get(CONF_ON_COMMUNICATOR_END, []):
+        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
+        await automation.build_automation(trigger, [], conf)
+    for conf in config.get(CONF_ON_TEXT_MESSAGE, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
         await automation.build_automation(trigger, [], conf)
 
@@ -304,3 +325,94 @@ MumbleCommunicatorToggleAction = mumble_ns.class_(
 async def mumble_communicator_toggle_to_code(config, action_id, template_arg, args):
     var = await cg.get_variable(config[CONF_ID])
     return cg.new_Pvariable(action_id, template_arg, var)
+
+
+MUMBLE_SEND_TEXT_MESSAGE_SCHEMA = cv.Schema(
+    {
+        cv.Required(CONF_ID): cv.use_id(MumbleComponent),
+        cv.Required(CONF_MESSAGE): cv.string,
+        cv.Optional(CONF_CHANNEL_ID, default=0): cv.positive_int,
+    }
+)
+
+MumbleSendTextMessageAction = mumble_ns.class_(
+    "MumbleSendTextMessageAction", automation.Action
+)
+
+
+@automation.register_action(
+    "mumble.send_text_message",
+    MumbleSendTextMessageAction,
+    MUMBLE_SEND_TEXT_MESSAGE_SCHEMA,
+)
+async def mumble_send_text_message_to_code(config, action_id, template_arg, args):
+    var = await cg.get_variable(config[CONF_ID])
+    action = cg.new_Pvariable(action_id, template_arg, var)
+    cg.add(action.set_message(config[CONF_MESSAGE]))
+    cg.add(action.set_channel_id(config.get(CONF_CHANNEL_ID, 0)))
+    return action
+
+
+MumbleSelfMuteAction = mumble_ns.class_("MumbleSelfMuteAction", automation.Action)
+MUMBLE_SELF_MUTE_SCHEMA = cv.Schema(
+    {
+        cv.Required(CONF_ID): cv.use_id(MumbleComponent),
+        cv.Required(CONF_MUTE): cv.boolean,
+    }
+)
+
+
+@automation.register_action(
+    "mumble.self_mute",
+    MumbleSelfMuteAction,
+    MUMBLE_SELF_MUTE_SCHEMA,
+)
+async def mumble_self_mute_to_code(config, action_id, template_arg, args):
+    var = await cg.get_variable(config[CONF_ID])
+    action = cg.new_Pvariable(action_id, template_arg, var)
+    cg.add(action.set_mute(config[CONF_MUTE]))
+    return action
+
+
+MumbleSelfDeafAction = mumble_ns.class_("MumbleSelfDeafAction", automation.Action)
+MUMBLE_SELF_DEAF_SCHEMA = cv.Schema(
+    {
+        cv.Required(CONF_ID): cv.use_id(MumbleComponent),
+        cv.Required(CONF_DEAF): cv.boolean,
+    }
+)
+
+
+@automation.register_action(
+    "mumble.self_deaf",
+    MumbleSelfDeafAction,
+    MUMBLE_SELF_DEAF_SCHEMA,
+)
+async def mumble_self_deaf_to_code(config, action_id, template_arg, args):
+    var = await cg.get_variable(config[CONF_ID])
+    action = cg.new_Pvariable(action_id, template_arg, var)
+    cg.add(action.set_deaf(config[CONF_DEAF]))
+    return action
+
+
+MumbleKickUserAction = mumble_ns.class_("MumbleKickUserAction", automation.Action)
+MUMBLE_KICK_USER_SCHEMA = cv.Schema(
+    {
+        cv.Required(CONF_ID): cv.use_id(MumbleComponent),
+        cv.Required(CONF_SESSION_ID): cv.positive_int,
+        cv.Optional(CONF_REASON, default=""): cv.string,
+    }
+)
+
+
+@automation.register_action(
+    "mumble.kick_user",
+    MumbleKickUserAction,
+    MUMBLE_KICK_USER_SCHEMA,
+)
+async def mumble_kick_user_to_code(config, action_id, template_arg, args):
+    var = await cg.get_variable(config[CONF_ID])
+    action = cg.new_Pvariable(action_id, template_arg, var)
+    cg.add(action.set_session_id(config[CONF_SESSION_ID]))
+    cg.add(action.set_reason(config.get(CONF_REASON, "")))
+    return action

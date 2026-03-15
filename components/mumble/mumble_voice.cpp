@@ -6,7 +6,9 @@ namespace esphome {
 namespace mumble {
 
 // Client-to-server: header (codec|target), sequence, payload_len (bit13=terminator), opus
-static constexpr uint8_t HEADER_OPUS_NORMAL = (static_cast<uint8_t>(AudioCodec::OPUS) << 5) | 0;  // target 0 = normal
+static uint8_t header_opus_target(uint8_t target) {
+  return (static_cast<uint8_t>(AudioCodec::OPUS) << 5) | (target & 0x1F);
+}
 
 // Server-to-client legacy format:
 //   Header byte: codec(3) | target(5)
@@ -54,12 +56,13 @@ bool parse_voice_packet(const uint8_t *data, size_t len, VoicePacket *out) {
 }
 
 size_t build_voice_packet(uint8_t *out_buf, size_t max_len, uint64_t sequence,
-                          const uint8_t *opus_data, size_t opus_len, bool is_terminator) {
+                          const uint8_t *opus_data, size_t opus_len, bool is_terminator,
+                          uint8_t target) {
   if (out_buf == nullptr || max_len < 1 + MUMBLE_VARINT_MAX_LEN * 2 + opus_len ||
       (opus_data == nullptr && opus_len > 0))
     return 0;
   size_t pos = 0;
-  out_buf[pos++] = HEADER_OPUS_NORMAL;
+  out_buf[pos++] = header_opus_target(target);
   size_t n = mumble_varint_encode(out_buf + pos, static_cast<int64_t>(sequence));
   pos += n;
   uint64_t len_val = opus_len;

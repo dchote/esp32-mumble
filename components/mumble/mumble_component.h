@@ -15,7 +15,6 @@
 #include "esphome/core/automation.h"
 #include "esphome/core/gpio.h"
 #include "esphome/core/helpers.h"
-#include "esphome/core/helpers.h"
 
 namespace esphome {
 namespace mumble {
@@ -81,6 +80,27 @@ class MumbleComponent : public Component {
     on_communicator_end_callback_.add(std::move(callback));
   }
 
+  /** Send text message to current channel (or root if channel_id 0). */
+  void send_text_message(const std::string &message, uint32_t channel_id = 0);
+  /** Last received text message (for on_text_message trigger). */
+  const std::string &get_last_text_message() const { return last_text_message_; }
+  uint32_t get_last_text_sender_session() const { return last_text_sender_session_; }
+  const std::string &get_last_text_sender_name() const { return last_text_sender_name_; }
+  uint32_t get_last_text_channel_id() const { return last_text_channel_id_; }
+  void add_on_text_message_callback(std::function<void()> &&callback) {
+    on_text_message_callback_.add(std::move(callback));
+  }
+  /** When true, client sends client_type=1 (bot) in Authenticate. */
+  void set_bot_mode(bool bot) { bot_mode_ = bot; }
+  /** Voice target id for TX (0 = channel, 1-30 = custom target, 31 = loopback). */
+  void set_voice_target_id(uint8_t id) { voice_target_id_ = id; }
+  uint8_t get_voice_target_id() const { return voice_target_id_; }
+  /** Register a voice target with the server (delegates to client). */
+  bool send_voice_target(uint8_t id, const std::vector<MsgVoiceTargetTarget> &targets);
+  void send_self_mute(bool mute);
+  void send_self_deaf(bool deaf);
+  void send_kick_user(uint32_t session_id, const std::string &reason);
+
   void setup() override;
   void loop() override;
   void on_shutdown() override;
@@ -125,6 +145,7 @@ class MumbleComponent : public Component {
   uint8_t last_crypto_{0xff};  // 0xff = not yet tracked
   uint8_t last_mode_{0xff};    // 0xff = not yet tracked; reacts to mode changes
   bool config_tracked_{false};
+  bool last_mute_pin_muted_{false};  // for hardware mute pin edge detection
 
   MumbleUdp udp_;
   MumbleCryptState crypt_state_;
@@ -177,6 +198,13 @@ class MumbleComponent : public Component {
   bool comm_had_tx_{false};  // true once voice_sending_ was true (starts silence window)
   uint32_t comm_silence_start_ms_{0};
   CallbackManager<void()> on_communicator_end_callback_;
+  std::string last_text_message_;
+  uint32_t last_text_sender_session_{0};
+  std::string last_text_sender_name_;
+  uint32_t last_text_channel_id_{0};
+  CallbackManager<void()> on_text_message_callback_;
+  bool bot_mode_{false};
+  uint8_t voice_target_id_{0};
   static constexpr size_t CAPTURE_BUF_FRAMES = 8;
   static constexpr size_t CAPTURE_BUF_SAMPLES = CAPTURE_BUF_FRAMES * OpusAudioEncoder::FRAME_SAMPLES;
   static constexpr int VAD_ATTACK_FRAMES = 3;
@@ -274,6 +302,63 @@ class MumbleCommunicatorEndTrigger : public Trigger<> {
   explicit MumbleCommunicatorEndTrigger(MumbleComponent *parent) {
     parent->add_on_communicator_end_callback([this]() { this->trigger(); });
   }
+};
+
+class MumbleTextMessageTrigger : public Trigger<> {
+ public:
+  explicit MumbleTextMessageTrigger(MumbleComponent *parent) {
+    parent->add_on_text_message_callback([this]() { this->trigger(); });
+  }
+};
+
+template<typename... Ts>
+class MumbleSendTextMessageAction : public Action<Ts...>, public Parented<MumbleComponent> {
+ public:
+  explicit MumbleSendTextMessageAction(MumbleComponent *parent) { this->set_parent(parent); }
+  void set_message(const std::string &message) { message_ = message; }
+  void set_channel_id(uint32_t channel_id) { channel_id_ = channel_id; }
+  void play(Ts... x) override {
+    this->parent_->send_text_message(message_, channel_id_);
+  }
+
+ private:
+  std::string message_;
+  uint32_t channel_id_{0};
+};
+
+template<typename... Ts>
+class MumbleSelfMuteAction : public Action<Ts...>, public Parented<MumbleComponent> {
+ public:
+  explicit MumbleSelfMuteAction(MumbleComponent *parent) { this->set_parent(parent); }
+  void set_mute(bool mute) { mute_ = mute; }
+  void play(Ts... x) override { this->parent_->send_self_mute(mute_); }
+
+ private:
+  bool mute_{false};
+};
+
+template<typename... Ts>
+class MumbleSelfDeafAction : public Action<Ts...>, public Parented<MumbleComponent> {
+ public:
+  explicit MumbleSelfDeafAction(MumbleComponent *parent) { this->set_parent(parent); }
+  void set_deaf(bool deaf) { deaf_ = deaf; }
+  void play(Ts... x) override { this->parent_->send_self_deaf(deaf_); }
+
+ private:
+  bool deaf_{false};
+};
+
+template<typename... Ts>
+class MumbleKickUserAction : public Action<Ts...>, public Parented<MumbleComponent> {
+ public:
+  explicit MumbleKickUserAction(MumbleComponent *parent) { this->set_parent(parent); }
+  void set_session_id(uint32_t id) { session_id_ = id; }
+  void set_reason(const std::string &reason) { reason_ = reason; }
+  void play(Ts... x) override { this->parent_->send_kick_user(session_id_, reason_); }
+
+ private:
+  uint32_t session_id_{0};
+  std::string reason_;
 };
 
 }  // namespace mumble
