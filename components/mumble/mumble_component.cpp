@@ -116,11 +116,14 @@ void MumbleComponent::seed_username_default_if_empty() {
 void MumbleComponent::publish_empty_text_defaults() {
   // ESPHome's TemplateText skips publish_state for empty initial values,
   // leaving HA showing "unknown". Force-publish empty string so HA shows "".
+  if (server_text_ != nullptr && !server_text_->has_state()) {
+    server_text_->make_call().set_value("").perform();
+  }
   if (password_text_ != nullptr && !password_text_->has_state()) {
     password_text_->make_call().set_value("").perform();
   }
   if (channel_text_ != nullptr && !channel_text_->has_state()) {
-    channel_text_->make_call().set_value("").perform();
+    channel_text_->make_call().set_value("Root").perform();
   }
 }
 
@@ -321,7 +324,7 @@ void MumbleComponent::reset_config() {
   ESP_LOGI(TAG, "Resetting all configuration to defaults");
   // Space updates to give NVS time between writes (avoids bogus "too long" warnings)
   if (server_text_ != nullptr) {
-    server_text_->make_call().set_value("192.168.1.100").perform();
+    server_text_->make_call().set_value("").perform();
     mumble_delay_ms(25);
   }
   if (port_text_ != nullptr) {
@@ -340,7 +343,7 @@ void MumbleComponent::reset_config() {
     mumble_delay_ms(25);
   }
   if (channel_text_ != nullptr) {
-    channel_text_->make_call().set_value("").perform();
+    channel_text_->make_call().set_value("Root").perform();
     mumble_delay_ms(25);
   }
   if (mode_select_ != nullptr) {
@@ -359,7 +362,8 @@ void MumbleComponent::reset_config() {
 }
 
 void MumbleComponent::log_connection_config() const {
-  ESP_LOGCONFIG(TAG, "  Server: %s:%u", get_server().c_str(), get_port());
+  const std::string &srv = get_server();
+  ESP_LOGCONFIG(TAG, "  Server: %s:%u", srv.empty() ? "(not set)" : srv.c_str(), get_port());
   ESP_LOGCONFIG(TAG, "  Username: %s", get_username().c_str());
   ESP_LOGCONFIG(TAG, "  Channel: %s",
                 get_channel().empty() ? "(root)" : get_channel().c_str());

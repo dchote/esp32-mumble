@@ -96,7 +96,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_PORT, default=64738): cv.port,
             cv.Optional(CONF_USERNAME, default=""): cv.string,
             cv.Optional(CONF_PASSWORD, default=""): cv.string,
-            cv.Optional(CONF_CHANNEL, default=""): cv.string,
+            cv.Optional(CONF_CHANNEL, default="Root"): cv.string,
             cv.Optional(CONF_SERVER_TEXT): cv.use_id(text.Text),
             cv.Optional(CONF_PORT_TEXT): cv.use_id(text.Text),
             cv.Optional(CONF_USERNAME_TEXT): cv.use_id(text.Text),

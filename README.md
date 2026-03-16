@@ -2,8 +2,6 @@
 
 An ESP32-S3 Mumble voice chat client for ESPHome, turning microcontroller boards into always-on intercoms and push-to-talk devices.
 
-> **Status: Voice-functional alpha** — Voice receive and transmit working with three modes: always-on, push-to-talk, and communicator. Legacy (default) and Lite crypto, HA integration. Tested with go-mumble-server. **Box and Box-3** use ESP-IDF with lwIP netconn for UDP. **Generic and Atom Echo** use Arduino. UDP when active; TCP tunnel fallback when UDP unreachable.
-
 ![ESP32-S3-BOX running ESP32-Mumble](images/esp32-s3-box.jpg)
 
 *The project running on an ESP32-S3-BOX connected to a local go-mumble-server instance.*
@@ -84,7 +82,7 @@ See the full documentation:
 ## Quick Start
 
 ```bash
-# Clone, set Wi‑Fi in esphome/secrets.yaml; optionally set Mumble server in YAML
+# Clone, set Wi‑Fi in esphome/secrets.yaml; server defaults to empty and is auto-filled from HA when adopted
 esphome compile esphome/esp32-s3-box.yaml   # Box: ESP-IDF; or generic-esp32s3.yaml for Arduino
 esphome run esphome/esp32-s3-box.yaml --device /dev/ttyUSB0
 ```
@@ -93,7 +91,7 @@ For Box/Box-3 (ESP-IDF): first flash must be via USB, not OTA.
 
 See [docs/build.md](docs/build.md) for full build and flash instructions.
 
-Configure Mumble server, port, username, password, channel, mode, and crypto from the Home Assistant UI after adding the device; **crypto defaults to Legacy** (OCB2-AES128). Values persist in NVS and are restored on boot. Username defaults to `esp32-<MAC>`; you can overwrite it. Changing server, username, password, channel, or crypto forces a reconnect. **Mode** selects between Always On, Push to Talk, and Communicator — switching modes takes effect immediately (mic is disabled when leaving always-on). Use **Speaker Volume** to adjust playback level. On Box/Box-3, **Speaker Power** controls the hardware amplifier. Diagnostics show connection status, ping, and voice activity. The **Reset Config** button restores all settings to defaults. See `esphome/generic-esp32s3.yaml` for the full pattern.
+Configure Mumble server, port, username, password, channel, mode, and crypto from the Home Assistant UI after adding the device. **Server** defaults to empty and is auto-populated with the Home Assistant server IP when the device is adopted by HA (e.g. for the go-mumble-server addon); set it manually in YAML or HA to override. **Crypto** defaults to Legacy (OCB2-AES128). Values persist in NVS and are restored on boot. Username defaults to `esp32-<MAC>`; you can overwrite it. Changing server, username, password, channel, or crypto forces a reconnect. **Mode** selects between Always On, Push to Talk, and Communicator — switching modes takes effect immediately (mic is disabled when leaving always-on). Use **Speaker Volume** to adjust playback level. On Box/Box-3, **Speaker Power** controls the hardware amplifier. Diagnostics show connection status, ping, and voice activity. The **Reset Config** button restores all settings to defaults (server to empty, re-triggering HA auto-detection). See `esphome/generic-esp32s3.yaml` for the full pattern.
 
 ## Project Structure
 
@@ -116,7 +114,10 @@ esp32-mumble/
 │   │   ├── 0003-mumble-connection-protocol.md
 │   │   ├── 0004-udp-voice-playback.md
 │   │   ├── 0008-voice-capture-optimizations.md
-│   │   └── 0009-communicator-mode.md
+│   │   ├── 0009-communicator-mode.md
+│   │   ├── 0010-full-mumble-protocol.md
+│   │   ├── 0011-display-layout-chat.md
+│   │   └── 0012-ha-auto-server-detection.md
 │   ├── product-overview.md
 │   └── technical-overview.md
 ├── esphome/             # Example device configs

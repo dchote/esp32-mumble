@@ -227,6 +227,8 @@ components/
 
 The component is loaded as an ESPHome external component. Connection settings (server, port, username, password, channel) can be inline or referenced from text entities; mode (always_on / push_to_talk) can be set in YAML or via an optional select entity. Username defaults to `esp32-<MAC>` on first run if not set; password has no default. All HA-linked values are editable in the HA UI and persisted to NVS. Changing server, username, password, or channel forces a reconnect. Wire a physical button to `mumble.microphone_enable` and `mumble.microphone_disable` for mic control (press = on, release = off). The `mumble.ptt_press` action toggles mic state. The `mumble.reset_config` action resets all config entities to defaults.
 
+**Home Assistant server auto-detection** — The Mumble server address defaults to empty. When the device is adopted by Home Assistant (HA connects to the ESP via the ESPHome API), the config uses `api.on_client_connected`; if the server text entity is still empty, it is set to `client_address` (the HA server's IP). This supports the common case of running go-mumble-server as a Home Assistant addon on the same host. A manually set server is never overwritten (it persists in NVS). The component's `publish_empty_text_defaults()` ensures the server field shows `""` in HA instead of "unknown" when unset.
+
 **Empty-state "unknown" workaround** — ESPHome's `TemplateText::setup()` only calls `publish_state()` when the restored/initial value is non-empty. Text entities with `initial_value: ""` (or omitted) never get a state published, so Home Assistant displays them as "unknown". The Mumble component works around this by calling `publish_empty_text_defaults()` during `setup()`, which force-publishes an empty string for any text entity that still has `has_state() == false`. Always use `initial_value: ""` in the YAML (not omitted) so the intent is clear, and rely on the component to publish the state.
 
 **Boot-time restore of controls** — ESPHome template entities with `set_action` or `lambda` do not re-fire their actions when NVS values are restored on boot. Speaker Volume (template number) would lose its saved state without explicit handling. The fix uses two mechanisms:
@@ -247,7 +249,7 @@ text:
     mode: text
     optimistic: true
     restore_value: true
-    initial_value: "192.168.1.100"
+    initial_value: ""
   - platform: template
     id: mumble_server_port
     name: "2. Port"
@@ -264,14 +266,23 @@ select:
     initial_option: "always_on"
     options: ["always_on", "push_to_talk", "communicator"]
 
+# When HA connects, if server is empty it is set to client_address (HA IP) for addon use.
+# Production configs also log via ESP_LOGI when setting server from client_address.
+api:
+  on_client_connected:
+    - lambda: |-
+        if (id(mumble_server_host).state.empty()) {
+          id(mumble_server_host).make_call().set_value(client_address).perform();
+        }
+
 # Physical button: on_press -> mumble.microphone_enable, on_release -> mumble.microphone_disable
 mumble:
   id: mumble_client
-  server: ""              # or inline; if using entities use server_text_id
+  server: ""              # empty by default; auto-filled from HA IP when adopted, or set manually
   port: 64738
   username: ""
   password: ""
-  channel: ""
+  channel: "Root"
   server_text_id: mumble_server_host
   port_text_id: mumble_server_port
   # username_text_id, password_text_id, channel_text_id, crypto_select_id ...
@@ -286,11 +297,11 @@ mumble:
 
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
-| `server` | string | optional | Mumble server hostname or IP (or use `server_text_id`) |
+| `server` | string | `""` | Mumble server hostname or IP (or use `server_text_id`). Empty by default; when adopted by HA, the config can set it from `client_address` (HA IP). |
 | `port` | int | 64738 | Mumble server port |
 | `username` | string | optional | Username to authenticate with (or use `username_text_id`) |
 | `password` | string | `""` | Server or user password |
-| `channel` | string | `""` | Channel to join after connect (empty = root) |
+| `channel` | string | `"Root"` | Channel to join after connect (default Root; empty = root) |
 | `mode_select_id` | id | none | Select entity for mode (options: `always_on`, `push_to_talk`, `communicator`; overrides `mode` when set) |
 | `mode` | enum | `always_on` | `always_on` or `push_to_talk` (fallback when no `mode_select_id`) |
 | `server_text_id` | id | none | Text entity for server host (overrides `server` when set) |
@@ -343,7 +354,7 @@ When server, username, password, or channel is changed in HA, the client disconn
 | `sensor.mumble_ping` | `sensor` | Round-trip ping time to server in ms |
 | `binary_sensor.mumble_voice_active` | `binary_sensor` | Voice Received: true while voice is being received |
 | `binary_sensor.mumble_voice_sending` | `binary_sensor` | Voice Sending: true while the device is transmitting |
-| `button.mumble_reset_config` | `button` | Reset all config to defaults (server, port, username, password, channel, mode) |
+| `button.mumble_reset_config` | `button` | Reset all config to defaults (server to empty, port, username, password, channel, mode, crypto) |
 
 **Runtime entities**:
 

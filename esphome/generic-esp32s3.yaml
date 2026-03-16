@@ -46,6 +46,12 @@ wifi:
 logger:
 
 api:
+  on_client_connected:
+    - lambda: |-
+        if (id(mumble_server_host).state.empty()) {
+          ESP_LOGI("mumble", "Server not configured; using Home Assistant IP: %s", client_address.c_str());
+          id(mumble_server_host).make_call().set_value(client_address).perform();
+        }
 
 ota:
   - platform: esphome
@@ -111,7 +117,7 @@ text:
     mode: text
     optimistic: true
     restore_value: true
-    initial_value: "192.168.1.100"
+    initial_value: ""
     max_length: 253
   - platform: template
     id: mumble_server_port
@@ -151,7 +157,7 @@ text:
     mode: text
     optimistic: true
     restore_value: true
-    initial_value: ""  # Component publishes empty default at setup (avoids HA "unknown")
+    initial_value: "Root"  # Default channel; case-insensitive match
     max_length: 128
 select:
   - platform: template
@@ -251,11 +257,11 @@ external_components:
 
 mumble:
   id: mumble_client
-  server: "192.168.1.100"  # Fallback when text entity not yet synced
+  server: ""  # Empty by default; auto-filled from HA IP when adopted, or set manually
   port: 64738
   username: ""
   password: ""
-  channel: ""
+  channel: "Root"
   server_text_id: mumble_server_host
   port_text_id: mumble_server_port
   username_text_id: mumble_username

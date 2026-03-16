@@ -88,11 +88,11 @@ The following settings are exposed as Home Assistant entities and can be changed
 
 | Entity | Type | Description |
 |---|---|---|
-| Server | Text | Hostname or IP of the Mumble server |
+| Server | Text | Hostname or IP of the Mumble server. Defaults to empty; when the device is adopted by Home Assistant, it is auto-populated with the HA server IP (e.g. for go-mumble-server addon). Set manually to override. |
 | Port | Text | Server port (default 64738, displays as integer) |
 | Username | Text | Mumble username; defaults to `esp32-<MAC>` on first run (user can overwrite) |
 | Password | Text | Server or user password; no default |
-| Channel | Text | Channel to join on connect (empty = root; case-insensitive match) |
+| Channel | Text | Channel to join on connect (default **Root**; case-insensitive match) |
 | Mode | Select | **Always on**, **Push to talk**, or **Communicator** (persisted across reboots) |
 | Crypto | Select | **Legacy** (OCB2-AES128, default) or **Lite** (cleartext UDP for trusted LAN) |
 | Speaker Volume | Number | Playback volume level (0–100, default 80) |
@@ -108,7 +108,7 @@ All settings persist in NVS and are restored on boot — including speaker volum
 | Mumble Connected | Binary Sensor | Whether connected to the Mumble server |
 | Mumble Ping | Sensor | Round-trip ping time to server in ms |
 | Voice Received | Binary Sensor | True while voice is being received and processed (Sensors) |
-| Reset Config | Button | Restore server, port, username, password, channel, mode, and crypto to defaults |
+| Reset Config | Button | Restore server (to empty, re-triggering HA auto-detection), port, username, password, channel, mode, and crypto to defaults |
 
 ### Home Assistant Runtime Entities
 
