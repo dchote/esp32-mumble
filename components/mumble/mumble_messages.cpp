@@ -22,9 +22,12 @@ void MsgVersion::marshal(std::vector<uint8_t> &out) const {
     proto_append_tag(out, 1, WIRE_VARINT);
     proto_append_varint(out, version_v1);
   }
-  if (!release.empty()) proto_append_string(out, 2, release);
-  if (!os.empty()) proto_append_string(out, 3, os);
-  if (!os_version.empty()) proto_append_string(out, 4, os_version);
+  if (!release.empty())
+    proto_append_string(out, 2, release);
+  if (!os.empty())
+    proto_append_string(out, 3, os);
+  if (!os_version.empty())
+    proto_append_string(out, 4, os_version);
   if (version_v2 != 0) {
     proto_append_tag(out, 5, WIRE_VARINT);
     proto_append_varint(out, version_v2);
@@ -41,73 +44,81 @@ bool MsgVersion::unmarshal(const uint8_t *data, size_t len) {
   while (rem > 0) {
     int fn, wt;
     int n = proto_read_tag(p, rem, &fn, &wt);
-    if (n == 0) return false;
+    if (n == 0)
+      return false;
     p += n;
     rem -= n;
     switch (fn) {
-      case 1: {
-        uint64_t v;
-        n = proto_read_varint(p, rem, &v);
-        if (n == 0) return false;
-        version_v1 = static_cast<uint32_t>(v);
-        p += n;
-        rem -= n;
-        break;
-      }
-      case 2: {
-        const uint8_t *s;
-        size_t sl;
-        n = proto_read_length_delimited(p, rem, &s, &sl);
-        if (n == 0) return false;
-        release.assign(reinterpret_cast<const char *>(s), sl);
-        p += n;
-        rem -= n;
-        break;
-      }
-      case 3: {
-        const uint8_t *s;
-        size_t sl;
-        n = proto_read_length_delimited(p, rem, &s, &sl);
-        if (n == 0) return false;
-        os.assign(reinterpret_cast<const char *>(s), sl);
-        p += n;
-        rem -= n;
-        break;
-      }
-      case 4: {
-        const uint8_t *s;
-        size_t sl;
-        n = proto_read_length_delimited(p, rem, &s, &sl);
-        if (n == 0) return false;
-        os_version.assign(reinterpret_cast<const char *>(s), sl);
-        p += n;
-        rem -= n;
-        break;
-      }
-      case 5: {
-        uint64_t v;
-        n = proto_read_varint(p, rem, &v);
-        if (n == 0) return false;
-        version_v2 = v;
-        p += n;
-        rem -= n;
-        break;
-      }
-      case 6: {
-        uint64_t v;
-        n = proto_read_varint(p, rem, &v);
-        if (n == 0) return false;
-        crypto_modes = static_cast<uint32_t>(v);
-        p += n;
-        rem -= n;
-        break;
-      }
-      default:
-        n = proto_skip_field(p, rem, wt);
-        if (n == 0) return false;
-        p += n;
-        rem -= n;
-        break;
+    case 1: {
+      uint64_t v;
+      n = proto_read_varint(p, rem, &v);
+      if (n == 0)
+        return false;
+      version_v1 = static_cast<uint32_t>(v);
+      p += n;
+      rem -= n;
+      break;
+    }
+    case 2: {
+      const uint8_t *s;
+      size_t sl;
+      n = proto_read_length_delimited(p, rem, &s, &sl);
+      if (n == 0)
+        return false;
+      release.assign(reinterpret_cast<const char *>(s), sl);
+      p += n;
+      rem -= n;
+      break;
+    }
+    case 3: {
+      const uint8_t *s;
+      size_t sl;
+      n = proto_read_length_delimited(p, rem, &s, &sl);
+      if (n == 0)
+        return false;
+      os.assign(reinterpret_cast<const char *>(s), sl);
+      p += n;
+      rem -= n;
+      break;
+    }
+    case 4: {
+      const uint8_t *s;
+      size_t sl;
+      n = proto_read_length_delimited(p, rem, &s, &sl);
+      if (n == 0)
+        return false;
+      os_version.assign(reinterpret_cast<const char *>(s), sl);
+      p += n;
+      rem -= n;
+      break;
+    }
+    case 5: {
+      uint64_t v;
+      n = proto_read_varint(p, rem, &v);
+      if (n == 0)
+        return false;
+      version_v2 = v;
+      p += n;
+      rem -= n;
+      break;
+    }
+    case 6: {
+      uint64_t v;
+      n = proto_read_varint(p, rem, &v);
+      if (n == 0)
+        return false;
+      crypto_modes = static_cast<uint32_t>(v);
+      p += n;
+      rem -= n;
+      break;
+    }
+    default:
+      n = proto_skip_field(p, rem, wt);
+      if (n == 0)
+        return false;
+      p += n;
+      rem -= n;
+      break;
     }
   }
   return true;
@@ -115,9 +126,12 @@ bool MsgVersion::unmarshal(const uint8_t *data, size_t len) {
 
 // MsgAuthenticate
 void MsgAuthenticate::marshal(std::vector<uint8_t> &out) const {
-  if (!username.empty()) proto_append_string(out, 1, username);
-  if (!password.empty()) proto_append_string(out, 2, password);
-  if (opus) proto_append_bool(out, 5, true);
+  if (!username.empty())
+    proto_append_string(out, 1, username);
+  if (!password.empty())
+    proto_append_string(out, 2, password);
+  if (opus)
+    proto_append_bool(out, 5, true);
   if (client_type != 0) {
     proto_append_tag(out, 6, WIRE_VARINT);
     proto_append_varint(out, static_cast<uint64_t>(static_cast<int32_t>(client_type)));
@@ -141,46 +155,51 @@ bool MsgCryptSetup::unmarshal(const uint8_t *data, size_t len) {
   while (rem > 0) {
     int fn, wt;
     int n = proto_read_tag(p, rem, &fn, &wt);
-    if (n == 0) return false;
+    if (n == 0)
+      return false;
     p += n;
     rem -= n;
     switch (fn) {
-      case 1: {
-        const uint8_t *d;
-        size_t dl;
-        n = proto_read_length_delimited(p, rem, &d, &dl);
-        if (n == 0) return false;
-        key.assign(d, d + dl);
-        p += n;
-        rem -= n;
-        break;
-      }
-      case 2: {
-        const uint8_t *d;
-        size_t dl;
-        n = proto_read_length_delimited(p, rem, &d, &dl);
-        if (n == 0) return false;
-        client_nonce.assign(d, d + dl);
-        p += n;
-        rem -= n;
-        break;
-      }
-      case 3: {
-        const uint8_t *d;
-        size_t dl;
-        n = proto_read_length_delimited(p, rem, &d, &dl);
-        if (n == 0) return false;
-        server_nonce.assign(d, d + dl);
-        p += n;
-        rem -= n;
-        break;
-      }
-      default:
-        n = proto_skip_field(p, rem, wt);
-        if (n == 0) return false;
-        p += n;
-        rem -= n;
-        break;
+    case 1: {
+      const uint8_t *d;
+      size_t dl;
+      n = proto_read_length_delimited(p, rem, &d, &dl);
+      if (n == 0)
+        return false;
+      key.assign(d, d + dl);
+      p += n;
+      rem -= n;
+      break;
+    }
+    case 2: {
+      const uint8_t *d;
+      size_t dl;
+      n = proto_read_length_delimited(p, rem, &d, &dl);
+      if (n == 0)
+        return false;
+      client_nonce.assign(d, d + dl);
+      p += n;
+      rem -= n;
+      break;
+    }
+    case 3: {
+      const uint8_t *d;
+      size_t dl;
+      n = proto_read_length_delimited(p, rem, &d, &dl);
+      if (n == 0)
+        return false;
+      server_nonce.assign(d, d + dl);
+      p += n;
+      rem -= n;
+      break;
+    }
+    default:
+      n = proto_skip_field(p, rem, wt);
+      if (n == 0)
+        return false;
+      p += n;
+      rem -= n;
+      break;
     }
   }
   return true;
@@ -193,53 +212,59 @@ bool MsgServerSync::unmarshal(const uint8_t *data, size_t len) {
   while (rem > 0) {
     int fn, wt;
     int n = proto_read_tag(p, rem, &fn, &wt);
-    if (n == 0) return false;
+    if (n == 0)
+      return false;
     p += n;
     rem -= n;
     switch (fn) {
-      case 1: {
-        uint64_t v;
-        n = proto_read_varint(p, rem, &v);
-        if (n == 0) return false;
-        session = static_cast<uint32_t>(v);
-        p += n;
-        rem -= n;
-        break;
-      }
-      case 2: {
-        uint64_t v;
-        n = proto_read_varint(p, rem, &v);
-        if (n == 0) return false;
-        max_bandwidth = static_cast<uint32_t>(v);
-        p += n;
-        rem -= n;
-        break;
-      }
-      case 3: {
-        const uint8_t *s;
-        size_t sl;
-        n = proto_read_length_delimited(p, rem, &s, &sl);
-        if (n == 0) return false;
-        welcome_text.assign(reinterpret_cast<const char *>(s), sl);
-        p += n;
-        rem -= n;
-        break;
-      }
-      case 4: {
-        uint64_t v;
-        n = proto_read_varint(p, rem, &v);
-        if (n == 0) return false;
-        permissions = v;
-        p += n;
-        rem -= n;
-        break;
-      }
-      default:
-        n = proto_skip_field(p, rem, wt);
-        if (n == 0) return false;
-        p += n;
-        rem -= n;
-        break;
+    case 1: {
+      uint64_t v;
+      n = proto_read_varint(p, rem, &v);
+      if (n == 0)
+        return false;
+      session = static_cast<uint32_t>(v);
+      p += n;
+      rem -= n;
+      break;
+    }
+    case 2: {
+      uint64_t v;
+      n = proto_read_varint(p, rem, &v);
+      if (n == 0)
+        return false;
+      max_bandwidth = static_cast<uint32_t>(v);
+      p += n;
+      rem -= n;
+      break;
+    }
+    case 3: {
+      const uint8_t *s;
+      size_t sl;
+      n = proto_read_length_delimited(p, rem, &s, &sl);
+      if (n == 0)
+        return false;
+      welcome_text.assign(reinterpret_cast<const char *>(s), sl);
+      p += n;
+      rem -= n;
+      break;
+    }
+    case 4: {
+      uint64_t v;
+      n = proto_read_varint(p, rem, &v);
+      if (n == 0)
+        return false;
+      permissions = v;
+      p += n;
+      rem -= n;
+      break;
+    }
+    default:
+      n = proto_skip_field(p, rem, wt);
+      if (n == 0)
+        return false;
+      p += n;
+      rem -= n;
+      break;
     }
   }
   return true;
@@ -255,7 +280,8 @@ void MsgChannelState::marshal(std::vector<uint8_t> &out) const {
     proto_append_tag(out, 2, WIRE_VARINT);
     proto_append_varint(out, parent);
   }
-  if (!name.empty()) proto_append_string(out, 3, name);
+  if (!name.empty())
+    proto_append_string(out, 3, name);
   for (uint32_t link : links) {
     proto_append_tag(out, 4, WIRE_VARINT);
     proto_append_varint(out, link);
@@ -280,81 +306,90 @@ bool MsgChannelState::unmarshal(const uint8_t *data, size_t len) {
   while (rem > 0) {
     int fn, wt;
     int n = proto_read_tag(p, rem, &fn, &wt);
-    if (n == 0) return false;
+    if (n == 0)
+      return false;
     p += n;
     rem -= n;
     switch (fn) {
-      case 1: {
-        uint64_t v;
-        n = proto_read_varint(p, rem, &v);
-        if (n == 0) return false;
-        channel_id = static_cast<uint32_t>(v);
-        p += n;
-        rem -= n;
-        break;
-      }
-      case 2: {
-        uint64_t v;
-        n = proto_read_varint(p, rem, &v);
-        if (n == 0) return false;
-        parent = static_cast<uint32_t>(v);
-        has_parent = true;
-        p += n;
-        rem -= n;
-        break;
-      }
-      case 3: {
-        const uint8_t *s;
-        size_t sl;
-        n = proto_read_length_delimited(p, rem, &s, &sl);
-        if (n == 0) return false;
-        name.assign(reinterpret_cast<const char *>(s), sl);
-        p += n;
-        rem -= n;
-        break;
-      }
-      case 4: {
-        uint64_t v;
-        n = proto_read_varint(p, rem, &v);
-        if (n == 0) return false;
-        links.push_back(static_cast<uint32_t>(v));
-        p += n;
-        rem -= n;
-        break;
-      }
-      case 8: {
-        uint64_t v;
-        n = proto_read_varint(p, rem, &v);
-        if (n == 0) return false;
-        temporary = (v != 0);
-        p += n;
-        rem -= n;
-        break;
-      }
-      case 9: {
-        uint64_t v;
-        n = proto_read_varint(p, rem, &v);
-        if (n == 0) return false;
-        position = static_cast<int32_t>(v);
-        p += n;
-        rem -= n;
-        break;
-      }
-      case 11: {
-        uint64_t v;
-        n = proto_read_varint(p, rem, &v);
-        if (n == 0) return false;
-        max_users = static_cast<uint32_t>(v);
-        p += n;
-        rem -= n;
-        break;
-      }
-      default:
-        n = proto_skip_field(p, rem, wt);
-        if (n == 0) return false;
-        p += n;
-        rem -= n;
-        break;
+    case 1: {
+      uint64_t v;
+      n = proto_read_varint(p, rem, &v);
+      if (n == 0)
+        return false;
+      channel_id = static_cast<uint32_t>(v);
+      p += n;
+      rem -= n;
+      break;
+    }
+    case 2: {
+      uint64_t v;
+      n = proto_read_varint(p, rem, &v);
+      if (n == 0)
+        return false;
+      parent = static_cast<uint32_t>(v);
+      has_parent = true;
+      p += n;
+      rem -= n;
+      break;
+    }
+    case 3: {
+      const uint8_t *s;
+      size_t sl;
+      n = proto_read_length_delimited(p, rem, &s, &sl);
+      if (n == 0)
+        return false;
+      name.assign(reinterpret_cast<const char *>(s), sl);
+      p += n;
+      rem -= n;
+      break;
+    }
+    case 4: {
+      uint64_t v;
+      n = proto_read_varint(p, rem, &v);
+      if (n == 0)
+        return false;
+      links.push_back(static_cast<uint32_t>(v));
+      p += n;
+      rem -= n;
+      break;
+    }
+    case 8: {
+      uint64_t v;
+      n = proto_read_varint(p, rem, &v);
+      if (n == 0)
+        return false;
+      temporary = (v != 0);
+      p += n;
+      rem -= n;
+      break;
+    }
+    case 9: {
+      uint64_t v;
+      n = proto_read_varint(p, rem, &v);
+      if (n == 0)
+        return false;
+      position = static_cast<int32_t>(v);
+      p += n;
+      rem -= n;
+      break;
+    }
+    case 11: {
+      uint64_t v;
+      n = proto_read_varint(p, rem, &v);
+      if (n == 0)
+        return false;
+      max_users = static_cast<uint32_t>(v);
+      p += n;
+      rem -= n;
+      break;
+    }
+    default:
+      n = proto_skip_field(p, rem, wt);
+      if (n == 0)
+        return false;
+      p += n;
+      rem -= n;
+      break;
     }
   }
   return true;
@@ -372,25 +407,28 @@ bool MsgChannelRemove::unmarshal(const uint8_t *data, size_t len) {
   while (rem > 0) {
     int fn, wt;
     int n = proto_read_tag(p, rem, &fn, &wt);
-    if (n == 0) return false;
+    if (n == 0)
+      return false;
     p += n;
     rem -= n;
     switch (fn) {
-      case 1: {
-        uint64_t v;
-        n = proto_read_varint(p, rem, &v);
-        if (n == 0) return false;
-        channel_id = static_cast<uint32_t>(v);
-        p += n;
-        rem -= n;
-        break;
-      }
-      default:
-        n = proto_skip_field(p, rem, wt);
-        if (n == 0) return false;
-        p += n;
-        rem -= n;
-        break;
+    case 1: {
+      uint64_t v;
+      n = proto_read_varint(p, rem, &v);
+      if (n == 0)
+        return false;
+      channel_id = static_cast<uint32_t>(v);
+      p += n;
+      rem -= n;
+      break;
+    }
+    default:
+      n = proto_skip_field(p, rem, wt);
+      if (n == 0)
+        return false;
+      p += n;
+      rem -= n;
+      break;
     }
   }
   return true;
@@ -403,108 +441,120 @@ bool MsgUserState::unmarshal(const uint8_t *data, size_t len) {
   while (rem > 0) {
     int fn, wt;
     int n = proto_read_tag(p, rem, &fn, &wt);
-    if (n == 0) return false;
+    if (n == 0)
+      return false;
     p += n;
     rem -= n;
     switch (fn) {
-      case 1: {
-        uint64_t v;
-        n = proto_read_varint(p, rem, &v);
-        if (n == 0) return false;
-        session = static_cast<uint32_t>(v);
-        p += n;
-        rem -= n;
-        break;
-      }
-      case 2: {
-        uint64_t v;
-        n = proto_read_varint(p, rem, &v);
-        if (n == 0) return false;
-        actor = static_cast<uint32_t>(v);
-        p += n;
-        rem -= n;
-        break;
-      }
-      case 3: {
-        const uint8_t *s;
-        size_t sl;
-        n = proto_read_length_delimited(p, rem, &s, &sl);
-        if (n == 0) return false;
-        name.assign(reinterpret_cast<const char *>(s), sl);
-        p += n;
-        rem -= n;
-        break;
-      }
-      case 4: {
-        uint64_t v;
-        n = proto_read_varint(p, rem, &v);
-        if (n == 0) return false;
-        user_id = static_cast<uint32_t>(v);
-        p += n;
-        rem -= n;
-        break;
-      }
-      case 5: {
-        uint64_t v;
-        n = proto_read_varint(p, rem, &v);
-        if (n == 0) return false;
-        channel_id = static_cast<uint32_t>(v);
-        p += n;
-        rem -= n;
-        break;
-      }
-      case 6: {
-        uint64_t v;
-        n = proto_read_varint(p, rem, &v);
-        if (n == 0) return false;
-        mute = (v != 0);
-        p += n;
-        rem -= n;
-        break;
-      }
-      case 7: {
-        uint64_t v;
-        n = proto_read_varint(p, rem, &v);
-        if (n == 0) return false;
-        deaf = (v != 0);
-        p += n;
-        rem -= n;
-        break;
-      }
-      case 9: {
-        uint64_t v;
-        n = proto_read_varint(p, rem, &v);
-        if (n == 0) return false;
-        self_mute = (v != 0);
-        p += n;
-        rem -= n;
-        break;
-      }
-      case 10: {
-        uint64_t v;
-        n = proto_read_varint(p, rem, &v);
-        if (n == 0) return false;
-        self_deaf = (v != 0);
-        p += n;
-        rem -= n;
-        break;
-      }
-      case 14: {
-        const uint8_t *s;
-        size_t sl;
-        n = proto_read_length_delimited(p, rem, &s, &sl);
-        if (n == 0) return false;
-        comment.assign(reinterpret_cast<const char *>(s), sl);
-        p += n;
-        rem -= n;
-        break;
-      }
-      default:
-        n = proto_skip_field(p, rem, wt);
-        if (n == 0) return false;
-        p += n;
-        rem -= n;
-        break;
+    case 1: {
+      uint64_t v;
+      n = proto_read_varint(p, rem, &v);
+      if (n == 0)
+        return false;
+      session = static_cast<uint32_t>(v);
+      p += n;
+      rem -= n;
+      break;
+    }
+    case 2: {
+      uint64_t v;
+      n = proto_read_varint(p, rem, &v);
+      if (n == 0)
+        return false;
+      actor = static_cast<uint32_t>(v);
+      p += n;
+      rem -= n;
+      break;
+    }
+    case 3: {
+      const uint8_t *s;
+      size_t sl;
+      n = proto_read_length_delimited(p, rem, &s, &sl);
+      if (n == 0)
+        return false;
+      name.assign(reinterpret_cast<const char *>(s), sl);
+      p += n;
+      rem -= n;
+      break;
+    }
+    case 4: {
+      uint64_t v;
+      n = proto_read_varint(p, rem, &v);
+      if (n == 0)
+        return false;
+      user_id = static_cast<uint32_t>(v);
+      p += n;
+      rem -= n;
+      break;
+    }
+    case 5: {
+      uint64_t v;
+      n = proto_read_varint(p, rem, &v);
+      if (n == 0)
+        return false;
+      channel_id = static_cast<uint32_t>(v);
+      p += n;
+      rem -= n;
+      break;
+    }
+    case 6: {
+      uint64_t v;
+      n = proto_read_varint(p, rem, &v);
+      if (n == 0)
+        return false;
+      mute = (v != 0);
+      p += n;
+      rem -= n;
+      break;
+    }
+    case 7: {
+      uint64_t v;
+      n = proto_read_varint(p, rem, &v);
+      if (n == 0)
+        return false;
+      deaf = (v != 0);
+      p += n;
+      rem -= n;
+      break;
+    }
+    case 9: {
+      uint64_t v;
+      n = proto_read_varint(p, rem, &v);
+      if (n == 0)
+        return false;
+      self_mute = (v != 0);
+      p += n;
+      rem -= n;
+      break;
+    }
+    case 10: {
+      uint64_t v;
+      n = proto_read_varint(p, rem, &v);
+      if (n == 0)
+        return false;
+      self_deaf = (v != 0);
+      p += n;
+      rem -= n;
+      break;
+    }
+    case 14: {
+      const uint8_t *s;
+      size_t sl;
+      n = proto_read_length_delimited(p, rem, &s, &sl);
+      if (n == 0)
+        return false;
+      comment.assign(reinterpret_cast<const char *>(s), sl);
+      p += n;
+      rem -= n;
+      break;
+    }
+    default:
+      n = proto_skip_field(p, rem, wt);
+      if (n == 0)
+        return false;
+      p += n;
+      rem -= n;
+      break;
     }
   }
   return true;
@@ -519,7 +569,8 @@ void MsgUserState::marshal(std::vector<uint8_t> &out) const {
     proto_append_tag(out, 2, WIRE_VARINT);
     proto_append_varint(out, actor);
   }
-  if (!name.empty()) proto_append_string(out, 3, name);
+  if (!name.empty())
+    proto_append_string(out, 3, name);
   if (user_id != 0) {
     proto_append_tag(out, 4, WIRE_VARINT);
     proto_append_varint(out, user_id);
@@ -528,16 +579,21 @@ void MsgUserState::marshal(std::vector<uint8_t> &out) const {
     proto_append_tag(out, 5, WIRE_VARINT);
     proto_append_varint(out, channel_id);
   }
-  if (mute) proto_append_bool(out, 6, true);
-  if (deaf) proto_append_bool(out, 7, true);
-  if (suppress) proto_append_bool(out, 8, true);
-  if (self_mute) proto_append_bool(out, 9, true);
-  if (self_deaf) proto_append_bool(out, 10, true);
-  if (!comment.empty()) proto_append_string(out, 14, comment);
+  if (mute)
+    proto_append_bool(out, 6, true);
+  if (deaf)
+    proto_append_bool(out, 7, true);
+  if (suppress)
+    proto_append_bool(out, 8, true);
+  if (self_mute)
+    proto_append_bool(out, 9, true);
+  if (self_deaf)
+    proto_append_bool(out, 10, true);
+  if (!comment.empty())
+    proto_append_string(out, 14, comment);
 }
 
-void MsgUserState::marshal_channel_change(std::vector<uint8_t> &out, uint32_t session_id,
-                                          uint32_t channel_id) {
+void MsgUserState::marshal_channel_change(std::vector<uint8_t> &out, uint32_t session_id, uint32_t channel_id) {
   proto_append_tag(out, 1, WIRE_VARINT);
   proto_append_varint(out, session_id);
   proto_append_tag(out, 5, WIRE_VARINT);
@@ -552,8 +608,10 @@ void MsgUserRemove::marshal(std::vector<uint8_t> &out) const {
     proto_append_tag(out, 2, WIRE_VARINT);
     proto_append_varint(out, actor);
   }
-  if (!reason.empty()) proto_append_string(out, 3, reason);
-  if (ban) proto_append_bool(out, 4, true);
+  if (!reason.empty())
+    proto_append_string(out, 3, reason);
+  if (ban)
+    proto_append_bool(out, 4, true);
 }
 
 bool MsgUserRemove::unmarshal(const uint8_t *data, size_t len) {
@@ -562,53 +620,59 @@ bool MsgUserRemove::unmarshal(const uint8_t *data, size_t len) {
   while (rem > 0) {
     int fn, wt;
     int n = proto_read_tag(p, rem, &fn, &wt);
-    if (n == 0) return false;
+    if (n == 0)
+      return false;
     p += n;
     rem -= n;
     switch (fn) {
-      case 1: {
-        uint64_t v;
-        n = proto_read_varint(p, rem, &v);
-        if (n == 0) return false;
-        session = static_cast<uint32_t>(v);
-        p += n;
-        rem -= n;
-        break;
-      }
-      case 2: {
-        uint64_t v;
-        n = proto_read_varint(p, rem, &v);
-        if (n == 0) return false;
-        actor = static_cast<uint32_t>(v);
-        p += n;
-        rem -= n;
-        break;
-      }
-      case 3: {
-        const uint8_t *s;
-        size_t sl;
-        n = proto_read_length_delimited(p, rem, &s, &sl);
-        if (n == 0) return false;
-        reason.assign(reinterpret_cast<const char *>(s), sl);
-        p += n;
-        rem -= n;
-        break;
-      }
-      case 4: {
-        uint64_t v;
-        n = proto_read_varint(p, rem, &v);
-        if (n == 0) return false;
-        ban = (v != 0);
-        p += n;
-        rem -= n;
-        break;
-      }
-      default:
-        n = proto_skip_field(p, rem, wt);
-        if (n == 0) return false;
-        p += n;
-        rem -= n;
-        break;
+    case 1: {
+      uint64_t v;
+      n = proto_read_varint(p, rem, &v);
+      if (n == 0)
+        return false;
+      session = static_cast<uint32_t>(v);
+      p += n;
+      rem -= n;
+      break;
+    }
+    case 2: {
+      uint64_t v;
+      n = proto_read_varint(p, rem, &v);
+      if (n == 0)
+        return false;
+      actor = static_cast<uint32_t>(v);
+      p += n;
+      rem -= n;
+      break;
+    }
+    case 3: {
+      const uint8_t *s;
+      size_t sl;
+      n = proto_read_length_delimited(p, rem, &s, &sl);
+      if (n == 0)
+        return false;
+      reason.assign(reinterpret_cast<const char *>(s), sl);
+      p += n;
+      rem -= n;
+      break;
+    }
+    case 4: {
+      uint64_t v;
+      n = proto_read_varint(p, rem, &v);
+      if (n == 0)
+        return false;
+      ban = (v != 0);
+      p += n;
+      rem -= n;
+      break;
+    }
+    default:
+      n = proto_skip_field(p, rem, wt);
+      if (n == 0)
+        return false;
+      p += n;
+      rem -= n;
+      break;
     }
   }
   return true;
@@ -668,107 +732,116 @@ bool MsgPing::unmarshal(const uint8_t *data, size_t len) {
   while (rem > 0) {
     int fn, wt;
     int n = proto_read_tag(p, rem, &fn, &wt);
-    if (n == 0) return false;
+    if (n == 0)
+      return false;
     p += n;
     rem -= n;
     switch (fn) {
-      case 1: {
-        uint64_t v;
-        n = proto_read_varint(p, rem, &v);
-        if (n == 0) return false;
-        timestamp = v;
-        p += n;
-        rem -= n;
-        break;
+    case 1: {
+      uint64_t v;
+      n = proto_read_varint(p, rem, &v);
+      if (n == 0)
+        return false;
+      timestamp = v;
+      p += n;
+      rem -= n;
+      break;
+    }
+    case 2: {
+      uint64_t v;
+      n = proto_read_varint(p, rem, &v);
+      if (n == 0)
+        return false;
+      good = static_cast<uint32_t>(v);
+      p += n;
+      rem -= n;
+      break;
+    }
+    case 3: {
+      uint64_t v;
+      n = proto_read_varint(p, rem, &v);
+      if (n == 0)
+        return false;
+      late = static_cast<uint32_t>(v);
+      p += n;
+      rem -= n;
+      break;
+    }
+    case 4: {
+      uint64_t v;
+      n = proto_read_varint(p, rem, &v);
+      if (n == 0)
+        return false;
+      lost = static_cast<uint32_t>(v);
+      p += n;
+      rem -= n;
+      break;
+    }
+    case 5: {
+      uint64_t v;
+      n = proto_read_varint(p, rem, &v);
+      if (n == 0)
+        return false;
+      resync = static_cast<uint32_t>(v);
+      p += n;
+      rem -= n;
+      break;
+    }
+    case 6: {
+      uint64_t v;
+      n = proto_read_varint(p, rem, &v);
+      if (n == 0)
+        return false;
+      udp_packets = static_cast<uint32_t>(v);
+      p += n;
+      rem -= n;
+      break;
+    }
+    case 7: {
+      uint64_t v;
+      n = proto_read_varint(p, rem, &v);
+      if (n == 0)
+        return false;
+      tcp_packets = static_cast<uint32_t>(v);
+      p += n;
+      rem -= n;
+      break;
+    }
+    case 8:
+      if (rem >= 4) {
+        udp_ping_avg = bits_to_float(proto_read_fixed32(p));
+        p += 4;
+        rem -= 4;
       }
-      case 2: {
-        uint64_t v;
-        n = proto_read_varint(p, rem, &v);
-        if (n == 0) return false;
-        good = static_cast<uint32_t>(v);
-        p += n;
-        rem -= n;
-        break;
+      break;
+    case 9:
+      if (rem >= 4) {
+        udp_ping_var = bits_to_float(proto_read_fixed32(p));
+        p += 4;
+        rem -= 4;
       }
-      case 3: {
-        uint64_t v;
-        n = proto_read_varint(p, rem, &v);
-        if (n == 0) return false;
-        late = static_cast<uint32_t>(v);
-        p += n;
-        rem -= n;
-        break;
+      break;
+    case 10:
+      if (rem >= 4) {
+        tcp_ping_avg = bits_to_float(proto_read_fixed32(p));
+        p += 4;
+        rem -= 4;
       }
-      case 4: {
-        uint64_t v;
-        n = proto_read_varint(p, rem, &v);
-        if (n == 0) return false;
-        lost = static_cast<uint32_t>(v);
-        p += n;
-        rem -= n;
-        break;
+      break;
+    case 11:
+      if (rem >= 4) {
+        tcp_ping_var = bits_to_float(proto_read_fixed32(p));
+        p += 4;
+        rem -= 4;
       }
-      case 5: {
-        uint64_t v;
-        n = proto_read_varint(p, rem, &v);
-        if (n == 0) return false;
-        resync = static_cast<uint32_t>(v);
-        p += n;
-        rem -= n;
-        break;
-      }
-      case 6: {
-        uint64_t v;
-        n = proto_read_varint(p, rem, &v);
-        if (n == 0) return false;
-        udp_packets = static_cast<uint32_t>(v);
-        p += n;
-        rem -= n;
-        break;
-      }
-      case 7: {
-        uint64_t v;
-        n = proto_read_varint(p, rem, &v);
-        if (n == 0) return false;
-        tcp_packets = static_cast<uint32_t>(v);
-        p += n;
-        rem -= n;
-        break;
-      }
-      case 8:
-        if (rem >= 4) {
-          udp_ping_avg = bits_to_float(proto_read_fixed32(p));
-          p += 4;
-          rem -= 4;
-        }
-        break;
-      case 9:
-        if (rem >= 4) {
-          udp_ping_var = bits_to_float(proto_read_fixed32(p));
-          p += 4;
-          rem -= 4;
-        }
-        break;
-      case 10:
-        if (rem >= 4) {
-          tcp_ping_avg = bits_to_float(proto_read_fixed32(p));
-          p += 4;
-          rem -= 4;
-        }
-        break;
-      case 11:
-        if (rem >= 4) {
-          tcp_ping_var = bits_to_float(proto_read_fixed32(p));
-          p += 4;
-          rem -= 4;
-        }
-        break;
-      default:
-        n = proto_skip_field(p, rem, wt);
-        if (n == 0) return false;
-        p += n;
-        rem -= n;
-        break;
+      break;
+    default:
+      n = proto_skip_field(p, rem, wt);
+      if (n == 0)
+        return false;
+      p += n;
+      rem -= n;
+      break;
     }
   }
   return true;
@@ -781,35 +854,39 @@ bool MsgReject::unmarshal(const uint8_t *data, size_t len) {
   while (rem > 0) {
     int fn, wt;
     int n = proto_read_tag(p, rem, &fn, &wt);
-    if (n == 0) return false;
+    if (n == 0)
+      return false;
     p += n;
     rem -= n;
     switch (fn) {
-      case 1: {
-        uint64_t v;
-        n = proto_read_varint(p, rem, &v);
-        if (n == 0) return false;
-        type = static_cast<RejectType>(v);
-        p += n;
-        rem -= n;
-        break;
-      }
-      case 2: {
-        const uint8_t *s;
-        size_t sl;
-        n = proto_read_length_delimited(p, rem, &s, &sl);
-        if (n == 0) return false;
-        reason.assign(reinterpret_cast<const char *>(s), sl);
-        p += n;
-        rem -= n;
-        break;
-      }
-      default:
-        n = proto_skip_field(p, rem, wt);
-        if (n == 0) return false;
-        p += n;
-        rem -= n;
-        break;
+    case 1: {
+      uint64_t v;
+      n = proto_read_varint(p, rem, &v);
+      if (n == 0)
+        return false;
+      type = static_cast<RejectType>(v);
+      p += n;
+      rem -= n;
+      break;
+    }
+    case 2: {
+      const uint8_t *s;
+      size_t sl;
+      n = proto_read_length_delimited(p, rem, &s, &sl);
+      if (n == 0)
+        return false;
+      reason.assign(reinterpret_cast<const char *>(s), sl);
+      p += n;
+      rem -= n;
+      break;
+    }
+    default:
+      n = proto_skip_field(p, rem, wt);
+      if (n == 0)
+        return false;
+      p += n;
+      rem -= n;
+      break;
     }
   }
   return true;
@@ -822,25 +899,28 @@ bool MsgCodecVersion::unmarshal(const uint8_t *data, size_t len) {
   while (rem > 0) {
     int fn, wt;
     int n = proto_read_tag(p, rem, &fn, &wt);
-    if (n == 0) return false;
+    if (n == 0)
+      return false;
     p += n;
     rem -= n;
     switch (fn) {
-      case 5: {
-        uint64_t v;
-        n = proto_read_varint(p, rem, &v);
-        if (n == 0) return false;
-        opus = (v != 0);
-        p += n;
-        rem -= n;
-        break;
-      }
-      default:
-        n = proto_skip_field(p, rem, wt);
-        if (n == 0) return false;
-        p += n;
-        rem -= n;
-        break;
+    case 5: {
+      uint64_t v;
+      n = proto_read_varint(p, rem, &v);
+      if (n == 0)
+        return false;
+      opus = (v != 0);
+      p += n;
+      rem -= n;
+      break;
+    }
+    default:
+      n = proto_skip_field(p, rem, wt);
+      if (n == 0)
+        return false;
+      p += n;
+      rem -= n;
+      break;
     }
   }
   return true;
@@ -853,44 +933,49 @@ bool MsgServerConfig::unmarshal(const uint8_t *data, size_t len) {
   while (rem > 0) {
     int fn, wt;
     int n = proto_read_tag(p, rem, &fn, &wt);
-    if (n == 0) return false;
+    if (n == 0)
+      return false;
     p += n;
     rem -= n;
     switch (fn) {
-      case 1: {
-        uint64_t v;
-        n = proto_read_varint(p, rem, &v);
-        if (n == 0) return false;
-        max_bandwidth = static_cast<uint32_t>(v);
-        p += n;
-        rem -= n;
-        break;
-      }
-      case 2: {
-        const uint8_t *s;
-        size_t sl;
-        n = proto_read_length_delimited(p, rem, &s, &sl);
-        if (n == 0) return false;
-        welcome_text.assign(reinterpret_cast<const char *>(s), sl);
-        p += n;
-        rem -= n;
-        break;
-      }
-      case 4: {
-        uint64_t v;
-        n = proto_read_varint(p, rem, &v);
-        if (n == 0) return false;
-        max_users = static_cast<uint32_t>(v);
-        p += n;
-        rem -= n;
-        break;
-      }
-      default:
-        n = proto_skip_field(p, rem, wt);
-        if (n == 0) return false;
-        p += n;
-        rem -= n;
-        break;
+    case 1: {
+      uint64_t v;
+      n = proto_read_varint(p, rem, &v);
+      if (n == 0)
+        return false;
+      max_bandwidth = static_cast<uint32_t>(v);
+      p += n;
+      rem -= n;
+      break;
+    }
+    case 2: {
+      const uint8_t *s;
+      size_t sl;
+      n = proto_read_length_delimited(p, rem, &s, &sl);
+      if (n == 0)
+        return false;
+      welcome_text.assign(reinterpret_cast<const char *>(s), sl);
+      p += n;
+      rem -= n;
+      break;
+    }
+    case 4: {
+      uint64_t v;
+      n = proto_read_varint(p, rem, &v);
+      if (n == 0)
+        return false;
+      max_users = static_cast<uint32_t>(v);
+      p += n;
+      rem -= n;
+      break;
+    }
+    default:
+      n = proto_skip_field(p, rem, wt);
+      if (n == 0)
+        return false;
+      p += n;
+      rem -= n;
+      break;
     }
   }
   return true;
@@ -914,7 +999,8 @@ void MsgTextMessage::marshal(std::vector<uint8_t> &out) const {
     proto_append_tag(out, 4, WIRE_VARINT);
     proto_append_varint(out, v);
   }
-  if (!message.empty()) proto_append_string(out, 5, message);
+  if (!message.empty())
+    proto_append_string(out, 5, message);
 }
 
 bool MsgTextMessage::unmarshal(const uint8_t *data, size_t len) {
@@ -926,62 +1012,69 @@ bool MsgTextMessage::unmarshal(const uint8_t *data, size_t len) {
   while (rem > 0) {
     int fn, wt;
     int n = proto_read_tag(p, rem, &fn, &wt);
-    if (n == 0) return false;
+    if (n == 0)
+      return false;
     p += n;
     rem -= n;
     switch (fn) {
-      case 1: {
-        uint64_t v;
-        n = proto_read_varint(p, rem, &v);
-        if (n == 0) return false;
-        actor = static_cast<uint32_t>(v);
-        p += n;
-        rem -= n;
-        break;
-      }
-      case 2: {
-        uint64_t v;
-        n = proto_read_varint(p, rem, &v);
-        if (n == 0) return false;
-        session.push_back(static_cast<uint32_t>(v));
-        p += n;
-        rem -= n;
-        break;
-      }
-      case 3: {
-        uint64_t v;
-        n = proto_read_varint(p, rem, &v);
-        if (n == 0) return false;
-        channel_id.push_back(static_cast<uint32_t>(v));
-        p += n;
-        rem -= n;
-        break;
-      }
-      case 4: {
-        uint64_t v;
-        n = proto_read_varint(p, rem, &v);
-        if (n == 0) return false;
-        tree_id.push_back(static_cast<uint32_t>(v));
-        p += n;
-        rem -= n;
-        break;
-      }
-      case 5: {
-        const uint8_t *s;
-        size_t sl;
-        n = proto_read_length_delimited(p, rem, &s, &sl);
-        if (n == 0) return false;
-        message.assign(reinterpret_cast<const char *>(s), sl);
-        p += n;
-        rem -= n;
-        break;
-      }
-      default:
-        n = proto_skip_field(p, rem, wt);
-        if (n == 0) return false;
-        p += n;
-        rem -= n;
-        break;
+    case 1: {
+      uint64_t v;
+      n = proto_read_varint(p, rem, &v);
+      if (n == 0)
+        return false;
+      actor = static_cast<uint32_t>(v);
+      p += n;
+      rem -= n;
+      break;
+    }
+    case 2: {
+      uint64_t v;
+      n = proto_read_varint(p, rem, &v);
+      if (n == 0)
+        return false;
+      session.push_back(static_cast<uint32_t>(v));
+      p += n;
+      rem -= n;
+      break;
+    }
+    case 3: {
+      uint64_t v;
+      n = proto_read_varint(p, rem, &v);
+      if (n == 0)
+        return false;
+      channel_id.push_back(static_cast<uint32_t>(v));
+      p += n;
+      rem -= n;
+      break;
+    }
+    case 4: {
+      uint64_t v;
+      n = proto_read_varint(p, rem, &v);
+      if (n == 0)
+        return false;
+      tree_id.push_back(static_cast<uint32_t>(v));
+      p += n;
+      rem -= n;
+      break;
+    }
+    case 5: {
+      const uint8_t *s;
+      size_t sl;
+      n = proto_read_length_delimited(p, rem, &s, &sl);
+      if (n == 0)
+        return false;
+      message.assign(reinterpret_cast<const char *>(s), sl);
+      p += n;
+      rem -= n;
+      break;
+    }
+    default:
+      n = proto_skip_field(p, rem, wt);
+      if (n == 0)
+        return false;
+      p += n;
+      rem -= n;
+      break;
     }
   }
   return true;
@@ -994,72 +1087,80 @@ bool MsgPermissionDenied::unmarshal(const uint8_t *data, size_t len) {
   while (rem > 0) {
     int fn, wt;
     int n = proto_read_tag(p, rem, &fn, &wt);
-    if (n == 0) return false;
+    if (n == 0)
+      return false;
     p += n;
     rem -= n;
     switch (fn) {
-      case 1: {
-        uint64_t v;
-        n = proto_read_varint(p, rem, &v);
-        if (n == 0) return false;
-        permission = static_cast<uint32_t>(v);
-        p += n;
-        rem -= n;
-        break;
-      }
-      case 2: {
-        uint64_t v;
-        n = proto_read_varint(p, rem, &v);
-        if (n == 0) return false;
-        channel_id = static_cast<uint32_t>(v);
-        p += n;
-        rem -= n;
-        break;
-      }
-      case 3: {
-        uint64_t v;
-        n = proto_read_varint(p, rem, &v);
-        if (n == 0) return false;
-        session = static_cast<uint32_t>(v);
-        p += n;
-        rem -= n;
-        break;
-      }
-      case 4: {
-        const uint8_t *s;
-        size_t sl;
-        n = proto_read_length_delimited(p, rem, &s, &sl);
-        if (n == 0) return false;
-        reason.assign(reinterpret_cast<const char *>(s), sl);
-        p += n;
-        rem -= n;
-        break;
-      }
-      case 5: {
-        uint64_t v;
-        n = proto_read_varint(p, rem, &v);
-        if (n == 0) return false;
-        type = static_cast<DenyType>(v);
-        p += n;
-        rem -= n;
-        break;
-      }
-      case 6: {
-        const uint8_t *s;
-        size_t sl;
-        n = proto_read_length_delimited(p, rem, &s, &sl);
-        if (n == 0) return false;
-        name.assign(reinterpret_cast<const char *>(s), sl);
-        p += n;
-        rem -= n;
-        break;
-      }
-      default:
-        n = proto_skip_field(p, rem, wt);
-        if (n == 0) return false;
-        p += n;
-        rem -= n;
-        break;
+    case 1: {
+      uint64_t v;
+      n = proto_read_varint(p, rem, &v);
+      if (n == 0)
+        return false;
+      permission = static_cast<uint32_t>(v);
+      p += n;
+      rem -= n;
+      break;
+    }
+    case 2: {
+      uint64_t v;
+      n = proto_read_varint(p, rem, &v);
+      if (n == 0)
+        return false;
+      channel_id = static_cast<uint32_t>(v);
+      p += n;
+      rem -= n;
+      break;
+    }
+    case 3: {
+      uint64_t v;
+      n = proto_read_varint(p, rem, &v);
+      if (n == 0)
+        return false;
+      session = static_cast<uint32_t>(v);
+      p += n;
+      rem -= n;
+      break;
+    }
+    case 4: {
+      const uint8_t *s;
+      size_t sl;
+      n = proto_read_length_delimited(p, rem, &s, &sl);
+      if (n == 0)
+        return false;
+      reason.assign(reinterpret_cast<const char *>(s), sl);
+      p += n;
+      rem -= n;
+      break;
+    }
+    case 5: {
+      uint64_t v;
+      n = proto_read_varint(p, rem, &v);
+      if (n == 0)
+        return false;
+      type = static_cast<DenyType>(v);
+      p += n;
+      rem -= n;
+      break;
+    }
+    case 6: {
+      const uint8_t *s;
+      size_t sl;
+      n = proto_read_length_delimited(p, rem, &s, &sl);
+      if (n == 0)
+        return false;
+      name.assign(reinterpret_cast<const char *>(s), sl);
+      p += n;
+      rem -= n;
+      break;
+    }
+    default:
+      n = proto_skip_field(p, rem, wt);
+      if (n == 0)
+        return false;
+      p += n;
+      rem -= n;
+      break;
     }
   }
   return true;
@@ -1085,43 +1186,48 @@ bool MsgACL::unmarshal(const uint8_t *data, size_t len) {
   while (rem > 0) {
     int fn, wt;
     int n = proto_read_tag(p, rem, &fn, &wt);
-    if (n == 0) return false;
+    if (n == 0)
+      return false;
     p += n;
     rem -= n;
     switch (fn) {
-      case 1: {
-        uint64_t v;
-        n = proto_read_varint(p, rem, &v);
-        if (n == 0) return false;
-        channel_id = static_cast<uint32_t>(v);
-        p += n;
-        rem -= n;
-        break;
-      }
-      case 2: {
-        uint64_t v;
-        n = proto_read_varint(p, rem, &v);
-        if (n == 0) return false;
-        inherit_acls = (v != 0);
-        p += n;
-        rem -= n;
-        break;
-      }
-      case 5: {
-        uint64_t v;
-        n = proto_read_varint(p, rem, &v);
-        if (n == 0) return false;
-        query = (v != 0);
-        p += n;
-        rem -= n;
-        break;
-      }
-      default:
-        n = proto_skip_field(p, rem, wt);
-        if (n == 0) return false;
-        p += n;
-        rem -= n;
-        break;
+    case 1: {
+      uint64_t v;
+      n = proto_read_varint(p, rem, &v);
+      if (n == 0)
+        return false;
+      channel_id = static_cast<uint32_t>(v);
+      p += n;
+      rem -= n;
+      break;
+    }
+    case 2: {
+      uint64_t v;
+      n = proto_read_varint(p, rem, &v);
+      if (n == 0)
+        return false;
+      inherit_acls = (v != 0);
+      p += n;
+      rem -= n;
+      break;
+    }
+    case 5: {
+      uint64_t v;
+      n = proto_read_varint(p, rem, &v);
+      if (n == 0)
+        return false;
+      query = (v != 0);
+      p += n;
+      rem -= n;
+      break;
+    }
+    default:
+      n = proto_skip_field(p, rem, wt);
+      if (n == 0)
+        return false;
+      p += n;
+      rem -= n;
+      break;
     }
   }
   return true;
@@ -1146,35 +1252,39 @@ bool MsgQueryUsers::unmarshal(const uint8_t *data, size_t len) {
   while (rem > 0) {
     int fn, wt;
     int n = proto_read_tag(p, rem, &fn, &wt);
-    if (n == 0) return false;
+    if (n == 0)
+      return false;
     p += n;
     rem -= n;
     switch (fn) {
-      case 1: {
-        uint64_t v;
-        n = proto_read_varint(p, rem, &v);
-        if (n == 0) return false;
-        ids.push_back(static_cast<uint32_t>(v));
-        p += n;
-        rem -= n;
-        break;
-      }
-      case 2: {
-        const uint8_t *s;
-        size_t sl;
-        n = proto_read_length_delimited(p, rem, &s, &sl);
-        if (n == 0) return false;
-        names.emplace_back(reinterpret_cast<const char *>(s), sl);
-        p += n;
-        rem -= n;
-        break;
-      }
-      default:
-        n = proto_skip_field(p, rem, wt);
-        if (n == 0) return false;
-        p += n;
-        rem -= n;
-        break;
+    case 1: {
+      uint64_t v;
+      n = proto_read_varint(p, rem, &v);
+      if (n == 0)
+        return false;
+      ids.push_back(static_cast<uint32_t>(v));
+      p += n;
+      rem -= n;
+      break;
+    }
+    case 2: {
+      const uint8_t *s;
+      size_t sl;
+      n = proto_read_length_delimited(p, rem, &s, &sl);
+      if (n == 0)
+        return false;
+      names.emplace_back(reinterpret_cast<const char *>(s), sl);
+      p += n;
+      rem -= n;
+      break;
+    }
+    default:
+      n = proto_skip_field(p, rem, wt);
+      if (n == 0)
+        return false;
+      p += n;
+      rem -= n;
+      break;
     }
   }
   return true;
@@ -1187,84 +1297,93 @@ static bool unmarshal_ban_entry(const uint8_t *data, size_t len, MsgBanEntry &be
   while (rem > 0) {
     int fn, wt;
     int n = proto_read_tag(p, rem, &fn, &wt);
-    if (n == 0) return false;
+    if (n == 0)
+      return false;
     p += n;
     rem -= n;
     switch (fn) {
-      case 1: {
-        const uint8_t *d;
-        size_t dl;
-        n = proto_read_length_delimited(p, rem, &d, &dl);
-        if (n == 0) return false;
-        be.address.assign(d, d + dl);
-        p += n;
-        rem -= n;
-        break;
-      }
-      case 2: {
-        uint64_t v;
-        n = proto_read_varint(p, rem, &v);
-        if (n == 0) return false;
-        be.mask = static_cast<uint32_t>(v);
-        p += n;
-        rem -= n;
-        break;
-      }
-      case 3: {
-        const uint8_t *s;
-        size_t sl;
-        n = proto_read_length_delimited(p, rem, &s, &sl);
-        if (n == 0) return false;
-        be.name.assign(reinterpret_cast<const char *>(s), sl);
-        p += n;
-        rem -= n;
-        break;
-      }
-      case 4: {
-        const uint8_t *s;
-        size_t sl;
-        n = proto_read_length_delimited(p, rem, &s, &sl);
-        if (n == 0) return false;
-        be.hash.assign(reinterpret_cast<const char *>(s), sl);
-        p += n;
-        rem -= n;
-        break;
-      }
-      case 5: {
-        const uint8_t *s;
-        size_t sl;
-        n = proto_read_length_delimited(p, rem, &s, &sl);
-        if (n == 0) return false;
-        be.reason.assign(reinterpret_cast<const char *>(s), sl);
-        p += n;
-        rem -= n;
-        break;
-      }
-      case 6: {
-        const uint8_t *s;
-        size_t sl;
-        n = proto_read_length_delimited(p, rem, &s, &sl);
-        if (n == 0) return false;
-        be.start.assign(reinterpret_cast<const char *>(s), sl);
-        p += n;
-        rem -= n;
-        break;
-      }
-      case 7: {
-        uint64_t v;
-        n = proto_read_varint(p, rem, &v);
-        if (n == 0) return false;
-        be.duration = static_cast<uint32_t>(v);
-        p += n;
-        rem -= n;
-        break;
-      }
-      default:
-        n = proto_skip_field(p, rem, wt);
-        if (n == 0) return false;
-        p += n;
-        rem -= n;
-        break;
+    case 1: {
+      const uint8_t *d;
+      size_t dl;
+      n = proto_read_length_delimited(p, rem, &d, &dl);
+      if (n == 0)
+        return false;
+      be.address.assign(d, d + dl);
+      p += n;
+      rem -= n;
+      break;
+    }
+    case 2: {
+      uint64_t v;
+      n = proto_read_varint(p, rem, &v);
+      if (n == 0)
+        return false;
+      be.mask = static_cast<uint32_t>(v);
+      p += n;
+      rem -= n;
+      break;
+    }
+    case 3: {
+      const uint8_t *s;
+      size_t sl;
+      n = proto_read_length_delimited(p, rem, &s, &sl);
+      if (n == 0)
+        return false;
+      be.name.assign(reinterpret_cast<const char *>(s), sl);
+      p += n;
+      rem -= n;
+      break;
+    }
+    case 4: {
+      const uint8_t *s;
+      size_t sl;
+      n = proto_read_length_delimited(p, rem, &s, &sl);
+      if (n == 0)
+        return false;
+      be.hash.assign(reinterpret_cast<const char *>(s), sl);
+      p += n;
+      rem -= n;
+      break;
+    }
+    case 5: {
+      const uint8_t *s;
+      size_t sl;
+      n = proto_read_length_delimited(p, rem, &s, &sl);
+      if (n == 0)
+        return false;
+      be.reason.assign(reinterpret_cast<const char *>(s), sl);
+      p += n;
+      rem -= n;
+      break;
+    }
+    case 6: {
+      const uint8_t *s;
+      size_t sl;
+      n = proto_read_length_delimited(p, rem, &s, &sl);
+      if (n == 0)
+        return false;
+      be.start.assign(reinterpret_cast<const char *>(s), sl);
+      p += n;
+      rem -= n;
+      break;
+    }
+    case 7: {
+      uint64_t v;
+      n = proto_read_varint(p, rem, &v);
+      if (n == 0)
+        return false;
+      be.duration = static_cast<uint32_t>(v);
+      p += n;
+      rem -= n;
+      break;
+    }
+    default:
+      n = proto_skip_field(p, rem, wt);
+      if (n == 0)
+        return false;
+      p += n;
+      rem -= n;
+      break;
     }
   }
   return true;
@@ -1274,13 +1393,18 @@ static bool unmarshal_ban_entry(const uint8_t *data, size_t len, MsgBanEntry &be
 void MsgBanList::marshal(std::vector<uint8_t> &out) const {
   for (const MsgBanEntry &be : bans) {
     std::vector<uint8_t> eb;
-    if (!be.address.empty()) proto_append_bytes(eb, 1, be.address.data(), be.address.size());
+    if (!be.address.empty())
+      proto_append_bytes(eb, 1, be.address.data(), be.address.size());
     proto_append_tag(eb, 2, WIRE_VARINT);
     proto_append_varint(eb, be.mask);
-    if (!be.name.empty()) proto_append_string(eb, 3, be.name);
-    if (!be.hash.empty()) proto_append_string(eb, 4, be.hash);
-    if (!be.reason.empty()) proto_append_string(eb, 5, be.reason);
-    if (!be.start.empty()) proto_append_string(eb, 6, be.start);
+    if (!be.name.empty())
+      proto_append_string(eb, 3, be.name);
+    if (!be.hash.empty())
+      proto_append_string(eb, 4, be.hash);
+    if (!be.reason.empty())
+      proto_append_string(eb, 5, be.reason);
+    if (!be.start.empty())
+      proto_append_string(eb, 6, be.start);
     if (be.duration != 0) {
       proto_append_tag(eb, 7, WIRE_VARINT);
       proto_append_varint(eb, be.duration);
@@ -1300,37 +1424,42 @@ bool MsgBanList::unmarshal(const uint8_t *data, size_t len) {
   while (rem > 0) {
     int fn, wt;
     int n = proto_read_tag(p, rem, &fn, &wt);
-    if (n == 0) return false;
+    if (n == 0)
+      return false;
     p += n;
     rem -= n;
     switch (fn) {
-      case 1: {
-        const uint8_t *d;
-        size_t dl;
-        n = proto_read_length_delimited(p, rem, &d, &dl);
-        if (n == 0) return false;
-        MsgBanEntry be;
-        if (!unmarshal_ban_entry(d, dl, be)) return false;
-        bans.push_back(std::move(be));
-        p += n;
-        rem -= n;
-        break;
-      }
-      case 2: {
-        uint64_t v;
-        n = proto_read_varint(p, rem, &v);
-        if (n == 0) return false;
-        query = (v != 0);
-        p += n;
-        rem -= n;
-        break;
-      }
-      default:
-        n = proto_skip_field(p, rem, wt);
-        if (n == 0) return false;
-        p += n;
-        rem -= n;
-        break;
+    case 1: {
+      const uint8_t *d;
+      size_t dl;
+      n = proto_read_length_delimited(p, rem, &d, &dl);
+      if (n == 0)
+        return false;
+      MsgBanEntry be;
+      if (!unmarshal_ban_entry(d, dl, be))
+        return false;
+      bans.push_back(std::move(be));
+      p += n;
+      rem -= n;
+      break;
+    }
+    case 2: {
+      uint64_t v;
+      n = proto_read_varint(p, rem, &v);
+      if (n == 0)
+        return false;
+      query = (v != 0);
+      p += n;
+      rem -= n;
+      break;
+    }
+    default:
+      n = proto_skip_field(p, rem, wt);
+      if (n == 0)
+        return false;
+      p += n;
+      rem -= n;
+      break;
     }
   }
   return true;
@@ -1343,54 +1472,60 @@ bool MsgContextActionModify::unmarshal(const uint8_t *data, size_t len) {
   while (rem > 0) {
     int fn, wt;
     int n = proto_read_tag(p, rem, &fn, &wt);
-    if (n == 0) return false;
+    if (n == 0)
+      return false;
     p += n;
     rem -= n;
     switch (fn) {
-      case 1: {
-        const uint8_t *s;
-        size_t sl;
-        n = proto_read_length_delimited(p, rem, &s, &sl);
-        if (n == 0) return false;
-        action.assign(reinterpret_cast<const char *>(s), sl);
-        p += n;
-        rem -= n;
-        break;
-      }
-      case 2: {
-        const uint8_t *s;
-        size_t sl;
-        n = proto_read_length_delimited(p, rem, &s, &sl);
-        if (n == 0) return false;
-        text.assign(reinterpret_cast<const char *>(s), sl);
-        p += n;
-        rem -= n;
-        break;
-      }
-      case 3: {
-        uint64_t v;
-        n = proto_read_varint(p, rem, &v);
-        if (n == 0) return false;
-        context = static_cast<uint32_t>(v);
-        p += n;
-        rem -= n;
-        break;
-      }
-      case 4: {
-        uint64_t v;
-        n = proto_read_varint(p, rem, &v);
-        if (n == 0) return false;
-        operation = static_cast<uint32_t>(v);
-        p += n;
-        rem -= n;
-        break;
-      }
-      default:
-        n = proto_skip_field(p, rem, wt);
-        if (n == 0) return false;
-        p += n;
-        rem -= n;
-        break;
+    case 1: {
+      const uint8_t *s;
+      size_t sl;
+      n = proto_read_length_delimited(p, rem, &s, &sl);
+      if (n == 0)
+        return false;
+      action.assign(reinterpret_cast<const char *>(s), sl);
+      p += n;
+      rem -= n;
+      break;
+    }
+    case 2: {
+      const uint8_t *s;
+      size_t sl;
+      n = proto_read_length_delimited(p, rem, &s, &sl);
+      if (n == 0)
+        return false;
+      text.assign(reinterpret_cast<const char *>(s), sl);
+      p += n;
+      rem -= n;
+      break;
+    }
+    case 3: {
+      uint64_t v;
+      n = proto_read_varint(p, rem, &v);
+      if (n == 0)
+        return false;
+      context = static_cast<uint32_t>(v);
+      p += n;
+      rem -= n;
+      break;
+    }
+    case 4: {
+      uint64_t v;
+      n = proto_read_varint(p, rem, &v);
+      if (n == 0)
+        return false;
+      operation = static_cast<uint32_t>(v);
+      p += n;
+      rem -= n;
+      break;
+    }
+    default:
+      n = proto_skip_field(p, rem, wt);
+      if (n == 0)
+        return false;
+      p += n;
+      rem -= n;
+      break;
     }
   }
   return true;
@@ -1404,7 +1539,8 @@ void MsgContextAction::marshal(std::vector<uint8_t> &out) const {
   }
   proto_append_tag(out, 2, WIRE_VARINT);
   proto_append_varint(out, channel_id);
-  if (!action.empty()) proto_append_string(out, 3, action);
+  if (!action.empty())
+    proto_append_string(out, 3, action);
 }
 
 bool MsgContextAction::unmarshal(const uint8_t *data, size_t len) {
@@ -1413,44 +1549,49 @@ bool MsgContextAction::unmarshal(const uint8_t *data, size_t len) {
   while (rem > 0) {
     int fn, wt;
     int n = proto_read_tag(p, rem, &fn, &wt);
-    if (n == 0) return false;
+    if (n == 0)
+      return false;
     p += n;
     rem -= n;
     switch (fn) {
-      case 1: {
-        uint64_t v;
-        n = proto_read_varint(p, rem, &v);
-        if (n == 0) return false;
-        session = static_cast<uint32_t>(v);
-        p += n;
-        rem -= n;
-        break;
-      }
-      case 2: {
-        uint64_t v;
-        n = proto_read_varint(p, rem, &v);
-        if (n == 0) return false;
-        channel_id = static_cast<uint32_t>(v);
-        p += n;
-        rem -= n;
-        break;
-      }
-      case 3: {
-        const uint8_t *s;
-        size_t sl;
-        n = proto_read_length_delimited(p, rem, &s, &sl);
-        if (n == 0) return false;
-        action.assign(reinterpret_cast<const char *>(s), sl);
-        p += n;
-        rem -= n;
-        break;
-      }
-      default:
-        n = proto_skip_field(p, rem, wt);
-        if (n == 0) return false;
-        p += n;
-        rem -= n;
-        break;
+    case 1: {
+      uint64_t v;
+      n = proto_read_varint(p, rem, &v);
+      if (n == 0)
+        return false;
+      session = static_cast<uint32_t>(v);
+      p += n;
+      rem -= n;
+      break;
+    }
+    case 2: {
+      uint64_t v;
+      n = proto_read_varint(p, rem, &v);
+      if (n == 0)
+        return false;
+      channel_id = static_cast<uint32_t>(v);
+      p += n;
+      rem -= n;
+      break;
+    }
+    case 3: {
+      const uint8_t *s;
+      size_t sl;
+      n = proto_read_length_delimited(p, rem, &s, &sl);
+      if (n == 0)
+        return false;
+      action.assign(reinterpret_cast<const char *>(s), sl);
+      p += n;
+      rem -= n;
+      break;
+    }
+    default:
+      n = proto_skip_field(p, rem, wt);
+      if (n == 0)
+        return false;
+      p += n;
+      rem -= n;
+      break;
     }
   }
   return true;
@@ -1463,54 +1604,60 @@ static bool unmarshal_user_list_user(const uint8_t *data, size_t len, MsgUserLis
   while (rem > 0) {
     int fn, wt;
     int n = proto_read_tag(p, rem, &fn, &wt);
-    if (n == 0) return false;
+    if (n == 0)
+      return false;
     p += n;
     rem -= n;
     switch (fn) {
-      case 1: {
-        uint64_t v;
-        n = proto_read_varint(p, rem, &v);
-        if (n == 0) return false;
-        u.user_id = static_cast<uint32_t>(v);
-        p += n;
-        rem -= n;
-        break;
-      }
-      case 2: {
-        const uint8_t *s;
-        size_t sl;
-        n = proto_read_length_delimited(p, rem, &s, &sl);
-        if (n == 0) return false;
-        u.name.assign(reinterpret_cast<const char *>(s), sl);
-        p += n;
-        rem -= n;
-        break;
-      }
-      case 3: {
-        const uint8_t *s;
-        size_t sl;
-        n = proto_read_length_delimited(p, rem, &s, &sl);
-        if (n == 0) return false;
-        u.last_seen.assign(reinterpret_cast<const char *>(s), sl);
-        p += n;
-        rem -= n;
-        break;
-      }
-      case 4: {
-        uint64_t v;
-        n = proto_read_varint(p, rem, &v);
-        if (n == 0) return false;
-        u.last_channel = static_cast<int32_t>(v);
-        p += n;
-        rem -= n;
-        break;
-      }
-      default:
-        n = proto_skip_field(p, rem, wt);
-        if (n == 0) return false;
-        p += n;
-        rem -= n;
-        break;
+    case 1: {
+      uint64_t v;
+      n = proto_read_varint(p, rem, &v);
+      if (n == 0)
+        return false;
+      u.user_id = static_cast<uint32_t>(v);
+      p += n;
+      rem -= n;
+      break;
+    }
+    case 2: {
+      const uint8_t *s;
+      size_t sl;
+      n = proto_read_length_delimited(p, rem, &s, &sl);
+      if (n == 0)
+        return false;
+      u.name.assign(reinterpret_cast<const char *>(s), sl);
+      p += n;
+      rem -= n;
+      break;
+    }
+    case 3: {
+      const uint8_t *s;
+      size_t sl;
+      n = proto_read_length_delimited(p, rem, &s, &sl);
+      if (n == 0)
+        return false;
+      u.last_seen.assign(reinterpret_cast<const char *>(s), sl);
+      p += n;
+      rem -= n;
+      break;
+    }
+    case 4: {
+      uint64_t v;
+      n = proto_read_varint(p, rem, &v);
+      if (n == 0)
+        return false;
+      u.last_channel = static_cast<int32_t>(v);
+      p += n;
+      rem -= n;
+      break;
+    }
+    default:
+      n = proto_skip_field(p, rem, wt);
+      if (n == 0)
+        return false;
+      p += n;
+      rem -= n;
+      break;
     }
   }
   return true;
@@ -1523,22 +1670,26 @@ bool MsgUserList::unmarshal(const uint8_t *data, size_t len) {
   while (rem > 0) {
     int fn, wt;
     int n = proto_read_tag(p, rem, &fn, &wt);
-    if (n == 0) return false;
+    if (n == 0)
+      return false;
     p += n;
     rem -= n;
     if (fn == 1) {
       const uint8_t *d;
       size_t dl;
       n = proto_read_length_delimited(p, rem, &d, &dl);
-      if (n == 0) return false;
+      if (n == 0)
+        return false;
       MsgUserListUser u;
-      if (!unmarshal_user_list_user(d, dl, u)) return false;
+      if (!unmarshal_user_list_user(d, dl, u))
+        return false;
       users.push_back(std::move(u));
       p += n;
       rem -= n;
     } else {
       n = proto_skip_field(p, rem, wt);
-      if (n == 0) return false;
+      if (n == 0)
+        return false;
       p += n;
       rem -= n;
     }
@@ -1554,62 +1705,69 @@ static bool unmarshal_voice_target_target(const uint8_t *data, size_t len, MsgVo
   while (rem > 0) {
     int fn, wt;
     int n = proto_read_tag(p, rem, &fn, &wt);
-    if (n == 0) return false;
+    if (n == 0)
+      return false;
     p += n;
     rem -= n;
     switch (fn) {
-      case 1: {
-        uint64_t v;
-        n = proto_read_varint(p, rem, &v);
-        if (n == 0) return false;
-        t.session.push_back(static_cast<uint32_t>(v));
-        p += n;
-        rem -= n;
-        break;
-      }
-      case 2: {
-        uint64_t v;
-        n = proto_read_varint(p, rem, &v);
-        if (n == 0) return false;
-        t.channel_id = static_cast<uint32_t>(v);
-        p += n;
-        rem -= n;
-        break;
-      }
-      case 3: {
-        const uint8_t *s;
-        size_t sl;
-        n = proto_read_length_delimited(p, rem, &s, &sl);
-        if (n == 0) return false;
-        t.group.assign(reinterpret_cast<const char *>(s), sl);
-        p += n;
-        rem -= n;
-        break;
-      }
-      case 4: {
-        uint64_t v;
-        n = proto_read_varint(p, rem, &v);
-        if (n == 0) return false;
-        t.links = (v != 0);
-        p += n;
-        rem -= n;
-        break;
-      }
-      case 5: {
-        uint64_t v;
-        n = proto_read_varint(p, rem, &v);
-        if (n == 0) return false;
-        t.children = (v != 0);
-        p += n;
-        rem -= n;
-        break;
-      }
-      default:
-        n = proto_skip_field(p, rem, wt);
-        if (n == 0) return false;
-        p += n;
-        rem -= n;
-        break;
+    case 1: {
+      uint64_t v;
+      n = proto_read_varint(p, rem, &v);
+      if (n == 0)
+        return false;
+      t.session.push_back(static_cast<uint32_t>(v));
+      p += n;
+      rem -= n;
+      break;
+    }
+    case 2: {
+      uint64_t v;
+      n = proto_read_varint(p, rem, &v);
+      if (n == 0)
+        return false;
+      t.channel_id = static_cast<uint32_t>(v);
+      p += n;
+      rem -= n;
+      break;
+    }
+    case 3: {
+      const uint8_t *s;
+      size_t sl;
+      n = proto_read_length_delimited(p, rem, &s, &sl);
+      if (n == 0)
+        return false;
+      t.group.assign(reinterpret_cast<const char *>(s), sl);
+      p += n;
+      rem -= n;
+      break;
+    }
+    case 4: {
+      uint64_t v;
+      n = proto_read_varint(p, rem, &v);
+      if (n == 0)
+        return false;
+      t.links = (v != 0);
+      p += n;
+      rem -= n;
+      break;
+    }
+    case 5: {
+      uint64_t v;
+      n = proto_read_varint(p, rem, &v);
+      if (n == 0)
+        return false;
+      t.children = (v != 0);
+      p += n;
+      rem -= n;
+      break;
+    }
+    default:
+      n = proto_skip_field(p, rem, wt);
+      if (n == 0)
+        return false;
+      p += n;
+      rem -= n;
+      break;
     }
   }
   return true;
@@ -1629,7 +1787,8 @@ void MsgVoiceTarget::marshal(std::vector<uint8_t> &out) const {
     }
     proto_append_tag(tb, 2, WIRE_VARINT);
     proto_append_varint(tb, t.channel_id);
-    if (!t.group.empty()) proto_append_string(tb, 3, t.group);
+    if (!t.group.empty())
+      proto_append_string(tb, 3, t.group);
     if (t.links) {
       proto_append_tag(tb, 4, WIRE_VARINT);
       proto_append_varint(tb, 1);
@@ -1638,7 +1797,8 @@ void MsgVoiceTarget::marshal(std::vector<uint8_t> &out) const {
       proto_append_tag(tb, 5, WIRE_VARINT);
       proto_append_varint(tb, 1);
     }
-    if (!tb.empty()) proto_append_bytes(out, 2, tb.data(), tb.size());
+    if (!tb.empty())
+      proto_append_bytes(out, 2, tb.data(), tb.size());
   }
 }
 
@@ -1649,37 +1809,42 @@ bool MsgVoiceTarget::unmarshal(const uint8_t *data, size_t len) {
   while (rem > 0) {
     int fn, wt;
     int n = proto_read_tag(p, rem, &fn, &wt);
-    if (n == 0) return false;
+    if (n == 0)
+      return false;
     p += n;
     rem -= n;
     switch (fn) {
-      case 1: {
-        uint64_t v;
-        n = proto_read_varint(p, rem, &v);
-        if (n == 0) return false;
-        id = static_cast<uint32_t>(v);
-        p += n;
-        rem -= n;
-        break;
-      }
-      case 2: {
-        const uint8_t *d;
-        size_t dl;
-        n = proto_read_length_delimited(p, rem, &d, &dl);
-        if (n == 0) return false;
-        MsgVoiceTargetTarget t;
-        if (!unmarshal_voice_target_target(d, dl, t)) return false;
-        targets.push_back(std::move(t));
-        p += n;
-        rem -= n;
-        break;
-      }
-      default:
-        n = proto_skip_field(p, rem, wt);
-        if (n == 0) return false;
-        p += n;
-        rem -= n;
-        break;
+    case 1: {
+      uint64_t v;
+      n = proto_read_varint(p, rem, &v);
+      if (n == 0)
+        return false;
+      id = static_cast<uint32_t>(v);
+      p += n;
+      rem -= n;
+      break;
+    }
+    case 2: {
+      const uint8_t *d;
+      size_t dl;
+      n = proto_read_length_delimited(p, rem, &d, &dl);
+      if (n == 0)
+        return false;
+      MsgVoiceTargetTarget t;
+      if (!unmarshal_voice_target_target(d, dl, t))
+        return false;
+      targets.push_back(std::move(t));
+      p += n;
+      rem -= n;
+      break;
+    }
+    default:
+      n = proto_skip_field(p, rem, wt);
+      if (n == 0)
+        return false;
+      p += n;
+      rem -= n;
+      break;
     }
   }
   return true;
@@ -1703,34 +1868,38 @@ bool MsgUserStats::unmarshal(const uint8_t *data, size_t len) {
   while (rem > 0) {
     int fn, wt;
     int n = proto_read_tag(p, rem, &fn, &wt);
-    if (n == 0) return false;
+    if (n == 0)
+      return false;
     p += n;
     rem -= n;
     switch (fn) {
-      case 1: {
-        uint64_t v;
-        n = proto_read_varint(p, rem, &v);
-        if (n == 0) return false;
-        session = static_cast<uint32_t>(v);
-        p += n;
-        rem -= n;
-        break;
-      }
-      case 2: {
-        uint64_t v;
-        n = proto_read_varint(p, rem, &v);
-        if (n == 0) return false;
-        stats_only = (v != 0);
-        p += n;
-        rem -= n;
-        break;
-      }
-      default:
-        n = proto_skip_field(p, rem, wt);
-        if (n == 0) return false;
-        p += n;
-        rem -= n;
-        break;
+    case 1: {
+      uint64_t v;
+      n = proto_read_varint(p, rem, &v);
+      if (n == 0)
+        return false;
+      session = static_cast<uint32_t>(v);
+      p += n;
+      rem -= n;
+      break;
+    }
+    case 2: {
+      uint64_t v;
+      n = proto_read_varint(p, rem, &v);
+      if (n == 0)
+        return false;
+      stats_only = (v != 0);
+      p += n;
+      rem -= n;
+      break;
+    }
+    default:
+      n = proto_skip_field(p, rem, wt);
+      if (n == 0)
+        return false;
+      p += n;
+      rem -= n;
+      break;
     }
   }
   return true;
@@ -1761,43 +1930,48 @@ bool MsgRequestBlob::unmarshal(const uint8_t *data, size_t len) {
   while (rem > 0) {
     int fn, wt;
     int n = proto_read_tag(p, rem, &fn, &wt);
-    if (n == 0) return false;
+    if (n == 0)
+      return false;
     p += n;
     rem -= n;
     switch (fn) {
-      case 1: {
-        uint64_t v;
-        n = proto_read_varint(p, rem, &v);
-        if (n == 0) return false;
-        session_texture.push_back(static_cast<uint32_t>(v));
-        p += n;
-        rem -= n;
-        break;
-      }
-      case 2: {
-        uint64_t v;
-        n = proto_read_varint(p, rem, &v);
-        if (n == 0) return false;
-        session_comment.push_back(static_cast<uint32_t>(v));
-        p += n;
-        rem -= n;
-        break;
-      }
-      case 3: {
-        uint64_t v;
-        n = proto_read_varint(p, rem, &v);
-        if (n == 0) return false;
-        channel_description.push_back(static_cast<uint32_t>(v));
-        p += n;
-        rem -= n;
-        break;
-      }
-      default:
-        n = proto_skip_field(p, rem, wt);
-        if (n == 0) return false;
-        p += n;
-        rem -= n;
-        break;
+    case 1: {
+      uint64_t v;
+      n = proto_read_varint(p, rem, &v);
+      if (n == 0)
+        return false;
+      session_texture.push_back(static_cast<uint32_t>(v));
+      p += n;
+      rem -= n;
+      break;
+    }
+    case 2: {
+      uint64_t v;
+      n = proto_read_varint(p, rem, &v);
+      if (n == 0)
+        return false;
+      session_comment.push_back(static_cast<uint32_t>(v));
+      p += n;
+      rem -= n;
+      break;
+    }
+    case 3: {
+      uint64_t v;
+      n = proto_read_varint(p, rem, &v);
+      if (n == 0)
+        return false;
+      channel_description.push_back(static_cast<uint32_t>(v));
+      p += n;
+      rem -= n;
+      break;
+    }
+    default:
+      n = proto_skip_field(p, rem, wt);
+      if (n == 0)
+        return false;
+      p += n;
+      rem -= n;
+      break;
     }
   }
   return true;
@@ -1810,52 +1984,58 @@ bool MsgSuggestConfig::unmarshal(const uint8_t *data, size_t len) {
   while (rem > 0) {
     int fn, wt;
     int n = proto_read_tag(p, rem, &fn, &wt);
-    if (n == 0) return false;
+    if (n == 0)
+      return false;
     p += n;
     rem -= n;
     switch (fn) {
-      case 1: {
-        uint64_t v;
-        n = proto_read_varint(p, rem, &v);
-        if (n == 0) return false;
-        version_v1 = static_cast<uint32_t>(v);
-        p += n;
-        rem -= n;
-        break;
-      }
-      case 2: {
-        uint64_t v;
-        n = proto_read_varint(p, rem, &v);
-        if (n == 0) return false;
-        positional = (v != 0);
-        p += n;
-        rem -= n;
-        break;
-      }
-      case 3: {
-        uint64_t v;
-        n = proto_read_varint(p, rem, &v);
-        if (n == 0) return false;
-        push_to_talk = (v != 0);
-        p += n;
-        rem -= n;
-        break;
-      }
-      case 4: {
-        uint64_t v;
-        n = proto_read_varint(p, rem, &v);
-        if (n == 0) return false;
-        version_v2 = v;
-        p += n;
-        rem -= n;
-        break;
-      }
-      default:
-        n = proto_skip_field(p, rem, wt);
-        if (n == 0) return false;
-        p += n;
-        rem -= n;
-        break;
+    case 1: {
+      uint64_t v;
+      n = proto_read_varint(p, rem, &v);
+      if (n == 0)
+        return false;
+      version_v1 = static_cast<uint32_t>(v);
+      p += n;
+      rem -= n;
+      break;
+    }
+    case 2: {
+      uint64_t v;
+      n = proto_read_varint(p, rem, &v);
+      if (n == 0)
+        return false;
+      positional = (v != 0);
+      p += n;
+      rem -= n;
+      break;
+    }
+    case 3: {
+      uint64_t v;
+      n = proto_read_varint(p, rem, &v);
+      if (n == 0)
+        return false;
+      push_to_talk = (v != 0);
+      p += n;
+      rem -= n;
+      break;
+    }
+    case 4: {
+      uint64_t v;
+      n = proto_read_varint(p, rem, &v);
+      if (n == 0)
+        return false;
+      version_v2 = v;
+      p += n;
+      rem -= n;
+      break;
+    }
+    default:
+      n = proto_skip_field(p, rem, wt);
+      if (n == 0)
+        return false;
+      p += n;
+      rem -= n;
+      break;
     }
   }
   return true;
@@ -1871,8 +2051,10 @@ void MsgPluginDataTransmission::marshal(std::vector<uint8_t> &out) const {
     proto_append_tag(out, 2, WIRE_VARINT);
     proto_append_varint(out, v);
   }
-  if (!data.empty()) proto_append_bytes(out, 3, data.data(), data.size());
-  if (!data_id.empty()) proto_append_string(out, 4, data_id);
+  if (!data.empty())
+    proto_append_bytes(out, 3, data.data(), data.size());
+  if (!data_id.empty())
+    proto_append_string(out, 4, data_id);
 }
 
 bool MsgPluginDataTransmission::unmarshal(const uint8_t *buf, size_t len) {
@@ -1882,54 +2064,60 @@ bool MsgPluginDataTransmission::unmarshal(const uint8_t *buf, size_t len) {
   while (rem > 0) {
     int fn, wt;
     int n = proto_read_tag(p, rem, &fn, &wt);
-    if (n == 0) return false;
+    if (n == 0)
+      return false;
     p += n;
     rem -= n;
     switch (fn) {
-      case 1: {
-        uint64_t v;
-        n = proto_read_varint(p, rem, &v);
-        if (n == 0) return false;
-        sender_session = static_cast<uint32_t>(v);
-        p += n;
-        rem -= n;
-        break;
-      }
-      case 2: {
-        uint64_t v;
-        n = proto_read_varint(p, rem, &v);
-        if (n == 0) return false;
-        receiver_sessions.push_back(static_cast<uint32_t>(v));
-        p += n;
-        rem -= n;
-        break;
-      }
-      case 3: {
-        const uint8_t *d;
-        size_t dl;
-        n = proto_read_length_delimited(p, rem, &d, &dl);
-        if (n == 0) return false;
-        data.assign(d, d + dl);
-        p += n;
-        rem -= n;
-        break;
-      }
-      case 4: {
-        const uint8_t *s;
-        size_t sl;
-        n = proto_read_length_delimited(p, rem, &s, &sl);
-        if (n == 0) return false;
-        data_id.assign(reinterpret_cast<const char *>(s), sl);
-        p += n;
-        rem -= n;
-        break;
-      }
-      default:
-        n = proto_skip_field(p, rem, wt);
-        if (n == 0) return false;
-        p += n;
-        rem -= n;
-        break;
+    case 1: {
+      uint64_t v;
+      n = proto_read_varint(p, rem, &v);
+      if (n == 0)
+        return false;
+      sender_session = static_cast<uint32_t>(v);
+      p += n;
+      rem -= n;
+      break;
+    }
+    case 2: {
+      uint64_t v;
+      n = proto_read_varint(p, rem, &v);
+      if (n == 0)
+        return false;
+      receiver_sessions.push_back(static_cast<uint32_t>(v));
+      p += n;
+      rem -= n;
+      break;
+    }
+    case 3: {
+      const uint8_t *d;
+      size_t dl;
+      n = proto_read_length_delimited(p, rem, &d, &dl);
+      if (n == 0)
+        return false;
+      data.assign(d, d + dl);
+      p += n;
+      rem -= n;
+      break;
+    }
+    case 4: {
+      const uint8_t *s;
+      size_t sl;
+      n = proto_read_length_delimited(p, rem, &s, &sl);
+      if (n == 0)
+        return false;
+      data_id.assign(reinterpret_cast<const char *>(s), sl);
+      p += n;
+      rem -= n;
+      break;
+    }
+    default:
+      n = proto_skip_field(p, rem, wt);
+      if (n == 0)
+        return false;
+      p += n;
+      rem -= n;
+      break;
     }
   }
   return true;
@@ -1955,47 +2143,52 @@ bool MsgPermissionQuery::unmarshal(const uint8_t *data, size_t len) {
   while (rem > 0) {
     int fn, wt;
     int n = proto_read_tag(p, rem, &fn, &wt);
-    if (n == 0) return false;
+    if (n == 0)
+      return false;
     p += n;
     rem -= n;
     switch (fn) {
-      case 1: {
-        uint64_t v;
-        n = proto_read_varint(p, rem, &v);
-        if (n == 0) return false;
-        channel_id = static_cast<uint32_t>(v);
-        p += n;
-        rem -= n;
-        break;
-      }
-      case 2: {
-        uint64_t v;
-        n = proto_read_varint(p, rem, &v);
-        if (n == 0) return false;
-        permissions = static_cast<uint32_t>(v);
-        p += n;
-        rem -= n;
-        break;
-      }
-      case 3: {
-        uint64_t v;
-        n = proto_read_varint(p, rem, &v);
-        if (n == 0) return false;
-        flush = (v != 0);
-        p += n;
-        rem -= n;
-        break;
-      }
-      default:
-        n = proto_skip_field(p, rem, wt);
-        if (n == 0) return false;
-        p += n;
-        rem -= n;
-        break;
+    case 1: {
+      uint64_t v;
+      n = proto_read_varint(p, rem, &v);
+      if (n == 0)
+        return false;
+      channel_id = static_cast<uint32_t>(v);
+      p += n;
+      rem -= n;
+      break;
+    }
+    case 2: {
+      uint64_t v;
+      n = proto_read_varint(p, rem, &v);
+      if (n == 0)
+        return false;
+      permissions = static_cast<uint32_t>(v);
+      p += n;
+      rem -= n;
+      break;
+    }
+    case 3: {
+      uint64_t v;
+      n = proto_read_varint(p, rem, &v);
+      if (n == 0)
+        return false;
+      flush = (v != 0);
+      p += n;
+      rem -= n;
+      break;
+    }
+    default:
+      n = proto_skip_field(p, rem, wt);
+      if (n == 0)
+        return false;
+      p += n;
+      rem -= n;
+      break;
     }
   }
   return true;
 }
 
-}  // namespace mumble
-}  // namespace esphome
+} // namespace mumble
+} // namespace esphome

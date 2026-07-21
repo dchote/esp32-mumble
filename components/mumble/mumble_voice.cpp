@@ -18,7 +18,8 @@ static uint8_t header_opus_target(uint8_t target) {
 //   Audio frame data
 //   Optional: positional (3x float32 LE) - we ignore
 bool parse_voice_packet(const uint8_t *data, size_t len, VoicePacket *out) {
-  if (data == nullptr || out == nullptr || len < 2) return false;
+  if (data == nullptr || out == nullptr || len < 2)
+    return false;
 
   out->codec = static_cast<AudioCodec>((data[0] >> 5) & 0x07);
   out->target = data[0] & 0x1F;
@@ -32,32 +33,35 @@ bool parse_voice_packet(const uint8_t *data, size_t len, VoicePacket *out) {
   size_t n;
 
   int64_t v = mumble_varint_decode(data + pos, len - pos, &n);
-  if (n == 0) return false;
+  if (n == 0)
+    return false;
   pos += n;
   out->sender_session = static_cast<uint32_t>(v);
 
   v = mumble_varint_decode(data + pos, len - pos, &n);
-  if (n == 0) return false;
+  if (n == 0)
+    return false;
   pos += n;
   out->sequence_number = static_cast<uint64_t>(v);
 
   v = mumble_varint_decode(data + pos, len - pos, &n);
-  if (n == 0) return false;
+  if (n == 0)
+    return false;
   pos += n;
   // Mumble: bit 13 of payload length varint = terminator
   out->is_terminator = (static_cast<uint64_t>(v) & (1ULL << 13)) != 0;
   size_t payload_len = static_cast<size_t>(v) & 0x1FFF;
 
-  if (pos + payload_len > len) return false;
+  if (pos + payload_len > len)
+    return false;
 
   out->frame_data = data + pos;
   out->frame_length = payload_len;
   return true;
 }
 
-size_t build_voice_packet(uint8_t *out_buf, size_t max_len, uint64_t sequence,
-                          const uint8_t *opus_data, size_t opus_len, bool is_terminator,
-                          uint8_t target) {
+size_t build_voice_packet(uint8_t *out_buf, size_t max_len, uint64_t sequence, const uint8_t *opus_data,
+                          size_t opus_len, bool is_terminator, uint8_t target) {
   if (out_buf == nullptr || max_len < 1 + MUMBLE_VARINT_MAX_LEN * 2 + opus_len ||
       (opus_data == nullptr && opus_len > 0))
     return 0;
@@ -66,10 +70,12 @@ size_t build_voice_packet(uint8_t *out_buf, size_t max_len, uint64_t sequence,
   size_t n = mumble_varint_encode(out_buf + pos, static_cast<int64_t>(sequence));
   pos += n;
   uint64_t len_val = opus_len;
-  if (is_terminator) len_val |= (1ULL << 13);
+  if (is_terminator)
+    len_val |= (1ULL << 13);
   n = mumble_varint_encode(out_buf + pos, static_cast<int64_t>(len_val));
   pos += n;
-  if (pos + opus_len > max_len) return 0;
+  if (pos + opus_len > max_len)
+    return 0;
   if (opus_len > 0 && opus_data != nullptr) {
     memcpy(out_buf + pos, opus_data, opus_len);
     pos += opus_len;
@@ -77,5 +83,5 @@ size_t build_voice_packet(uint8_t *out_buf, size_t max_len, uint64_t sequence,
   return pos;
 }
 
-}  // namespace mumble
-}  // namespace esphome
+} // namespace mumble
+} // namespace esphome

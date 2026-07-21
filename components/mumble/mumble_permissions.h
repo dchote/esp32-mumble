@@ -27,5 +27,5 @@ constexpr uint32_t PERMISSION_RESET_USER = 0x100000;
 constexpr uint32_t PERMISSION_CACHED = 0x8000000;
 constexpr uint32_t PERMISSION_ALL = 0xF07FF;
 
-}  // namespace mumble
-}  // namespace esphome
+} // namespace mumble
+} // namespace esphome

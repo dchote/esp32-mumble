@@ -33,19 +33,18 @@ void OpusAudioDecoder::destroy() {
   }
 }
 
-int OpusAudioDecoder::decode(const uint8_t *opus_data, size_t opus_len,
-                             int16_t *out_pcm, int max_samples) {
-  if (decoder_ == nullptr || out_pcm == nullptr) return -1;
-  int n = opus_decode(static_cast<OpusDecoder *>(decoder_),
-                      opus_data, static_cast<opus_int32>(opus_len),
-                      out_pcm, max_samples, 0);
+int OpusAudioDecoder::decode(const uint8_t *opus_data, size_t opus_len, int16_t *out_pcm, int max_samples) {
+  if (decoder_ == nullptr || out_pcm == nullptr)
+    return -1;
+  int n = opus_decode(static_cast<OpusDecoder *>(decoder_), opus_data, static_cast<opus_int32>(opus_len), out_pcm,
+                      max_samples, 0);
   return n;
 }
 
 int OpusAudioDecoder::decode_lost(int16_t *out_pcm, int max_samples) {
-  if (decoder_ == nullptr || out_pcm == nullptr) return -1;
-  int n = opus_decode(static_cast<OpusDecoder *>(decoder_),
-                      nullptr, 0, out_pcm, max_samples, 0);
+  if (decoder_ == nullptr || out_pcm == nullptr)
+    return -1;
+  int n = opus_decode(static_cast<OpusDecoder *>(decoder_), nullptr, 0, out_pcm, max_samples, 0);
   return n;
 }
 
@@ -78,10 +77,12 @@ void OpusAudioEncoder::destroy() {
 }
 
 int OpusAudioEncoder::encode(const int16_t *pcm, size_t samples, uint8_t *out, size_t max_out) {
-  if (encoder_ == nullptr || out == nullptr || pcm == nullptr) return -1;
-  if (samples != FRAME_SAMPLES || max_out < MAX_PAYLOAD_BYTES) return -1;
-  int n = opus_encode(static_cast<OpusEncoder *>(encoder_),
-                      pcm, static_cast<int>(samples), out, static_cast<opus_int32>(max_out));
+  if (encoder_ == nullptr || out == nullptr || pcm == nullptr)
+    return -1;
+  if (samples != FRAME_SAMPLES || max_out < MAX_PAYLOAD_BYTES)
+    return -1;
+  int n = opus_encode(static_cast<OpusEncoder *>(encoder_), pcm, static_cast<int>(samples), out,
+                      static_cast<opus_int32>(max_out));
   return n;
 }
 
@@ -90,7 +91,8 @@ int OpusAudioEncoder::encode(const int16_t *pcm, size_t samples, uint8_t *out, s
 void JitterBuffer::init(size_t capacity_frames) {
   capacity_ = capacity_frames;
   target_depth_ = std::min(capacity_ / 2, DEFAULT_TARGET_DEPTH);
-  if (target_depth_ < 1) target_depth_ = 1;
+  if (target_depth_ < 1)
+    target_depth_ = 1;
   frames_.resize(capacity_);
   reset();
 }
@@ -107,7 +109,8 @@ void JitterBuffer::reset() {
 }
 
 void JitterBuffer::push(uint64_t sequence, const int16_t *pcm, size_t samples) {
-  if (capacity_ == 0 || pcm == nullptr) return;
+  if (capacity_ == 0 || pcm == nullptr)
+    return;
 
   // Late packet - drop
   if (playout_started_ && sequence < next_playout_seq_) {
@@ -127,19 +130,22 @@ void JitterBuffer::push(uint64_t sequence, const int16_t *pcm, size_t samples) {
   memcpy(f.pcm, pcm, f.sample_count * sizeof(int16_t));
   f.valid = true;
   write_idx_++;
-  if (buffered_ < capacity_) buffered_++;
+  if (buffered_ < capacity_)
+    buffered_++;
 }
 
 size_t JitterBuffer::pop(int16_t *out_pcm, size_t max_samples) {
-  if (capacity_ == 0 || out_pcm == nullptr) return 0;
+  if (capacity_ == 0 || out_pcm == nullptr)
+    return 0;
 
   // Wait until we have target_depth frames before first playout
-  if (buffered_ < target_depth_) return 0;
+  if (buffered_ < target_depth_)
+    return 0;
 
   size_t idx = read_idx_ % capacity_;
   Frame &f = frames_[idx];
   if (!f.valid) {
-    return 0;  // Underrun - caller should use PLC
+    return 0; // Underrun - caller should use PLC
   }
 
   size_t n = std::min(f.sample_count, max_samples);
@@ -158,7 +164,8 @@ bool JitterBuffer::has_playout_ready() const {
 // --- EsphomeSpeakerSink ---
 
 size_t EsphomeSpeakerSink::write(const int16_t *pcm, size_t samples) {
-  if (speaker_ == nullptr || pcm == nullptr || samples == 0) return 0;
+  if (speaker_ == nullptr || pcm == nullptr || samples == 0)
+    return 0;
   size_t bytes = samples * sizeof(int16_t);
   return speaker_->play(reinterpret_cast<const uint8_t *>(pcm), bytes);
 }
@@ -182,5 +189,5 @@ void EsphomeSpeakerSink::finish() {
   }
 }
 
-}  // namespace mumble
-}  // namespace esphome
+} // namespace mumble
+} // namespace esphome

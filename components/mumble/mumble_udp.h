@@ -16,7 +16,7 @@ namespace mumble {
 static constexpr size_t MAX_CRYPTO_OVERHEAD = GCM_OVERHEAD;
 
 class MumbleUdp {
- public:
+public:
   static constexpr size_t MAX_PACKET_SIZE = 1024;
   static constexpr uint32_t UDP_PING_INTERVAL_MS = 5000;
   static constexpr uint32_t UDP_PING_INITIAL_INTERVAL_MS = 500;
@@ -52,7 +52,7 @@ class MumbleUdp {
   using AudioCallback = std::function<void(const uint8_t *data, size_t len)>;
   void set_audio_callback(AudioCallback cb) { audio_callback_ = std::move(cb); }
 
- private:
+private:
   void process_packet(const uint8_t *data, size_t len);
   bool send_encrypted(const uint8_t *plain, size_t len);
   bool send_raw(const uint8_t *data, size_t len);
@@ -65,7 +65,7 @@ class MumbleUdp {
   bool udp_active_{false};
   uint32_t last_ping_sent_ms_{0};
   uint64_t last_ping_timestamp_{0};
-  uint32_t last_ping_timeout_log_ms_{0};  // rate-limit timeout warning
+  uint32_t last_ping_timeout_log_ms_{0}; // rate-limit timeout warning
   uint32_t initial_pings_sent_{0};
   uint8_t recv_buf_[MAX_PACKET_SIZE + MAX_CRYPTO_OVERHEAD];
   uint8_t crypt_buf_[MAX_PACKET_SIZE + MAX_CRYPTO_OVERHEAD];
@@ -75,5 +75,5 @@ class MumbleUdp {
   AudioCallback audio_callback_;
 };
 
-}  // namespace mumble
-}  // namespace esphome
+} // namespace mumble
+} // namespace esphome

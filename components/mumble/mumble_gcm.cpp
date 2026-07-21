@@ -38,12 +38,12 @@ MumbleCryptStateGcm::~MumbleCryptStateGcm() {
   mbedtls_gcm_free(&ctx_);
 }
 
-bool MumbleCryptStateGcm::set_key(const uint8_t *key, size_t key_len, const uint8_t *client_nonce,
-                                  size_t cn_len, const uint8_t *server_nonce, size_t sn_len) {
-  (void) client_nonce;
-  (void) cn_len;
-  (void) server_nonce;
-  (void) sn_len;
+bool MumbleCryptStateGcm::set_key(const uint8_t *key, size_t key_len, const uint8_t *client_nonce, size_t cn_len,
+                                  const uint8_t *server_nonce, size_t sn_len) {
+  (void)client_nonce;
+  (void)cn_len;
+  (void)server_nonce;
+  (void)sn_len;
   if (key == nullptr || key_len != GCM_KEY_LEN) {
     return false;
   }
@@ -62,7 +62,8 @@ bool MumbleCryptStateGcm::set_key(const uint8_t *key, size_t key_len, const uint
 }
 
 bool MumbleCryptStateGcm::encrypt(const uint8_t *src, uint8_t *dst, size_t plain_len) {
-  if (!initialized_) return false;
+  if (!initialized_)
+    return false;
 
   enc_counter_++;
   uint8_t nonce[GCM_NONCE_LEN];
@@ -70,8 +71,8 @@ bool MumbleCryptStateGcm::encrypt(const uint8_t *src, uint8_t *dst, size_t plain
   write_be64(nonce + 4, enc_counter_);
 
   uint8_t tag_buf[GCM_TAG_LEN];
-  int ret = mbedtls_gcm_crypt_and_tag(&ctx_, MBEDTLS_GCM_ENCRYPT, plain_len, nonce, GCM_NONCE_LEN,
-                                      nullptr, 0, src, dst + GCM_NONCE_LEN, GCM_TAG_LEN, tag_buf);
+  int ret = mbedtls_gcm_crypt_and_tag(&ctx_, MBEDTLS_GCM_ENCRYPT, plain_len, nonce, GCM_NONCE_LEN, nullptr, 0, src,
+                                      dst + GCM_NONCE_LEN, GCM_TAG_LEN, tag_buf);
   if (ret != 0) {
     return false;
   }
@@ -100,13 +101,13 @@ bool MumbleCryptStateGcm::decrypt(const uint8_t *src, uint8_t *dst, size_t ciphe
 
   if (counter <= dec_max_) {
     if (dec_max_ - counter >= DECRYPT_WINDOW) {
-      return false;  // Replay or too old
+      return false; // Replay or too old
     }
     size_t idx = 63 - (dec_max_ - counter);
     size_t byte_idx = idx / 8;
     size_t bit_idx = idx % 8;
     if (dec_bitmap_[byte_idx] & (1u << bit_idx)) {
-      return false;  // Duplicate
+      return false; // Duplicate
     }
     dec_bitmap_[byte_idx] |= static_cast<uint8_t>(1u << bit_idx);
     late_++;
@@ -116,14 +117,10 @@ bool MumbleCryptStateGcm::decrypt(const uint8_t *src, uint8_t *dst, size_t ciphe
       memset(dec_bitmap_, 0, sizeof(dec_bitmap_));
       shift = DECRYPT_WINDOW;
     } else {
-      uint64_t b = (static_cast<uint64_t>(dec_bitmap_[0]) << 56) |
-                  (static_cast<uint64_t>(dec_bitmap_[1]) << 48) |
-                  (static_cast<uint64_t>(dec_bitmap_[2]) << 40) |
-                  (static_cast<uint64_t>(dec_bitmap_[3]) << 32) |
-                  (static_cast<uint64_t>(dec_bitmap_[4]) << 24) |
-                  (static_cast<uint64_t>(dec_bitmap_[5]) << 16) |
-                  (static_cast<uint64_t>(dec_bitmap_[6]) << 8) |
-                  static_cast<uint64_t>(dec_bitmap_[7]);
+      uint64_t b = (static_cast<uint64_t>(dec_bitmap_[0]) << 56) | (static_cast<uint64_t>(dec_bitmap_[1]) << 48) |
+                   (static_cast<uint64_t>(dec_bitmap_[2]) << 40) | (static_cast<uint64_t>(dec_bitmap_[3]) << 32) |
+                   (static_cast<uint64_t>(dec_bitmap_[4]) << 24) | (static_cast<uint64_t>(dec_bitmap_[5]) << 16) |
+                   (static_cast<uint64_t>(dec_bitmap_[6]) << 8) | static_cast<uint64_t>(dec_bitmap_[7]);
       b = (b << shift) | (1ULL << 63);
       dec_bitmap_[0] = static_cast<uint8_t>((b >> 56) & 0xff);
       dec_bitmap_[1] = static_cast<uint8_t>((b >> 48) & 0xff);
@@ -141,8 +138,7 @@ bool MumbleCryptStateGcm::decrypt(const uint8_t *src, uint8_t *dst, size_t ciphe
     good_++;
   }
 
-  int ret = mbedtls_gcm_auth_decrypt(&ctx_, ct_len, nonce, GCM_NONCE_LEN, nullptr, 0, tag,
-                                    GCM_TAG_LEN, ct, dst);
+  int ret = mbedtls_gcm_auth_decrypt(&ctx_, ct_len, nonce, GCM_NONCE_LEN, nullptr, 0, tag, GCM_TAG_LEN, ct, dst);
   if (ret != 0) {
     // Restore replay state on auth failure to prevent forged packets from
     // poisoning the window (matching the OCB2 save/restore pattern)
@@ -156,5 +152,5 @@ bool MumbleCryptStateGcm::decrypt(const uint8_t *src, uint8_t *dst, size_t ciphe
   return true;
 }
 
-}  // namespace mumble
-}  // namespace esphome
+} // namespace mumble
+} // namespace esphome

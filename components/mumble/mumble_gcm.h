@@ -13,10 +13,10 @@ namespace mumble {
 static constexpr size_t GCM_KEY_LEN = 32;
 static constexpr size_t GCM_NONCE_LEN = 12;
 static constexpr size_t GCM_TAG_LEN = 16;
-static constexpr size_t GCM_OVERHEAD = GCM_NONCE_LEN + GCM_TAG_LEN;  // 28 bytes
+static constexpr size_t GCM_OVERHEAD = GCM_NONCE_LEN + GCM_TAG_LEN; // 28 bytes
 
 class MumbleCryptStateGcm : public MumbleCryptStateBase {
- public:
+public:
   MumbleCryptStateGcm();
   ~MumbleCryptStateGcm();
 
@@ -33,7 +33,7 @@ class MumbleCryptStateGcm : public MumbleCryptStateBase {
   uint32_t late() const override { return late_; }
   uint32_t lost() const override { return lost_; }
 
- private:
+private:
   mbedtls_gcm_context ctx_;
   bool initialized_{false};
   uint64_t enc_counter_{0};
@@ -44,5 +44,5 @@ class MumbleCryptStateGcm : public MumbleCryptStateBase {
   uint32_t lost_{0};
 };
 
-}  // namespace mumble
-}  // namespace esphome
+} // namespace mumble
+} // namespace esphome

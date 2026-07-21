@@ -75,7 +75,8 @@ See the full documentation:
 ## Prerequisites
 
 - A Mumble server (e.g. [go-mumble-server](https://github.com/dchote/go-mumble-server) or Murmur) on your LAN
-- [ESPHome](https://esphome.io/) 2024.x or later (2025.5.0+ for Box/Box-3)
+- [ESPHome](https://esphome.io/) 2026.7.0+ (pin via `pip install -r requirements.txt` → 2026.7.1)
+- Python 3.12+
 - [Home Assistant](https://www.home-assistant.io/) (optional, for configuration and control UI)
 - One of the supported ESP32-S3 boards listed above
 
@@ -100,39 +101,29 @@ esp32-mumble/
 ├── components/          # ESPHome external components
 │   └── mumble/          # Mumble client component
 ├── lib/
-│   └── micro-opus/      # Local Opus codec (heap pseudostack, PSRAM, Xtensa; no submodules)
+│   └── micro-opus/      # Local Opus codec (v0.4.1; heap pseudostack, PSRAM, Xtensa)
 ├── scripts/
 │   ├── build.sh
 │   ├── flash.sh
-│   ├── generate_communicator_chime.py  # Generates communicator_chime_data.h from WAV
-│   └── patch_mbedtls_requires.py       # ESP-IDF Box: adds mbedtls to REQUIRES
+│   ├── generate_communicator_chime.py
+│   └── patch_mbedtls_requires.py
 ├── docs/
-│   ├── build.md         # Build and flash instructions
-│   ├── features/
-│   │   ├── 0001-initial-project-outline.md
-│   │   ├── 0002-initial-code-framework.md
-│   │   ├── 0003-mumble-connection-protocol.md
-│   │   ├── 0004-udp-voice-playback.md
-│   │   ├── 0008-voice-capture-optimizations.md
-│   │   ├── 0009-communicator-mode.md
-│   │   ├── 0010-full-mumble-protocol.md
-│   │   ├── 0011-display-layout-chat.md
-│   │   └── 0012-ha-auto-server-detection.md
+│   ├── build.md
+│   ├── features/        # Including 0013-dependency-lint-security-refresh.md
 │   ├── product-overview.md
 │   └── technical-overview.md
-├── esphome/             # Example device configs
-│   ├── esp32-s3-box.yaml
-│   ├── esp32-s3-box3.yaml
-│   ├── generic-esp32s3.yaml
-│   ├── m5stack-atom-echo.yaml
-│   └── secrets.example.yaml
+├── esphome/             # Example device configs + secrets.example.yaml
+├── requirements.txt     # Pins esphome==2026.7.1
+├── SECURITY.md
 ├── README.md
 └── LICENSE
 ```
 
+Install the host toolchain with `pip install -r requirements.txt`. See [docs/build.md](docs/build.md) and [SECURITY.md](SECURITY.md).
+
 ## Contributing
 
-This project is in early development. Contributions, ideas, and hardware testing are welcome. Please open an issue to discuss before submitting large changes.
+This project is in early development. Contributions, ideas, and hardware testing are welcome. Please open an issue to discuss before submitting large changes. Run `pre-commit run --all-files` before opening a PR.
 
 ## License
 

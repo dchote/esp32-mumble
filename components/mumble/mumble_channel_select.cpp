@@ -19,7 +19,8 @@ void MumbleChannelSelect::dump_config() {
 }
 
 void MumbleChannelSelect::control(const std::string &value) {
-  if (!parent_) return;
+  if (!parent_)
+    return;
   // Parse "id:  Name" - channel id is before first ':'
   const char *p = value.c_str();
   char *end = nullptr;
@@ -32,5 +33,5 @@ void MumbleChannelSelect::control(const std::string &value) {
   this->publish_state(value);
 }
 
-}  // namespace mumble
-}  // namespace esphome
+} // namespace mumble
+} // namespace esphome

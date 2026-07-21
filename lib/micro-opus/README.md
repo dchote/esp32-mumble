@@ -1,6 +1,6 @@
 # micro-opus (local copy)
 
-Local vendored copy of the Opus audio codec for ESP32, based on [esphome-libs/micro-opus](https://github.com/esphome-libs/micro-opus) v0.3.4.
+Local vendored copy of the Opus audio codec for ESP32, based on [esphome-libs/micro-opus](https://github.com/esphome-libs/micro-opus) v0.4.1.
 
 ## Why local?
 

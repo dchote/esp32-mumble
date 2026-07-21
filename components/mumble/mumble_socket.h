@@ -13,7 +13,7 @@ void mumble_delay_ms(uint32_t ms);
 
 // TLS client abstraction
 class TlsClient {
- public:
+public:
   virtual ~TlsClient() = default;
   virtual void set_ca_cert(const char *pem) = 0;
   virtual void set_insecure() = 0;
@@ -35,19 +35,23 @@ class TlsClient {
 
 // UDP socket abstraction
 class UdpSocket {
- public:
+public:
   virtual ~UdpSocket() = default;
   /** Start UDP. local_ip in network byte order; 0 = INADDR_ANY. */
   virtual bool begin(uint16_t local_port, uint32_t local_ip = 0) = 0;
   virtual void stop() = 0;
   virtual int parse_packet() = 0;
   virtual int read(uint8_t *buf, size_t len) = 0;
-  virtual void flush() = 0;  // Consume remaining data after read
+  virtual void flush() = 0; // Consume remaining data after read
   virtual bool begin_packet(uint32_t ip, uint16_t port) = 0;
   virtual size_t write(const uint8_t *buf, size_t len) = 0;
   virtual bool end_packet() = 0;
   /** Optional: connect UDP socket to remote (enables send() instead of sendto). ESP-IDF workaround. */
-  virtual bool connect_remote(uint32_t ip, uint16_t port) { (void) ip; (void) port; return false; }
+  virtual bool connect_remote(uint32_t ip, uint16_t port) {
+    (void)ip;
+    (void)port;
+    return false;
+  }
 };
 
 // Resolve hostname to IP (returns 0 on failure)
@@ -59,5 +63,5 @@ UdpSocket *mumble_create_udp_socket();
 void mumble_free_tls_client(TlsClient *c);
 void mumble_free_udp_socket(UdpSocket *s);
 
-}  // namespace mumble
-}  // namespace esphome
+} // namespace mumble
+} // namespace esphome

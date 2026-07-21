@@ -1,7 +1,7 @@
 {
   "name": "micro-opus",
-  "version": "0.3.4",
-  "description": "Opus audio codec for ESP32 with PSRAM pseudostack (based on esphome-libs/micro-opus)",
+  "version": "0.4.1",
+  "description": "Opus audio codec for ESP32 with PSRAM pseudostack (based on esphome-libs/micro-opus v0.4.1)",
   "license": "BSD-3-Clause",
   "platforms": "espressif32",
   "frameworks": "*",

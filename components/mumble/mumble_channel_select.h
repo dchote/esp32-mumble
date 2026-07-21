@@ -10,17 +10,17 @@ namespace mumble {
 class MumbleComponent;
 
 class MumbleChannelSelect : public select::Select, public Component {
- public:
+public:
   void set_parent(MumbleComponent *parent) { parent_ = parent; }
   void setup() override;
   void dump_config() override;
 
- protected:
+protected:
   void control(const std::string &value) override;
 
- private:
+private:
   MumbleComponent *parent_{nullptr};
 };
 
-}  // namespace mumble
-}  // namespace esphome
+} // namespace mumble
+} // namespace esphome

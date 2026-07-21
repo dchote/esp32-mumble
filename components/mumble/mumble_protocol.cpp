@@ -5,15 +5,13 @@ namespace esphome {
 namespace mumble {
 
 static uint16_t be16(const uint8_t *p) {
-  return (uint16_t) p[0] << 8 | p[1];
+  return (uint16_t)p[0] << 8 | p[1];
 }
 static uint32_t be32(const uint8_t *p) {
-  return (uint32_t) p[0] << 24 | (uint32_t) p[1] << 16 |
-         (uint32_t) p[2] << 8 | p[3];
+  return (uint32_t)p[0] << 24 | (uint32_t)p[1] << 16 | (uint32_t)p[2] << 8 | p[3];
 }
 
-bool read_tcp_header(const uint8_t *buf, size_t len, uint16_t *out_type,
-                     uint32_t *out_payload_len) {
+bool read_tcp_header(const uint8_t *buf, size_t len, uint16_t *out_type, uint32_t *out_payload_len) {
   if (len < TCP_HEADER_SIZE) {
     return false;
   }
@@ -102,49 +100,53 @@ int proto_read_varint(const uint8_t *buf, size_t len, uint64_t *out_value) {
 int proto_read_tag(const uint8_t *buf, size_t len, int *out_field_num, int *out_wire_type) {
   uint64_t v;
   int n = proto_read_varint(buf, len, &v);
-  if (n == 0) return 0;
+  if (n == 0)
+    return 0;
   *out_field_num = static_cast<int>(v >> 3);
   *out_wire_type = static_cast<int>(v & 7);
   return n;
 }
 
-int proto_read_length_delimited(const uint8_t *buf, size_t len, const uint8_t **out_data,
-                                size_t *out_data_len) {
+int proto_read_length_delimited(const uint8_t *buf, size_t len, const uint8_t **out_data, size_t *out_data_len) {
   uint64_t l;
   int n = proto_read_varint(buf, len, &l);
-  if (n == 0) return 0;
-  if (static_cast<size_t>(n) + static_cast<size_t>(l) > len) return 0;
+  if (n == 0)
+    return 0;
+  if (static_cast<size_t>(n) + static_cast<size_t>(l) > len)
+    return 0;
   *out_data = buf + n;
   *out_data_len = static_cast<size_t>(l);
   return n + static_cast<int>(l);
 }
 
 uint32_t proto_read_fixed32(const uint8_t *buf) {
-  return static_cast<uint32_t>(buf[0]) | (static_cast<uint32_t>(buf[1]) << 8) |
-         (static_cast<uint32_t>(buf[2]) << 16) | (static_cast<uint32_t>(buf[3]) << 24);
+  return static_cast<uint32_t>(buf[0]) | (static_cast<uint32_t>(buf[1]) << 8) | (static_cast<uint32_t>(buf[2]) << 16) |
+         (static_cast<uint32_t>(buf[3]) << 24);
 }
 
 int proto_skip_field(const uint8_t *buf, size_t len, int wire_type) {
   switch (wire_type) {
-    case WIRE_VARINT: {
-      uint64_t v;
-      return proto_read_varint(buf, len, &v);
-    }
-    case WIRE_FIXED64:
-      return (len >= 8) ? 8 : 0;
-    case WIRE_LENGTH_DELIMITED: {
-      uint64_t l;
-      int n = proto_read_varint(buf, len, &l);
-      if (n == 0) return 0;
-      if (static_cast<size_t>(n) + static_cast<size_t>(l) > len) return 0;
-      return n + static_cast<int>(l);
-    }
-    case WIRE_FIXED32:
-      return (len >= 4) ? 4 : 0;
-    default:
+  case WIRE_VARINT: {
+    uint64_t v;
+    return proto_read_varint(buf, len, &v);
+  }
+  case WIRE_FIXED64:
+    return (len >= 8) ? 8 : 0;
+  case WIRE_LENGTH_DELIMITED: {
+    uint64_t l;
+    int n = proto_read_varint(buf, len, &l);
+    if (n == 0)
       return 0;
+    if (static_cast<size_t>(n) + static_cast<size_t>(l) > len)
+      return 0;
+    return n + static_cast<int>(l);
+  }
+  case WIRE_FIXED32:
+    return (len >= 4) ? 4 : 0;
+  default:
+    return 0;
   }
 }
 
-}  // namespace mumble
-}  // namespace esphome
+} // namespace mumble
+} // namespace esphome

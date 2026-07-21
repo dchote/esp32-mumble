@@ -28,7 +28,7 @@ struct ChatMessage {
 class MumbleChannelSelect;
 
 class MumbleComponent : public Component {
- public:
+public:
   void set_server(const std::string &server) { server_ = server; }
   void set_port(uint16_t port) { port_ = port; }
   void set_username(const std::string &username) { username_ = username; }
@@ -68,9 +68,9 @@ class MumbleComponent : public Component {
   uint8_t get_mode() const;
   uint8_t get_crypto() const;
 
-  void trigger_ptt();  // mumble.ptt_press action: toggle mic (or future hold-to-talk via ptt_pin)
+  void trigger_ptt(); // mumble.ptt_press action: toggle mic (or future hold-to-talk via ptt_pin)
   void join_channel_by_id(uint32_t channel_id);
-  void reset_config();  // Reset all config entities to defaults (diagnostic)
+  void reset_config(); // Reset all config entities to defaults (diagnostic)
 
   /** Start communicator transmit phase (call after open chime finishes). */
   void start_communicator_transmit();
@@ -114,11 +114,9 @@ class MumbleComponent : public Component {
   void on_shutdown() override;
   void dump_config() override;
   void log_connection_config() const;
-  float get_setup_priority() const override {
-    return setup_priority::AFTER_CONNECTION;
-  }
+  float get_setup_priority() const override { return setup_priority::AFTER_CONNECTION; }
 
- private:
+private:
   std::string server_;
   uint16_t port_{64738};
   std::string username_;
@@ -140,7 +138,7 @@ class MumbleComponent : public Component {
   select::Select *crypto_select_{nullptr};
   speaker::Speaker *speaker_{nullptr};
 
-  bool microphone_enabled_{false};  // explicit on/off; distinct from PTT (press-and-hold)
+  bool microphone_enabled_{false}; // explicit on/off; distinct from PTT (press-and-hold)
   bool connected_{false};
   float ping_ms_{NAN};
 
@@ -150,26 +148,26 @@ class MumbleComponent : public Component {
   std::string last_username_;
   std::string last_password_;
   std::string last_channel_;
-  uint8_t last_crypto_{0xff};  // 0xff = not yet tracked
-  uint8_t last_mode_{0xff};    // 0xff = not yet tracked; reacts to mode changes
+  uint8_t last_crypto_{0xff}; // 0xff = not yet tracked
+  uint8_t last_mode_{0xff};   // 0xff = not yet tracked; reacts to mode changes
   bool config_tracked_{false};
-  bool last_mute_pin_muted_{false};  // for hardware mute pin edge detection
+  bool last_mute_pin_muted_{false}; // for hardware mute pin edge detection
 
   MumbleUdp udp_;
   MumbleCryptState crypt_state_;
   MumbleCryptStateGcm crypt_state_gcm_;
   bool crypt_initialized_{false};
-  bool legacy_resync_sent_{false};  // throttle proactive Legacy nonce resync
+  bool legacy_resync_sent_{false}; // throttle proactive Legacy nonce resync
   OpusAudioDecoder opus_decoder_;
   JitterBuffer jitter_buffer_;
   EsphomeSpeakerSink speaker_sink_;
   int16_t pcm_buf_[JitterBuffer::FRAME_SAMPLES];
   uint64_t voice_frame_id_{0};
-  bool voice_active_{false};             // true while someone is talking (within idle timeout)
-  uint32_t last_voice_push_ms_{0};       // timestamp of last decoded frame pushed to jitter buffer
-  uint32_t voice_recv_count_{0};         // total voice packets received
+  bool voice_active_{false};       // true while someone is talking (within idle timeout)
+  uint32_t last_voice_push_ms_{0}; // timestamp of last decoded frame pushed to jitter buffer
+  uint32_t voice_recv_count_{0};   // total voice packets received
   static constexpr uint32_t VOICE_IDLE_TIMEOUT_MS = 500;
-  static constexpr uint32_t VOICE_HARD_TIMEOUT_MS = 30000;  // safety: force-clear voice_active_ after 30s
+  static constexpr uint32_t VOICE_HARD_TIMEOUT_MS = 30000; // safety: force-clear voice_active_ after 30s
   uint32_t voice_active_since_ms_{0};
   std::vector<std::string> channel_option_strings_;
   std::vector<uint32_t> channel_option_ids_;
@@ -195,15 +193,15 @@ class MumbleComponent : public Component {
   enum class TxState { IDLE, CAPTURING, TRANSMITTING, TAIL };
   enum class CommunicatorState {
     IDLE,
-    OPEN_CHIME,       // playing open chime; bus=SPEAKER
-    MIC_ACTIVE,       // mic hot, VAD + TX active
-    SILENCE_WINDOW,   // VAD silent, 10s countdown; mic stays hot
-    CLOSE_CHIME,      // playing close chime; bus=SPEAKER
+    OPEN_CHIME,     // playing open chime; bus=SPEAKER
+    MIC_ACTIVE,     // mic hot, VAD + TX active
+    SILENCE_WINDOW, // VAD silent, 10s countdown; mic stays hot
+    CLOSE_CHIME,    // playing close chime; bus=SPEAKER
   };
   static constexpr uint32_t COMMUNICATOR_SILENCE_MS = 2000;
 
   CommunicatorState comm_state_{CommunicatorState::IDLE};
-  bool comm_had_tx_{false};  // true once voice_sending_ was true (starts silence window)
+  bool comm_had_tx_{false}; // true once voice_sending_ was true (starts silence window)
   uint32_t comm_silence_start_ms_{0};
   CallbackManager<void()> on_communicator_end_callback_;
   static constexpr size_t MAX_CHAT_MESSAGES = 10;
@@ -223,17 +221,17 @@ class MumbleComponent : public Component {
   static constexpr size_t TX_PACKET_BUF_SIZE = 1024;
 
   // Chime playback (bus-aware; uses speaker_sink_ via manage_i2s_bus)
-  static constexpr float CHIME_VOLUME_SCALE = 0.25f;  // reduce level to avoid clipping
+  static constexpr float CHIME_VOLUME_SCALE = 0.25f; // reduce level to avoid clipping
   bool chime_playing_{false};
   bool chime_wrote_all_{false};
-  bool chime_stop_requested_{false};  // stop() called, waiting for drain
-  bool chime_close_{false};  // true = playing close chime (then IDLE); false = open chime (then MIC_ACTIVE)
+  bool chime_stop_requested_{false}; // stop() called, waiting for drain
+  bool chime_close_{false};          // true = playing close chime (then IDLE); false = open chime (then MIC_ACTIVE)
   size_t chime_offset_{0};
 
   enum class BusOwner : uint8_t { NONE, MIC, SPEAKER };
   BusOwner bus_owner_{BusOwner::NONE};
   bool bus_releasing_{false};
-  uint32_t mic_warmup_until_ms_{0};  // Delay before first mic start (fixes toggle-to-start)
+  uint32_t mic_warmup_until_ms_{0}; // Delay before first mic start (fixes toggle-to-start)
 
   uint8_t opus_payload_buf_[OpusAudioEncoder::MAX_PAYLOAD_BYTES];
   microphone::Microphone *microphone_{nullptr};
@@ -251,125 +249,115 @@ class MumbleComponent : public Component {
   uint8_t tx_packet_buf_[TX_PACKET_BUF_SIZE];
 };
 
-template<typename... Ts>
-class MumbleMicrophoneEnableAction : public Action<Ts...>, public Parented<MumbleComponent> {
- public:
+template <typename... Ts> class MumbleMicrophoneEnableAction : public Action<Ts...>, public Parented<MumbleComponent> {
+public:
   explicit MumbleMicrophoneEnableAction(MumbleComponent *parent) { this->set_parent(parent); }
   void play(const Ts &...x) override { this->parent_->set_microphone_enabled(true); }
 };
 
-template<typename... Ts>
-class MumbleMicrophoneDisableAction : public Action<Ts...>, public Parented<MumbleComponent> {
- public:
+template <typename... Ts> class MumbleMicrophoneDisableAction : public Action<Ts...>, public Parented<MumbleComponent> {
+public:
   explicit MumbleMicrophoneDisableAction(MumbleComponent *parent) { this->set_parent(parent); }
   void play(const Ts &...x) override { this->parent_->set_microphone_enabled(false); }
 };
 
-template<typename... Ts>
-class MumblePttPressAction : public Action<Ts...>, public Parented<MumbleComponent> {
- public:
+template <typename... Ts> class MumblePttPressAction : public Action<Ts...>, public Parented<MumbleComponent> {
+public:
   explicit MumblePttPressAction(MumbleComponent *parent) { this->set_parent(parent); }
-  void play(Ts... x) override { this->parent_->trigger_ptt(); }  // press-and-hold PTT
+  void play(Ts... x) override { this->parent_->trigger_ptt(); } // press-and-hold PTT
 };
 
-template<typename... Ts>
-class MumbleResetConfigAction : public Action<Ts...>, public Parented<MumbleComponent> {
- public:
+template <typename... Ts> class MumbleResetConfigAction : public Action<Ts...>, public Parented<MumbleComponent> {
+public:
   explicit MumbleResetConfigAction(MumbleComponent *parent) { this->set_parent(parent); }
   void play(Ts... x) override { this->parent_->reset_config(); }
 };
 
-template<typename... Ts>
+template <typename... Ts>
 class MumbleStartCommunicatorTransmitAction : public Action<Ts...>, public Parented<MumbleComponent> {
- public:
+public:
   explicit MumbleStartCommunicatorTransmitAction(MumbleComponent *parent) { this->set_parent(parent); }
   void play(Ts... x) override { this->parent_->start_communicator_transmit(); }
 };
 
-template<typename... Ts>
+template <typename... Ts>
 class MumblePlayCommunicatorChimeThenTransmitAction : public Action<Ts...>, public Parented<MumbleComponent> {
- public:
+public:
   explicit MumblePlayCommunicatorChimeThenTransmitAction(MumbleComponent *parent) { this->set_parent(parent); }
   void play(Ts... x) override { this->parent_->play_communicator_chime_then_transmit(); }
 };
 
-template<typename... Ts>
+template <typename... Ts>
 class MumbleCommunicatorToggleAction : public Action<Ts...>, public Parented<MumbleComponent> {
- public:
+public:
   explicit MumbleCommunicatorToggleAction(MumbleComponent *parent) { this->set_parent(parent); }
   void play(Ts... x) override { this->parent_->communicator_toggle(); }
 };
 
-template<typename... Ts>
+template <typename... Ts>
 class MumbleCommunicatorCancelAction : public Action<Ts...>, public Parented<MumbleComponent> {
- public:
+public:
   explicit MumbleCommunicatorCancelAction(MumbleComponent *parent) { this->set_parent(parent); }
   void play(Ts... x) override { this->parent_->communicator_cancel(); }
 };
 
 class MumbleCommunicatorEndTrigger : public Trigger<> {
- public:
+public:
   explicit MumbleCommunicatorEndTrigger(MumbleComponent *parent) {
     parent->add_on_communicator_end_callback([this]() { this->trigger(); });
   }
 };
 
 class MumbleTextMessageTrigger : public Trigger<> {
- public:
+public:
   explicit MumbleTextMessageTrigger(MumbleComponent *parent) {
     parent->add_on_text_message_callback([this]() { this->trigger(); });
   }
 };
 
-template<typename... Ts>
-class MumbleSendTextMessageAction : public Action<Ts...>, public Parented<MumbleComponent> {
- public:
+template <typename... Ts> class MumbleSendTextMessageAction : public Action<Ts...>, public Parented<MumbleComponent> {
+public:
   explicit MumbleSendTextMessageAction(MumbleComponent *parent) { this->set_parent(parent); }
   void set_message(const std::string &message) { message_ = message; }
   void set_channel_id(uint32_t channel_id) { channel_id_ = channel_id; }
-  void play(Ts... x) override {
-    this->parent_->send_text_message(message_, channel_id_);
-  }
+  void play(Ts... x) override { this->parent_->send_text_message(message_, channel_id_); }
 
- private:
+private:
   std::string message_;
   uint32_t channel_id_{0};
 };
 
-template<typename... Ts>
-class MumbleSelfMuteAction : public Action<Ts...>, public Parented<MumbleComponent> {
- public:
+template <typename... Ts> class MumbleSelfMuteAction : public Action<Ts...>, public Parented<MumbleComponent> {
+public:
   explicit MumbleSelfMuteAction(MumbleComponent *parent) { this->set_parent(parent); }
   void set_mute(bool mute) { mute_ = mute; }
   void play(Ts... x) override { this->parent_->send_self_mute(mute_); }
 
- private:
+private:
   bool mute_{false};
 };
 
-template<typename... Ts>
-class MumbleSelfDeafAction : public Action<Ts...>, public Parented<MumbleComponent> {
- public:
+template <typename... Ts> class MumbleSelfDeafAction : public Action<Ts...>, public Parented<MumbleComponent> {
+public:
   explicit MumbleSelfDeafAction(MumbleComponent *parent) { this->set_parent(parent); }
   void set_deaf(bool deaf) { deaf_ = deaf; }
   void play(Ts... x) override { this->parent_->send_self_deaf(deaf_); }
 
- private:
+private:
   bool deaf_{false};
 };
 
-template<typename... Ts>
-class MumbleKickUserAction : public Action<Ts...>, public Parented<MumbleComponent> {
- public:
+template <typename... Ts> class MumbleKickUserAction : public Action<Ts...>, public Parented<MumbleComponent> {
+public:
   explicit MumbleKickUserAction(MumbleComponent *parent) { this->set_parent(parent); }
   void set_session_id(uint32_t id) { session_id_ = id; }
   void set_reason(const std::string &reason) { reason_ = reason; }
   void play(Ts... x) override { this->parent_->send_kick_user(session_id_, reason_); }
 
- private:
+private:
   uint32_t session_id_{0};
   std::string reason_;
 };
 
-}  // namespace mumble
-}  // namespace esphome
+} // namespace mumble
+} // namespace esphome

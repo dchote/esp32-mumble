@@ -6,6 +6,7 @@ Output: components/mumble/communicator_chime_data.h (commit to repo)
 The header defines communicator_chime_data[] and COMMUNICATOR_CHIME_SIZE for the
 Mumble component's bus-aware chime player. Expects 16-bit mono WAV.
 """
+
 import os
 import struct
 

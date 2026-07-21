@@ -12,7 +12,7 @@ substitutions:
 esphome:
   name: ${name}
   name_add_mac_suffix: true
-  min_version: "2025.5.0"
+  min_version: "2026.7.0"
   on_boot:
     - priority: 600
       then:
@@ -36,6 +36,8 @@ esp32:
   board: esp32s3box
   flash_size: 16MB
   cpu_frequency: 240MHz
+  # PlatformIO toolchain required for local symlink:// micro-opus and mbedtls pre-script.
+  toolchain: platformio
   framework:
     type: esp-idf
     sdkconfig_options:
@@ -258,7 +260,6 @@ microphone:
     i2s_din_pin: GPIO16
     i2s_audio_id: i2s_audio_bus
     bits_per_sample: 16bit
-    bits_per_channel: 16bit
     channel: left
     adc_type: external
     correct_dc_offset: true
@@ -277,6 +278,8 @@ speaker:
 # Communicator chime: embedded in Mumble component (bus-aware playback via manage_i2s_bus)
 
 api:
+  encryption:
+    key: !secret api_encryption_key
   on_client_connected:
     - lambda: |-
         if (id(mumble_server_host).state.empty()) {
@@ -286,6 +289,7 @@ api:
 
 ota:
   - platform: esphome
+    password: !secret ota_password
 
 # Mumble connection and mode settings (Configuration section; persisted to NVS)
 # Entity names use numeric prefixes for display order: server, port, username, password, channel, mode
@@ -479,4 +483,5 @@ mumble:
   speaker_id: box_speaker
   mode: always_on
   crypto: legacy
+  # Optional: set ca_cert to a PEM CA string to verify the Mumble server TLS cert (default: insecure, trusted LAN).
   # mute_pin: GPIO38  # Hardware mute switch if available

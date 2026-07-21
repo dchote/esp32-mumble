@@ -33,11 +33,11 @@ The project had documentation (0001) but no source code. A skeletal but complete
 
 ### 4. CI
 
-- `.github/workflows/build.yml` — Builds both configs when run manually (workflow_dispatch) via esphome/workflows
+- `.github/workflows/build.yml` — Initially added for compile checks; later removed during the voice-functional alpha, then restored and updated in feature **0013** (lint + compile on ESPHome 2026.7.1).
 
 ### 5. Documentation
 
-- `docs/build.md` — Prerequisites, build/flash, CI, troubleshooting
+- `docs/build.md` — Prerequisites, build/flash, troubleshooting
 - `README.md` — Build section, status update
 - `docs/technical-overview.md` — Protocol Reference section
 

@@ -1,0 +1,57 @@
+name: Build
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install pre-commit
+        run: pip install pre-commit
+      - name: Run pre-commit
+        run: pre-commit run --all-files
+
+  build-firmware:
+    name: Build ${{ matrix.file }}
+    needs: [lint]
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      max-parallel: 3
+      matrix:
+        file:
+          - esphome/generic-esp32s3.yaml
+          - esphome/esp32-s3-box.yaml
+          - esphome/esp32-s3-box3.yaml
+          - esphome/m5stack-atom-echo.yaml
+    steps:
+      - uses: actions/checkout@v4
+      - name: Write CI secrets.yaml
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          Path("esphome/secrets.yaml").write_text(
+              "wifi_ssid: \"ci-network\"\n"
+              "wifi_password: \"ci-password\"\n"
+              "api_encryption_key: \"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=\"\n"
+              "ota_password: \"ci-ota-password\"\n"
+          )
+          PY
+      - name: Build Firmware
+        uses: esphome/build-action@v7.4.0
+        with:
+          yaml-file: ${{ matrix.file }}
+          version: "2026.7.1"

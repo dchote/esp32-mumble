@@ -15,15 +15,14 @@ namespace mumble {
 static constexpr size_t AES_BLOCK = 16;
 static constexpr size_t AES_KEY_LEN = 16;
 static constexpr size_t OCB2_TAG_LEN = 3;
-static constexpr size_t OCB2_OVERHEAD = 1 + OCB2_TAG_LEN;  // nonce byte + truncated tag
+static constexpr size_t OCB2_OVERHEAD = 1 + OCB2_TAG_LEN; // nonce byte + truncated tag
 
 class MumbleCryptState : public MumbleCryptStateBase {
- public:
+public:
   MumbleCryptState();
   ~MumbleCryptState();
 
-  bool set_key(const uint8_t *key, size_t key_len,
-               const uint8_t *client_nonce, size_t cn_len,
+  bool set_key(const uint8_t *key, size_t key_len, const uint8_t *client_nonce, size_t cn_len,
                const uint8_t *server_nonce, size_t sn_len) override;
 
   bool set_decrypt_iv(const uint8_t *iv, size_t len) override;
@@ -40,11 +39,9 @@ class MumbleCryptState : public MumbleCryptStateBase {
   uint32_t lost() const override { return lost_; }
   uint32_t resync() const override { return resync_; }
 
- private:
-  bool ocb_encrypt(const uint8_t *plain, uint8_t *encrypted, unsigned int len,
-                   const uint8_t *nonce, uint8_t *tag);
-  bool ocb_decrypt(const uint8_t *encrypted, uint8_t *plain, unsigned int len,
-                   const uint8_t *nonce, uint8_t *tag);
+private:
+  bool ocb_encrypt(const uint8_t *plain, uint8_t *encrypted, unsigned int len, const uint8_t *nonce, uint8_t *tag);
+  bool ocb_decrypt(const uint8_t *encrypted, uint8_t *plain, unsigned int len, const uint8_t *nonce, uint8_t *tag);
 
   void aes_encrypt_block(const void *src, void *dst);
   void aes_decrypt_block(const void *src, void *dst);
@@ -64,8 +61,7 @@ class MumbleCryptState : public MumbleCryptStateBase {
 };
 
 /** Run OCB2 round-trip test (client encrypt, server decrypt). Returns true if OK. */
-bool mumble_ocb2_selftest(const uint8_t *key, const uint8_t *client_nonce,
-                          const uint8_t *server_nonce);
+bool mumble_ocb2_selftest(const uint8_t *key, const uint8_t *client_nonce, const uint8_t *server_nonce);
 
-}  // namespace mumble
-}  // namespace esphome
+} // namespace mumble
+} // namespace esphome

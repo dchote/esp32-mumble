@@ -11,7 +11,7 @@ namespace mumble {
 
 // Opus decoder wrapper (16 kHz mono)
 class OpusAudioDecoder {
- public:
+public:
   OpusAudioDecoder() = default;
   ~OpusAudioDecoder() { destroy(); }
 
@@ -26,16 +26,16 @@ class OpusAudioDecoder {
 
   bool is_initialized() const { return decoder_ != nullptr; }
 
- private:
-  void *decoder_{nullptr};  // OpusDecoder* (opaque to avoid opus.h in header)
+private:
+  void *decoder_{nullptr}; // OpusDecoder* (opaque to avoid opus.h in header)
   int sample_rate_{16000};
   int channels_{1};
 };
 
 // Opus encoder wrapper (16 kHz mono, VOIP)
 class OpusAudioEncoder {
- public:
-  static constexpr size_t FRAME_SAMPLES = 320;  // 20ms at 16kHz
+public:
+  static constexpr size_t FRAME_SAMPLES = 320; // 20ms at 16kHz
   static constexpr size_t MAX_PAYLOAD_BYTES = 256;
 
   OpusAudioEncoder() = default;
@@ -49,18 +49,18 @@ class OpusAudioEncoder {
 
   bool is_initialized() const { return encoder_ != nullptr; }
 
- private:
-  void *encoder_{nullptr};  // OpusEncoder* (opaque to avoid opus.h in header)
+private:
+  void *encoder_{nullptr}; // OpusEncoder* (opaque to avoid opus.h in header)
   int sample_rate_{16000};
   int channels_{1};
 };
 
 // Simple jitter buffer for decoded PCM frames
 class JitterBuffer {
- public:
-  static constexpr size_t FRAME_SAMPLES = 320;  // 20ms at 16kHz
-  static constexpr size_t DEFAULT_CAPACITY = 16;   // 320ms buffer (tolerates TCP burst gaps)
-  static constexpr size_t DEFAULT_TARGET_DEPTH = 2;  // 40ms prebuffer; speaker ring buffer handles timing
+public:
+  static constexpr size_t FRAME_SAMPLES = 320;      // 20ms at 16kHz
+  static constexpr size_t DEFAULT_CAPACITY = 16;    // 320ms buffer (tolerates TCP burst gaps)
+  static constexpr size_t DEFAULT_TARGET_DEPTH = 2; // 40ms prebuffer; speaker ring buffer handles timing
 
   void init(size_t capacity_frames = DEFAULT_CAPACITY);
   void reset();
@@ -74,7 +74,7 @@ class JitterBuffer {
   bool has_playout_ready() const;
   bool has_playout_started() const { return playout_started_; }
 
- private:
+private:
   struct Frame {
     uint64_t sequence;
     int16_t pcm[FRAME_SAMPLES];
@@ -93,7 +93,7 @@ class JitterBuffer {
 
 // Speaker sink - writes PCM to ESPHome speaker
 class EsphomeSpeakerSink {
- public:
+public:
   void set_speaker(speaker::Speaker *spk) { speaker_ = spk; }
   size_t write(const int16_t *pcm, size_t samples);
   void start();
@@ -102,9 +102,9 @@ class EsphomeSpeakerSink {
 
   bool has_speaker() const { return speaker_ != nullptr; }
 
- private:
+private:
   speaker::Speaker *speaker_{nullptr};
 };
 
-}  // namespace mumble
-}  // namespace esphome
+} // namespace mumble
+} // namespace esphome

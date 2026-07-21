@@ -39,7 +39,7 @@ enum class ConnectionState {
 };
 
 class MumbleClient {
- public:
+public:
   MumbleClient() = default;
   ~MumbleClient() {
     if (tls_client_ != nullptr) {
@@ -67,9 +67,7 @@ class MumbleClient {
   float get_ping_rtt_ms() const { return ping_rtt_ms_; }
   uint32_t get_session_id() const { return session_id_; }
   /** Peer IP (network byte order) from TLS connection; 0 if not connected. Use for UDP to avoid DNS/IP mismatch. */
-  uint32_t get_peer_ip() const {
-    return (tls_client_ != nullptr && is_connected()) ? tls_client_->get_peer_ip() : 0;
-  }
+  uint32_t get_peer_ip() const { return (tls_client_ != nullptr && is_connected()) ? tls_client_->get_peer_ip() : 0; }
 
   bool has_crypt_setup() const { return crypt_setup_received_; }
   const std::vector<uint8_t> &get_crypt_key() const { return crypt_key_; }
@@ -85,10 +83,9 @@ class MumbleClient {
   const std::vector<UserInfo> &get_users() const { return users_; }
   uint32_t find_channel_by_name(const std::string &name) const;
   void join_channel_by_id(uint32_t channel_id);
-  uint32_t get_current_channel_id() const;  // Our user's channel, or 0 if unknown
+  uint32_t get_current_channel_id() const; // Our user's channel, or 0 if unknown
   // Build channel options for select: "id:Name" (flat list). Fills out_strings and out_ids.
-  void build_channel_tree_options(std::vector<std::string> &out_strings,
-                                  std::vector<uint32_t> &out_ids) const;
+  void build_channel_tree_options(std::vector<std::string> &out_strings, std::vector<uint32_t> &out_ids) const;
 
   // Send CryptSetup with only client_nonce to trigger server nonce resync
   void send_crypt_resync(const uint8_t *encrypt_iv, size_t len);
@@ -103,17 +100,13 @@ class MumbleClient {
   }
 
   using VoicePacketCallback = std::function<void(const uint8_t *data, size_t len)>;
-  void set_voice_packet_callback(VoicePacketCallback cb) {
-    voice_packet_callback_ = std::move(cb);
-  }
+  void set_voice_packet_callback(VoicePacketCallback cb) { voice_packet_callback_ = std::move(cb); }
 
   // Typed event callbacks (optional; fired after internal state update)
   using TextMessageCallback = std::function<void(const MsgTextMessage &)>;
   void set_text_message_callback(TextMessageCallback cb) { text_message_callback_ = std::move(cb); }
   using PermissionDeniedCallback = std::function<void(const MsgPermissionDenied &)>;
-  void set_permission_denied_callback(PermissionDeniedCallback cb) {
-    permission_denied_callback_ = std::move(cb);
-  }
+  void set_permission_denied_callback(PermissionDeniedCallback cb) { permission_denied_callback_ = std::move(cb); }
   using ChannelStateCallback = std::function<void(const MsgChannelState &)>;
   void set_channel_state_callback(ChannelStateCallback cb) { channel_state_callback_ = std::move(cb); }
   using ChannelRemoveCallback = std::function<void(uint32_t channel_id)>;
@@ -148,8 +141,7 @@ class MumbleClient {
   /** Request ban list from server (send BanList with query=true). */
   bool send_ban_list_query();
   /** Send QueryUsers to resolve ids to names and/or names to ids. */
-  bool send_query_users(const std::vector<uint32_t> &ids,
-                        const std::vector<std::string> &names);
+  bool send_query_users(const std::vector<uint32_t> &ids, const std::vector<std::string> &names);
   /** Request UserStats for a session. */
   bool send_user_stats(uint32_t session, bool stats_only = false);
 
@@ -163,8 +155,8 @@ class MumbleClient {
   /** Create a new channel (channel_id=0, parent_id, name, temporary). */
   bool send_create_channel(uint32_t parent_id, const std::string &name, bool temporary = false);
   /** Update channel. Pass nullptr/empty for name to skip; position INT32_MIN to skip; max_users UINT32_MAX to skip. */
-  bool send_edit_channel(uint32_t channel_id, const std::string *name = nullptr,
-                        int32_t position = INT32_MIN, uint32_t max_users = UINT32_MAX);
+  bool send_edit_channel(uint32_t channel_id, const std::string *name = nullptr, int32_t position = INT32_MIN,
+                         uint32_t max_users = UINT32_MAX);
   /** Remove a channel (send ChannelRemove). */
   bool send_remove_channel(uint32_t channel_id);
   /** Set channel links (send ChannelState with channel_id and links list). */
@@ -174,16 +166,15 @@ class MumbleClient {
   bool send_voice_target(uint8_t id, const std::vector<MsgVoiceTargetTarget> &targets);
 
   /** Request blobs (textures, comments, channel descriptions) by session/channel ids. */
-  bool send_request_blob(const std::vector<uint32_t> &session_texture,
-                         const std::vector<uint32_t> &session_comment,
+  bool send_request_blob(const std::vector<uint32_t> &session_texture, const std::vector<uint32_t> &session_comment,
                          const std::vector<uint32_t> &channel_description);
   /** Trigger a context action (plugin-defined). */
   bool send_context_action(uint32_t session, uint32_t channel_id, const std::string &action);
   /** Send plugin data to specific sessions. */
   bool send_plugin_data(const std::string &data_id, const std::vector<uint8_t> &data,
-                       const std::vector<uint32_t> &receiver_sessions);
+                        const std::vector<uint32_t> &receiver_sessions);
 
- private:
+private:
   bool write_all(const uint8_t *buf, size_t len);
   bool send_message(uint16_t type, const uint8_t *payload, size_t payload_len);
   void handle_message(uint16_t type, const uint8_t *payload, size_t len);
@@ -238,7 +229,7 @@ class MumbleClient {
   std::vector<uint8_t> crypt_client_nonce_;
   std::vector<uint8_t> crypt_server_nonce_;
   bool crypt_setup_received_{false};
-  uint8_t crypt_negotiated_mode_{0};  // 0=lite, 1=legacy, 2=secure
+  uint8_t crypt_negotiated_mode_{0}; // 0=lite, 1=legacy, 2=secure
   bool unknown_crypt_logged_{false};
 
   TlsClient *tls_client_{nullptr};
@@ -252,6 +243,8 @@ class MumbleClient {
   std::string welcome_text_;
   std::vector<ChannelInfo> channels_;
   std::vector<UserInfo> users_;
+  static constexpr size_t MAX_CHANNELS = 128;
+  static constexpr size_t MAX_USERS = 128;
 
   uint32_t last_ping_ms_{0};
   uint64_t last_ping_timestamp_{0};
@@ -266,14 +259,14 @@ class MumbleClient {
 
   uint32_t reconnect_delay_ms_{1000};
   uint32_t last_connect_attempt_ms_{0};
-  uint32_t network_connected_since_ms_{0};  // 0 = disconnected or not yet tracked
-  uint32_t reject_count_{0};                // Consecutive rejections; stop after max
+  uint32_t network_connected_since_ms_{0}; // 0 = disconnected or not yet tracked
+  uint32_t reject_count_{0};               // Consecutive rejections; stop after max
   static constexpr uint32_t RECONNECT_DELAY_MAX_MS = 30000;
   static constexpr uint32_t MAX_REJECT_ATTEMPTS = 5;
   static constexpr uint32_t CONNECT_TIMEOUT_MS = 10000;
-  static constexpr uint32_t WIFI_STABILITY_DELAY_MS = 5000;  // Wait after WiFi before Mumble connect
+  static constexpr uint32_t WIFI_STABILITY_DELAY_MS = 5000; // Wait after WiFi before Mumble connect
   bool channel_join_sent_{false};
-  std::map<uint32_t, uint32_t> permission_cache_;  // channel_id -> effective permissions
+  std::map<uint32_t, uint32_t> permission_cache_; // channel_id -> effective permissions
   VoicePacketCallback voice_packet_callback_;
   TextMessageCallback text_message_callback_;
   PermissionDeniedCallback permission_denied_callback_;
@@ -284,5 +277,5 @@ class MumbleClient {
   RawMessageCallback raw_message_callback_;
 };
 
-}  // namespace mumble
-}  // namespace esphome
+} // namespace mumble
+} // namespace esphome

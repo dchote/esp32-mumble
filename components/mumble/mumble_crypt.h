@@ -8,7 +8,7 @@ namespace esphome {
 namespace mumble {
 
 class MumbleCryptStateBase {
- public:
+public:
   virtual ~MumbleCryptStateBase() = default;
 
   virtual bool set_key(const uint8_t *key, size_t key_len, const uint8_t *client_nonce, size_t cn_len,
@@ -28,5 +28,5 @@ class MumbleCryptStateBase {
   virtual uint32_t resync() const { return 0; }
 };
 
-}  // namespace mumble
-}  // namespace esphome
+} // namespace mumble
+} // namespace esphome

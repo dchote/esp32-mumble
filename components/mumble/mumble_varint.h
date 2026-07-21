@@ -18,5 +18,5 @@ int64_t mumble_varint_decode(const uint8_t *buf, size_t len, size_t *bytes_read)
 // has at least MUMBLE_VARINT_MAX_LEN bytes.
 size_t mumble_varint_encode(uint8_t *buf, int64_t value);
 
-}  // namespace mumble
-}  // namespace esphome
+} // namespace mumble
+} // namespace esphome

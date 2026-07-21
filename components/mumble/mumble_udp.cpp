@@ -30,7 +30,8 @@ bool MumbleUdp::start(const std::string &server, uint16_t port, uint32_t peer_ip
       return false;
     }
   }
-  if (udp_ == nullptr) udp_ = mumble_create_udp_socket();
+  if (udp_ == nullptr)
+    udp_ = mumble_create_udp_socket();
   if (!udp_->begin(0)) {
     ESP_LOGE(TAG, "UDP begin failed");
     return false;
@@ -54,15 +55,18 @@ bool MumbleUdp::start(const std::string &server, uint16_t port, uint32_t peer_ip
 }
 
 void MumbleUdp::stop() {
-  if (!started_) return;
-  if (udp_ != nullptr) udp_->stop();
+  if (!started_)
+    return;
+  if (udp_ != nullptr)
+    udp_->stop();
   started_ = false;
   udp_active_ = false;
   ESP_LOGD(TAG, "UDP stopped");
 }
 
 void MumbleUdp::loop() {
-  if (!started_) return;
+  if (!started_)
+    return;
 
   uint32_t now = mumble_millis();
 
@@ -84,8 +88,9 @@ void MumbleUdp::loop() {
   }
 
   int pkt_size = udp_->parse_packet();
-  if (pkt_size <= 0) return;
-  if (pkt_size > (int) (MAX_PACKET_SIZE + MAX_CRYPTO_OVERHEAD)) {
+  if (pkt_size <= 0)
+    return;
+  if (pkt_size > (int)(MAX_PACKET_SIZE + MAX_CRYPTO_OVERHEAD)) {
     udp_->flush();
     ESP_LOGW(TAG, "UDP packet too large: %d", pkt_size);
     return;
@@ -93,7 +98,8 @@ void MumbleUdp::loop() {
 
   int n = udp_->read(recv_buf_, sizeof(recv_buf_));
   udp_->flush();
-  if (n <= 0) return;
+  if (n <= 0)
+    return;
 
   udp_packets_recv_++;
   if (udp_packets_recv_ <= 5) {
@@ -103,7 +109,8 @@ void MumbleUdp::loop() {
 }
 
 void MumbleUdp::process_packet(const uint8_t *data, size_t len) {
-  if (len < 1) return;
+  if (len < 1)
+    return;
 
   const uint8_t *plain = data;
   size_t plain_len = len;
@@ -111,16 +118,18 @@ void MumbleUdp::process_packet(const uint8_t *data, size_t len) {
   // Decrypt if crypto is active
   if (crypt_state_ != nullptr && crypt_state_->is_valid()) {
     size_t oh = crypt_state_->overhead();
-    if (len < oh) return;
+    if (len < oh)
+      return;
     if (!crypt_state_->decrypt(data, crypt_buf_, len)) {
-      ESP_LOGD(TAG, "Decrypt failed len=%u", (unsigned) len);
+      ESP_LOGD(TAG, "Decrypt failed len=%u", (unsigned)len);
       return;
     }
     plain = crypt_buf_;
     plain_len = len - oh;
   }
 
-  if (plain_len < 1) return;
+  if (plain_len < 1)
+    return;
 
   uint8_t header = plain[0];
   uint8_t codec = (header >> 5) & 0x07;
@@ -141,8 +150,10 @@ void MumbleUdp::process_packet(const uint8_t *data, size_t len) {
 bool MumbleUdp::send_encrypted(const uint8_t *plain, size_t len) {
   if (crypt_state_ != nullptr && crypt_state_->is_valid()) {
     size_t enc_len = len + crypt_state_->overhead();
-    if (enc_len > sizeof(crypt_buf_)) return false;
-    if (!crypt_state_->encrypt(plain, crypt_buf_, len)) return false;
+    if (enc_len > sizeof(crypt_buf_))
+      return false;
+    if (!crypt_state_->encrypt(plain, crypt_buf_, len))
+      return false;
     return send_raw(crypt_buf_, enc_len);
   }
   return send_raw(plain, len);
@@ -167,13 +178,16 @@ void MumbleUdp::send_ping() {
 }
 
 void MumbleUdp::send_audio(const uint8_t *data, size_t len) {
-  if (!started_ || len > MAX_PACKET_SIZE) return;
+  if (!started_ || len > MAX_PACKET_SIZE)
+    return;
   send_encrypted(data, len);
 }
 
 bool MumbleUdp::send_raw(const uint8_t *data, size_t len) {
-  if (cached_ip_ == 0) return false;
-  if (!udp_->begin_packet(cached_ip_, port_)) return false;
+  if (cached_ip_ == 0)
+    return false;
+  if (!udp_->begin_packet(cached_ip_, port_))
+    return false;
   size_t wrote = udp_->write(data, len);
   bool ok = udp_->end_packet() && wrote == len;
   if (ok) {
@@ -185,10 +199,10 @@ bool MumbleUdp::send_raw(const uint8_t *data, size_t len) {
   if (!ok && udp_packets_sent_ <= 15) {
     char ipbuf[16];
     mumble_ip_to_dotted(cached_ip_, ipbuf, sizeof(ipbuf));
-    ESP_LOGW(TAG, "UDP send FAIL to %s:%u len=%u", ipbuf, port_, (unsigned) len);
+    ESP_LOGW(TAG, "UDP send FAIL to %s:%u len=%u", ipbuf, port_, (unsigned)len);
   }
   return ok;
 }
 
-}  // namespace mumble
-}  // namespace esphome
+} // namespace mumble
+} // namespace esphome

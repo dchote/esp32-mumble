@@ -74,8 +74,10 @@ std::string MumbleComponent::get_server() const {
 uint16_t MumbleComponent::get_port() const {
   if (port_text_ != nullptr && !port_text_->state.empty()) {
     int v = std::atoi(port_text_->state.c_str());
-    if (v < 1) return 1;
-    if (v > 65535) return 65535;
+    if (v < 1)
+      return 1;
+    if (v > 65535)
+      return 65535;
     return static_cast<uint16_t>(v);
   }
   return port_;
@@ -87,8 +89,7 @@ std::string MumbleComponent::get_mac_based_username() const {
     return "";
   }
   char buf[32];
-  snprintf(buf, sizeof(buf), "esp32-%02X%02X%02X%02X%02X%02X", mac[0], mac[1], mac[2], mac[3],
-           mac[4], mac[5]);
+  snprintf(buf, sizeof(buf), "esp32-%02X%02X%02X%02X%02X%02X", mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
   return std::string(buf);
 }
 
@@ -104,10 +105,13 @@ std::string MumbleComponent::get_username() const {
 }
 
 void MumbleComponent::seed_username_default_if_empty() {
-  if (username_text_ == nullptr) return;
-  if (!username_text_->state.empty()) return;
+  if (username_text_ == nullptr)
+    return;
+  if (!username_text_->state.empty())
+    return;
   std::string def = get_mac_based_username();
-  if (def.empty()) return;
+  if (def.empty())
+    return;
   auto call = username_text_->make_call();
   call.set_value(def);
   call.perform();
@@ -144,9 +148,12 @@ std::string MumbleComponent::get_channel() const {
 uint8_t MumbleComponent::get_mode() const {
   if (mode_select_ != nullptr && !mode_select_->current_option().empty()) {
     const std::string &s = mode_select_->current_option();
-    if (s == "always_on") return 0;
-    if (s == "push_to_talk") return 1;
-    if (s == "communicator") return 2;
+    if (s == "always_on")
+      return 0;
+    if (s == "push_to_talk")
+      return 1;
+    if (s == "communicator")
+      return 2;
   }
   return mode_;
 }
@@ -154,8 +161,10 @@ uint8_t MumbleComponent::get_mode() const {
 uint8_t MumbleComponent::get_crypto() const {
   if (crypto_select_ != nullptr && !crypto_select_->current_option().empty()) {
     const std::string &s = crypto_select_->current_option();
-    if (s == "legacy") return 1;
-    if (s == "lite") return 0;
+    if (s == "legacy")
+      return 1;
+    if (s == "lite")
+      return 0;
   }
   return crypto_;
 }
@@ -176,7 +185,8 @@ void MumbleComponent::trigger_ptt() {
 }
 
 void MumbleComponent::start_communicator_transmit() {
-  if (comm_state_ != CommunicatorState::IDLE) return;
+  if (comm_state_ != CommunicatorState::IDLE)
+    return;
   comm_state_ = CommunicatorState::MIC_ACTIVE;
   comm_had_tx_ = false;
   comm_silence_start_ms_ = 0;
@@ -184,7 +194,8 @@ void MumbleComponent::start_communicator_transmit() {
 }
 
 void MumbleComponent::play_communicator_chime_then_transmit() {
-  if (comm_state_ != CommunicatorState::IDLE) return;
+  if (comm_state_ != CommunicatorState::IDLE)
+    return;
   if (!speaker_sink_.has_speaker()) {
     start_communicator_transmit();
     return;
@@ -199,7 +210,7 @@ void MumbleComponent::play_communicator_chime_then_transmit() {
   chime_stop_requested_ = false;
   chime_close_ = false;
   chime_offset_ = 0;
-  ESP_LOGI(TAG, "Playing communicator open chime (%u bytes)", (unsigned) COMMUNICATOR_CHIME_SIZE);
+  ESP_LOGI(TAG, "Playing communicator open chime (%u bytes)", (unsigned)COMMUNICATOR_CHIME_SIZE);
 }
 
 void MumbleComponent::communicator_toggle() {
@@ -236,14 +247,13 @@ void MumbleComponent::communicator_cancel() {
 }
 
 bool MumbleComponent::get_communicator_active() const {
-  return comm_state_ == CommunicatorState::OPEN_CHIME ||
-         comm_state_ == CommunicatorState::MIC_ACTIVE ||
-         comm_state_ == CommunicatorState::SILENCE_WINDOW ||
-         comm_state_ == CommunicatorState::CLOSE_CHIME;
+  return comm_state_ == CommunicatorState::OPEN_CHIME || comm_state_ == CommunicatorState::MIC_ACTIVE ||
+         comm_state_ == CommunicatorState::SILENCE_WINDOW || comm_state_ == CommunicatorState::CLOSE_CHIME;
 }
 
 void MumbleComponent::communicator_loop() {
-  if (get_mode() != 2) return;
+  if (get_mode() != 2)
+    return;
   if (comm_state_ != CommunicatorState::MIC_ACTIVE && comm_state_ != CommunicatorState::SILENCE_WINDOW)
     return;
 
@@ -291,8 +301,7 @@ void MumbleComponent::send_text_message(const std::string &message, uint32_t cha
   client_.send_text_message(message, ch);
 }
 
-bool MumbleComponent::send_voice_target(uint8_t id,
-                                        const std::vector<MsgVoiceTargetTarget> &targets) {
+bool MumbleComponent::send_voice_target(uint8_t id, const std::vector<MsgVoiceTargetTarget> &targets) {
   return client_.send_voice_target(id, targets);
 }
 
@@ -365,8 +374,7 @@ void MumbleComponent::log_connection_config() const {
   const std::string &srv = get_server();
   ESP_LOGCONFIG(TAG, "  Server: %s:%u", srv.empty() ? "(not set)" : srv.c_str(), get_port());
   ESP_LOGCONFIG(TAG, "  Username: %s", get_username().c_str());
-  ESP_LOGCONFIG(TAG, "  Channel: %s",
-                get_channel().empty() ? "(root)" : get_channel().c_str());
+  ESP_LOGCONFIG(TAG, "  Channel: %s", get_channel().empty() ? "(root)" : get_channel().c_str());
 }
 
 void MumbleComponent::setup() {
@@ -378,11 +386,10 @@ void MumbleComponent::setup() {
   esp_wifi_set_ps(WIFI_PS_NONE);
 #endif
   ESP_LOGCONFIG(TAG, "Setting up Mumble client");
-  seed_username_default_if_empty();  // Expose esp32-<MAC> as default; user can overwrite
-  publish_empty_text_defaults();     // Prevent HA showing "unknown" for empty fields
+  seed_username_default_if_empty(); // Expose esp32-<MAC> as default; user can overwrite
+  publish_empty_text_defaults();    // Prevent HA showing "unknown" for empty fields
   log_connection_config();
-  ESP_LOGCONFIG(TAG, "  Mode: %s",
-                get_mode() == 0 ? "always_on" : (get_mode() == 1 ? "push_to_talk" : "communicator"));
+  ESP_LOGCONFIG(TAG, "  Mode: %s", get_mode() == 0 ? "always_on" : (get_mode() == 1 ? "push_to_talk" : "communicator"));
   ESP_LOGCONFIG(TAG, "  Crypto: %s", get_crypto() == 0 ? "lite" : "legacy");
 
   client_.set_server(get_server());
@@ -398,12 +405,8 @@ void MumbleComponent::setup() {
     jitter_buffer_.init(JitterBuffer::DEFAULT_CAPACITY);
     speaker_sink_.set_speaker(speaker_);
     // Don't start speaker here; start it when voice actually arrives
-    client_.set_voice_packet_callback([this](const uint8_t *data, size_t len) {
-      on_voice_packet(data, len);
-    });
-    udp_.set_audio_callback([this](const uint8_t *data, size_t len) {
-      on_voice_packet(data, len);
-    });
+    client_.set_voice_packet_callback([this](const uint8_t *data, size_t len) { on_voice_packet(data, len); });
+    udp_.set_audio_callback([this](const uint8_t *data, size_t len) { on_voice_packet(data, len); });
   }
   client_.set_text_message_callback([this](const MsgTextMessage &m) {
     last_text_message_ = m.message;
@@ -418,18 +421,15 @@ void MumbleComponent::setup() {
     }
     if (last_text_sender_name_.empty())
       last_text_sender_name_ = "?";
-    chat_history_.push_back(
-        ChatMessage{last_text_sender_name_, strip_html(m.message)});
+    chat_history_.push_back(ChatMessage{last_text_sender_name_, strip_html(m.message)});
     while (chat_history_.size() > MAX_CHAT_MESSAGES)
       chat_history_.pop_front();
     on_text_message_callback_.call();
   });
   if (microphone_ != nullptr) {
     opus_encoder_.init(16000, 1);
-    microphone_->add_data_callback([this](const std::vector<uint8_t> &data) {
-      on_microphone_data(data);
-    });
-    set_microphone_enabled(get_mode() == 0);  // always_on: mic on; PTT/communicator: mic off
+    microphone_->add_data_callback([this](const std::vector<uint8_t> &data) { on_microphone_data(data); });
+    set_microphone_enabled(get_mode() == 0); // always_on: mic on; PTT/communicator: mic off
   }
 }
 
@@ -442,8 +442,8 @@ void MumbleComponent::loop() {
   uint8_t crypto = get_crypto();
 
   if (config_tracked_) {
-    if (server != last_server_ || port != last_port_ || username != last_username_ ||
-        password != last_password_ || channel != last_channel_ || crypto != last_crypto_) {
+    if (server != last_server_ || port != last_port_ || username != last_username_ || password != last_password_ ||
+        channel != last_channel_ || crypto != last_crypto_) {
       ESP_LOGI(TAG, "Server/username/password/channel/crypto changed, reconnecting");
       client_.disconnect();
     }
@@ -459,8 +459,7 @@ void MumbleComponent::loop() {
   uint8_t mode = get_mode();
   if (mode != last_mode_) {
     if (last_mode_ != 0xff)
-      ESP_LOGI(TAG, "Mode changed to %s",
-               mode == 0 ? "always_on" : (mode == 1 ? "push_to_talk" : "communicator"));
+      ESP_LOGI(TAG, "Mode changed to %s", mode == 0 ? "always_on" : (mode == 1 ? "push_to_talk" : "communicator"));
     if (last_mode_ != 0xff && get_communicator_active())
       communicator_cancel();
     set_microphone_enabled(mode == 0);
@@ -469,7 +468,7 @@ void MumbleComponent::loop() {
 
   // Hardware mute pin: when active (LOW = muted), disable mic and send self_mute to server
   if (mute_pin_ != nullptr) {
-    bool pin_muted = (mute_pin_->digital_read() == false);  // LOW = muted (common for switch to GND)
+    bool pin_muted = (mute_pin_->digital_read() == false); // LOW = muted (common for switch to GND)
     if (pin_muted != last_mute_pin_muted_) {
       last_mute_pin_muted_ = pin_muted;
       if (pin_muted) {
@@ -500,7 +499,7 @@ void MumbleComponent::loop() {
         client_.send_crypt_resync(iv, 16);
         legacy_resync_sent_ = true;
       } else if (iv != nullptr && iv[0] < 10) {
-        legacy_resync_sent_ = false;  // wrapped, allow next resync cycle
+        legacy_resync_sent_ = false; // wrapped, allow next resync cycle
       }
     }
   }
@@ -516,7 +515,7 @@ void MumbleComponent::loop() {
     if (key.empty() && !sn.empty()) {
       // Nonce resync (Legacy only): server sent server_nonce only
       crypt_state_.set_decrypt_iv(sn.data(), sn.size());
-      legacy_resync_sent_ = false;  // allow next proactive resync
+      legacy_resync_sent_ = false; // allow next proactive resync
     } else if (!crypt_initialized_) {
       if (mode == 0) {
         udp_.set_crypt_state(nullptr);
@@ -587,7 +586,7 @@ void MumbleComponent::on_voice_packet(const uint8_t *data, size_t len) {
   voice_recv_count_++;
 
   if (get_communicator_active()) {
-    return;  // Suppress incoming voice during communicator; bus is for chime/mic
+    return; // Suppress incoming voice during communicator; bus is for chime/mic
   }
 
   VoicePacket pkt;
@@ -596,34 +595,34 @@ void MumbleComponent::on_voice_packet(const uint8_t *data, size_t len) {
   }
 
   switch (pkt.codec) {
-    case AudioCodec::OPUS: {
-      if (!opus_decoder_.is_initialized() || pkt.frame_length == 0) {
-        return;
-      }
-      int n = opus_decoder_.decode(pkt.frame_data, pkt.frame_length, pcm_buf_,
-                                   JitterBuffer::FRAME_SAMPLES);
-      if (n > 0) {
-        if (!voice_active_) {
-          voice_active_ = true;
-          voice_active_since_ms_ = mumble_millis();
-          ESP_LOGI(TAG, "Voice RX started");
-        }
-        last_voice_push_ms_ = mumble_millis();
-        jitter_buffer_.push(voice_frame_id_++, pcm_buf_, static_cast<size_t>(n));
-      }
-      break;
+  case AudioCodec::OPUS: {
+    if (!opus_decoder_.is_initialized() || pkt.frame_length == 0) {
+      return;
     }
-    case AudioCodec::CELT_ALPHA:
-    case AudioCodec::CELT_BETA:
-    case AudioCodec::SPEEX:
-      break;
-    case AudioCodec::PING:
-      break;  // Handled by UDP layer
+    int n = opus_decoder_.decode(pkt.frame_data, pkt.frame_length, pcm_buf_, JitterBuffer::FRAME_SAMPLES);
+    if (n > 0) {
+      if (!voice_active_) {
+        voice_active_ = true;
+        voice_active_since_ms_ = mumble_millis();
+        ESP_LOGI(TAG, "Voice RX started");
+      }
+      last_voice_push_ms_ = mumble_millis();
+      jitter_buffer_.push(voice_frame_id_++, pcm_buf_, static_cast<size_t>(n));
+    }
+    break;
+  }
+  case AudioCodec::CELT_ALPHA:
+  case AudioCodec::CELT_BETA:
+  case AudioCodec::SPEEX:
+    break;
+  case AudioCodec::PING:
+    break; // Handled by UDP layer
   }
 }
 
 void MumbleComponent::audio_playout() {
-  if (!speaker_sink_.has_speaker() || !voice_active_) return;
+  if (!speaker_sink_.has_speaker() || !voice_active_)
+    return;
 
   uint32_t now = mumble_millis();
 
@@ -632,23 +631,26 @@ void MumbleComponent::audio_playout() {
     voice_active_ = false;
     last_voice_active_ms_ = now;
     jitter_buffer_.reset();
-    ESP_LOGW(TAG, "Voice RX hard timeout (%us), forcing stop",
-             (unsigned)(VOICE_HARD_TIMEOUT_MS / 1000));
+    ESP_LOGW(TAG, "Voice RX hard timeout (%us), forcing stop", (unsigned)(VOICE_HARD_TIMEOUT_MS / 1000));
     return;
   }
 
-  if (bus_owner_ != BusOwner::SPEAKER || bus_releasing_) return;
-  if (speaker_ != nullptr && !speaker_->is_running()) return;
+  if (bus_owner_ != BusOwner::SPEAKER || bus_releasing_)
+    return;
+  if (speaker_ != nullptr && !speaker_->is_running())
+    return;
 
   int frames_written = 0;
   while (frames_written < 8) {
     size_t n = jitter_buffer_.pop(pcm_buf_, JitterBuffer::FRAME_SAMPLES);
-    if (n == 0) break;
+    if (n == 0)
+      break;
     speaker_sink_.write(pcm_buf_, n);
     frames_written++;
   }
 
-  if (frames_written > 0) return;
+  if (frames_written > 0)
+    return;
 
   if ((now - last_voice_push_ms_) > VOICE_IDLE_TIMEOUT_MS) {
     voice_active_ = false;
@@ -659,8 +661,10 @@ void MumbleComponent::audio_playout() {
 }
 
 void MumbleComponent::chime_playout() {
-  if (!chime_playing_ || !speaker_sink_.has_speaker()) return;
-  if (bus_owner_ != BusOwner::SPEAKER || bus_releasing_) return;
+  if (!chime_playing_ || !speaker_sink_.has_speaker())
+    return;
+  if (bus_owner_ != BusOwner::SPEAKER || bus_releasing_)
+    return;
 
   // After all data written: gracefully finish and wait for speaker to drain.
   if (chime_wrote_all_) {
@@ -691,20 +695,22 @@ void MumbleComponent::chime_playout() {
   }
 
   // Speaker must be running before we can write audio data
-  if (speaker_ != nullptr && !speaker_->is_running()) return;
+  if (speaker_ != nullptr && !speaker_->is_running())
+    return;
 
-  constexpr size_t CHUNK_BYTES = 640;  // 320 samples * 2 bytes
+  constexpr size_t CHUNK_BYTES = 640; // 320 samples * 2 bytes
   size_t remain = COMMUNICATOR_CHIME_SIZE > chime_offset_ ? COMMUNICATOR_CHIME_SIZE - chime_offset_ : 0;
   if (remain == 0) {
     chime_wrote_all_ = true;
     return;
   }
   size_t to_send = (remain < CHUNK_BYTES) ? remain : CHUNK_BYTES;
-  if (to_send % sizeof(int16_t) != 0) to_send &= ~1u;
-  if (to_send == 0) return;
+  if (to_send % sizeof(int16_t) != 0)
+    to_send &= ~1u;
+  if (to_send == 0)
+    return;
   size_t num_samples = to_send / sizeof(int16_t);
-  const int16_t *src =
-      reinterpret_cast<const int16_t *>(communicator_chime_data + chime_offset_);
+  const int16_t *src = reinterpret_cast<const int16_t *>(communicator_chime_data + chime_offset_);
   for (size_t i = 0; i < num_samples; i++) {
     pcm_buf_[i] = static_cast<int16_t>(static_cast<int32_t>(src[i]) * CHIME_VOLUME_SCALE);
   }
@@ -731,12 +737,13 @@ void MumbleComponent::manage_i2s_bus() {
 
   // If bus is nominally SPEAKER but the speaker has stopped (e.g. after chime drain),
   // force-release so it can be properly re-acquired and re-started.
-  if (bus_owner_ == BusOwner::SPEAKER && !bus_releasing_ && !chime_playing_ &&
-      speaker_ != nullptr && speaker_->is_stopped()) {
+  if (bus_owner_ == BusOwner::SPEAKER && !bus_releasing_ && !chime_playing_ && speaker_ != nullptr &&
+      speaker_->is_stopped()) {
     bus_owner_ = BusOwner::NONE;
   }
 
-  if (desired == bus_owner_ && !bus_releasing_) return;
+  if (desired == bus_owner_ && !bus_releasing_)
+    return;
 
   if (bus_releasing_) {
     bool stopped = true;
@@ -744,9 +751,9 @@ void MumbleComponent::manage_i2s_bus() {
       stopped = microphone_->is_stopped();
     if (bus_owner_ == BusOwner::SPEAKER && speaker_ != nullptr)
       stopped = speaker_->is_stopped();
-    if (!stopped) return;
-    ESP_LOGD(TAG, "I2S bus released by %s",
-             bus_owner_ == BusOwner::MIC ? "mic" : "speaker");
+    if (!stopped)
+      return;
+    ESP_LOGD(TAG, "I2S bus released by %s", bus_owner_ == BusOwner::MIC ? "mic" : "speaker");
     bus_owner_ = BusOwner::NONE;
     bus_releasing_ = false;
     mic_warmup_until_ms_ = 0;
@@ -758,8 +765,7 @@ void MumbleComponent::manage_i2s_bus() {
     if (bus_owner_ == BusOwner::SPEAKER)
       speaker_sink_.stop();
     bus_releasing_ = true;
-    ESP_LOGD(TAG, "I2S bus: releasing %s for %s",
-             bus_owner_ == BusOwner::MIC ? "mic" : "speaker",
+    ESP_LOGD(TAG, "I2S bus: releasing %s for %s", bus_owner_ == BusOwner::MIC ? "mic" : "speaker",
              desired == BusOwner::MIC ? "mic" : (desired == BusOwner::SPEAKER ? "speaker" : "idle"));
     return;
   }
@@ -768,10 +774,10 @@ void MumbleComponent::manage_i2s_bus() {
     if (desired == BusOwner::MIC) {
       uint32_t now = mumble_millis();
       if (mic_warmup_until_ms_ == 0) {
-        mic_warmup_until_ms_ = now + 200;  // 200ms warmup for I2S/ES7210 (longer after bus re-acquire)
+        mic_warmup_until_ms_ = now + 200; // 200ms warmup for I2S/ES7210 (longer after bus re-acquire)
       }
       if (now < mic_warmup_until_ms_) {
-        return;  // Wait for warmup
+        return; // Wait for warmup
       }
       mic_warmup_until_ms_ = 0;
       capture_read_ = capture_write_;
@@ -788,7 +794,8 @@ void MumbleComponent::manage_i2s_bus() {
 }
 
 void MumbleComponent::update_channel_select() {
-  if (channel_select_ == nullptr) return;
+  if (channel_select_ == nullptr)
+    return;
   if (!connected_) {
     if (channel_option_strings_.empty() || channel_option_strings_[0] != "0:(connecting...)") {
       channel_option_strings_.clear();
@@ -807,7 +814,7 @@ void MumbleComponent::update_channel_select() {
   size_t n = channels.size();
   uint32_t current_id = client_.get_current_channel_id();
   if (n == last_channel_count_ && current_id == last_current_channel_id_) {
-    return;  // No change
+    return; // No change
   }
   last_channel_count_ = n;
   last_current_channel_id_ = current_id;
@@ -824,8 +831,7 @@ void MumbleComponent::update_channel_select() {
   }
   channel_select_->traits.set_options(channel_option_ptrs_);
 
-  ESP_LOGI(TAG, "Channel select: %zu channels from server -> %zu options",
-           n, channel_option_strings_.size());
+  ESP_LOGI(TAG, "Channel select: %zu channels from server -> %zu options", n, channel_option_strings_.size());
   for (size_t i = 0; i < channel_option_strings_.size() && i < 8; ++i) {
     ESP_LOGD(TAG, "  option[%zu]: %s", i, channel_option_strings_[i].c_str());
   }
@@ -841,16 +847,19 @@ void MumbleComponent::update_channel_select() {
       break;
     }
   }
-  if (current_option.empty()) current_option = channel_option_strings_[0];
+  if (current_option.empty())
+    current_option = channel_option_strings_[0];
   channel_select_->publish_state(current_option);
 }
 
 void MumbleComponent::on_microphone_data(const std::vector<uint8_t> &data) {
   size_t num_samples = data.size() / sizeof(int16_t);
-  if (num_samples == 0) return;
+  if (num_samples == 0)
+    return;
   const int16_t *samples = reinterpret_cast<const int16_t *>(data.data());
   for (size_t i = 0; i < num_samples; i++) {
-    if (capture_used_ >= CAPTURE_BUF_SAMPLES) break;
+    if (capture_used_ >= CAPTURE_BUF_SAMPLES)
+      break;
     capture_buf_[capture_write_ % CAPTURE_BUF_SAMPLES] = samples[i];
     capture_write_++;
     capture_used_++;
@@ -858,16 +867,17 @@ void MumbleComponent::on_microphone_data(const std::vector<uint8_t> &data) {
 }
 
 bool MumbleComponent::should_transmit() const {
-  if (!connected_) return false;
+  if (!connected_)
+    return false;
   if (get_mode() == 2) {
-    return comm_state_ == CommunicatorState::MIC_ACTIVE ||
-           comm_state_ == CommunicatorState::SILENCE_WINDOW;
+    return comm_state_ == CommunicatorState::MIC_ACTIVE || comm_state_ == CommunicatorState::SILENCE_WINDOW;
   }
   return microphone_enabled_;
 }
 
 int32_t MumbleComponent::frame_rms(const int16_t *pcm, size_t samples) {
-  if (pcm == nullptr || samples == 0) return 0;
+  if (pcm == nullptr || samples == 0)
+    return 0;
   int64_t sum = 0;
   for (size_t i = 0; i < samples; i++) {
     int32_t s = pcm[i];
@@ -876,13 +886,13 @@ int32_t MumbleComponent::frame_rms(const int16_t *pcm, size_t samples) {
   return static_cast<int32_t>(std::sqrt(static_cast<double>(sum) / samples));
 }
 
-void MumbleComponent::send_voice_packet(const uint8_t *opus_data, size_t opus_len,
-                                        bool is_terminator) {
-  if (opus_len > MumbleUdp::MAX_PACKET_SIZE - 32) return;  // leave room for header/varints
-  size_t n = build_voice_packet(tx_packet_buf_, sizeof(tx_packet_buf_), tx_sequence_++,
-                               opus_data, opus_len, is_terminator, voice_target_id_);
+void MumbleComponent::send_voice_packet(const uint8_t *opus_data, size_t opus_len, bool is_terminator) {
+  if (opus_len > MumbleUdp::MAX_PACKET_SIZE - 32)
+    return; // leave room for header/varints
+  size_t n = build_voice_packet(tx_packet_buf_, sizeof(tx_packet_buf_), tx_sequence_++, opus_data, opus_len,
+                                is_terminator, voice_target_id_);
   if (n == 0) {
-    ESP_LOGW(TAG, "build_voice_packet returned 0 (opus_len=%u, term=%d)", (unsigned) opus_len, is_terminator);
+    ESP_LOGW(TAG, "build_voice_packet returned 0 (opus_len=%u, term=%d)", (unsigned)opus_len, is_terminator);
     return;
   }
   // Only use UDP once we've received a ping echo (server has our UDP address).
@@ -895,16 +905,18 @@ void MumbleComponent::send_voice_packet(const uint8_t *opus_data, size_t opus_le
     ok = client_.send_udp_tunnel(tx_packet_buf_, n);
   }
   if (tx_sequence_ <= 5 || (tx_sequence_ % 50 == 0)) {
-    ESP_LOGD(TAG, "Voice pkt seq=%llu len=%u opus=%u term=%d via=%s ok=%d hdr=0x%02x",
-             (unsigned long long) tx_sequence_, (unsigned) n, (unsigned) opus_len,
-             is_terminator, udp_.is_active() ? "UDP" : "TCP", ok, tx_packet_buf_[0]);
+    ESP_LOGD(TAG, "Voice pkt seq=%llu len=%u opus=%u term=%d via=%s ok=%d hdr=0x%02x", (unsigned long long)tx_sequence_,
+             (unsigned)n, (unsigned)opus_len, is_terminator, udp_.is_active() ? "UDP" : "TCP", ok, tx_packet_buf_[0]);
   }
 }
 
 void MumbleComponent::audio_capture() {
-  if (microphone_ == nullptr || !opus_encoder_.is_initialized()) return;
-  if (bus_owner_ != BusOwner::MIC || bus_releasing_) return;
-  if (!microphone_->is_running()) return;
+  if (microphone_ == nullptr || !opus_encoder_.is_initialized())
+    return;
+  if (bus_owner_ != BusOwner::MIC || bus_releasing_)
+    return;
+  if (!microphone_->is_running())
+    return;
 
   uint32_t now = mumble_millis();
   bool want_tx = should_transmit();
@@ -979,8 +991,8 @@ void MumbleComponent::audio_capture() {
     }
 
     if ((tx_state_ == TxState::TRANSMITTING || tx_state_ == TxState::TAIL) && !echo_suppress) {
-      int enc_len = opus_encoder_.encode(frame_buf, OpusAudioEncoder::FRAME_SAMPLES,
-                                        opus_payload_buf_, OpusAudioEncoder::MAX_PAYLOAD_BYTES);
+      int enc_len = opus_encoder_.encode(frame_buf, OpusAudioEncoder::FRAME_SAMPLES, opus_payload_buf_,
+                                         OpusAudioEncoder::MAX_PAYLOAD_BYTES);
       if (enc_len > 0) {
         send_voice_packet(opus_payload_buf_, static_cast<size_t>(enc_len), false);
       }
@@ -993,5 +1005,5 @@ void MumbleComponent::dump_config() {
   log_connection_config();
 }
 
-}  // namespace mumble
-}  // namespace esphome
+} // namespace mumble
+} // namespace esphome

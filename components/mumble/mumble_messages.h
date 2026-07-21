@@ -92,8 +92,7 @@ struct MsgUserState {
   /** Full marshal: writes all non-default fields. Use for self_mute, self_deaf, comment, etc. */
   void marshal(std::vector<uint8_t> &out) const;
   // Encode UserState for channel change: session (1) + channel_id (5)
-  static void marshal_channel_change(std::vector<uint8_t> &out, uint32_t session_id,
-                                     uint32_t channel_id);
+  static void marshal_channel_change(std::vector<uint8_t> &out, uint32_t session_id, uint32_t channel_id);
 };
 
 // MsgUserRemove (type 8)
@@ -347,5 +346,5 @@ struct MsgPermissionQuery {
   bool unmarshal(const uint8_t *data, size_t len);
 };
 
-}  // namespace mumble
-}  // namespace esphome
+} // namespace mumble
+} // namespace esphome

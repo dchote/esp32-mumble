@@ -6,14 +6,13 @@ password_text_id, channel_text_id, mode_select_id, crypto_select_id (values pers
 Optional hardware: ptt_pin (press-and-hold PTT), mute_pin.
 """
 
-from esphome import automation
-from esphome.automation import maybe_simple_id
 import esphome.codegen as cg
 import esphome.config_validation as cv
-from esphome.core import CORE
-from esphome import pins
+from esphome import automation, pins
+from esphome.automation import maybe_simple_id
 from esphome.components import microphone, select, speaker, text
-from esphome.const import CONF_ID, CONF_PORT, CONF_PASSWORD, CONF_CHANNEL, CONF_TRIGGER_ID
+from esphome.const import CONF_CHANNEL, CONF_ID, CONF_PASSWORD, CONF_PORT, CONF_TRIGGER_ID
+from esphome.core import CORE
 
 CODEOWNERS = ["@danielhoward314"]
 DEPENDENCIES = ["network"]
@@ -66,6 +65,7 @@ MUMBLE_CRYPTO = {
     CONF_LEGACY: 1,
 }
 
+
 def _validate_connection_config(config):
     has_server = (config.get(CONF_SERVER, "") or "").strip() or CONF_SERVER_TEXT in config
     has_username = (config.get(CONF_USERNAME, "") or "").strip() or CONF_USERNAME_TEXT in config
@@ -106,14 +106,10 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_CRYPTO_SELECT): cv.use_id(select.Select),
             cv.Optional(CONF_MICROPHONE): cv.use_id(microphone.Microphone),
             cv.Optional(CONF_SPEAKER): cv.use_id(speaker.Speaker),
-            cv.Optional(CONF_MODE, default=CONF_ALWAYS_ON): cv.enum(
-                MUMBLE_MODE, lower=True
-            ),
+            cv.Optional(CONF_MODE, default=CONF_ALWAYS_ON): cv.enum(MUMBLE_MODE, lower=True),
             cv.Optional(CONF_PTT_PIN): pins.gpio_input_pin_schema,
             cv.Optional(CONF_MUTE_PIN): pins.gpio_input_pin_schema,
-            cv.Optional(CONF_CRYPTO, default=CONF_LEGACY): cv.enum(
-                MUMBLE_CRYPTO, lower=True
-            ),
+            cv.Optional(CONF_CRYPTO, default=CONF_LEGACY): cv.enum(MUMBLE_CRYPTO, lower=True),
             cv.Optional(CONF_CA_CERT, default=""): cv.string,
             cv.Optional(CONF_BOT_MODE, default=False): cv.boolean,
             cv.Optional(CONF_ON_COMMUNICATOR_END): automation.validate_automation(
@@ -142,6 +138,7 @@ async def to_code(config):
         cg.add_library("NetworkClientSecure", None)
     if CORE.is_esp32:
         import os
+
         lib_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "lib", "micro-opus"))
         cg.add_library("micro-opus", None, "symlink://" + lib_path)
     var = cg.new_Pvariable(config[CONF_ID])
@@ -217,30 +214,19 @@ MUMBLE_ACTION_SCHEMA = maybe_simple_id(
     }
 )
 
-MumbleMicrophoneEnableAction = mumble_ns.class_(
-    "MumbleMicrophoneEnableAction", automation.Action
-)
-MumbleMicrophoneDisableAction = mumble_ns.class_(
-    "MumbleMicrophoneDisableAction", automation.Action
-)
-MumblePttPressAction = mumble_ns.class_(
-    "MumblePttPressAction", automation.Action
-)
-MumbleResetConfigAction = mumble_ns.class_(
-    "MumbleResetConfigAction", automation.Action
-)
-MumbleStartCommunicatorTransmitAction = mumble_ns.class_(
-    "MumbleStartCommunicatorTransmitAction", automation.Action
-)
-MumbleCommunicatorCancelAction = mumble_ns.class_(
-    "MumbleCommunicatorCancelAction", automation.Action
-)
+MumbleMicrophoneEnableAction = mumble_ns.class_("MumbleMicrophoneEnableAction", automation.Action)
+MumbleMicrophoneDisableAction = mumble_ns.class_("MumbleMicrophoneDisableAction", automation.Action)
+MumblePttPressAction = mumble_ns.class_("MumblePttPressAction", automation.Action)
+MumbleResetConfigAction = mumble_ns.class_("MumbleResetConfigAction", automation.Action)
+MumbleStartCommunicatorTransmitAction = mumble_ns.class_("MumbleStartCommunicatorTransmitAction", automation.Action)
+MumbleCommunicatorCancelAction = mumble_ns.class_("MumbleCommunicatorCancelAction", automation.Action)
 
 
 @automation.register_action(
     "mumble.microphone_enable",
     MumbleMicrophoneEnableAction,
     MUMBLE_ACTION_SCHEMA,
+    synchronous=True,
 )
 async def mumble_microphone_enable_to_code(config, action_id, template_arg, args):
     var = await cg.get_variable(config[CONF_ID])
@@ -251,6 +237,7 @@ async def mumble_microphone_enable_to_code(config, action_id, template_arg, args
     "mumble.microphone_disable",
     MumbleMicrophoneDisableAction,
     MUMBLE_ACTION_SCHEMA,
+    synchronous=True,
 )
 async def mumble_microphone_disable_to_code(config, action_id, template_arg, args):
     var = await cg.get_variable(config[CONF_ID])
@@ -261,6 +248,7 @@ async def mumble_microphone_disable_to_code(config, action_id, template_arg, arg
     "mumble.ptt_press",
     MumblePttPressAction,
     MUMBLE_ACTION_SCHEMA,
+    synchronous=True,
 )
 async def mumble_ptt_press_to_code(config, action_id, template_arg, args):
     var = await cg.get_variable(config[CONF_ID])
@@ -271,6 +259,7 @@ async def mumble_ptt_press_to_code(config, action_id, template_arg, args):
     "mumble.reset_config",
     MumbleResetConfigAction,
     MUMBLE_ACTION_SCHEMA,
+    synchronous=True,
 )
 async def mumble_reset_config_to_code(config, action_id, template_arg, args):
     var = await cg.get_variable(config[CONF_ID])
@@ -281,6 +270,7 @@ async def mumble_reset_config_to_code(config, action_id, template_arg, args):
     "mumble.start_communicator_transmit",
     MumbleStartCommunicatorTransmitAction,
     MUMBLE_ACTION_SCHEMA,
+    synchronous=True,
 )
 async def mumble_start_communicator_transmit_to_code(config, action_id, template_arg, args):
     var = await cg.get_variable(config[CONF_ID])
@@ -291,6 +281,7 @@ async def mumble_start_communicator_transmit_to_code(config, action_id, template
     "mumble.communicator_cancel",
     MumbleCommunicatorCancelAction,
     MUMBLE_ACTION_SCHEMA,
+    synchronous=True,
 )
 async def mumble_communicator_cancel_to_code(config, action_id, template_arg, args):
     var = await cg.get_variable(config[CONF_ID])
@@ -306,21 +297,21 @@ MumblePlayCommunicatorChimeThenTransmitAction = mumble_ns.class_(
     "mumble.play_communicator_chime_then_transmit",
     MumblePlayCommunicatorChimeThenTransmitAction,
     MUMBLE_ACTION_SCHEMA,
+    synchronous=False,
 )
 async def mumble_play_communicator_chime_then_transmit_to_code(config, action_id, template_arg, args):
     var = await cg.get_variable(config[CONF_ID])
     return cg.new_Pvariable(action_id, template_arg, var)
 
 
-MumbleCommunicatorToggleAction = mumble_ns.class_(
-    "MumbleCommunicatorToggleAction", automation.Action
-)
+MumbleCommunicatorToggleAction = mumble_ns.class_("MumbleCommunicatorToggleAction", automation.Action)
 
 
 @automation.register_action(
     "mumble.communicator_toggle",
     MumbleCommunicatorToggleAction,
     MUMBLE_ACTION_SCHEMA,
+    synchronous=True,
 )
 async def mumble_communicator_toggle_to_code(config, action_id, template_arg, args):
     var = await cg.get_variable(config[CONF_ID])
@@ -335,15 +326,14 @@ MUMBLE_SEND_TEXT_MESSAGE_SCHEMA = cv.Schema(
     }
 )
 
-MumbleSendTextMessageAction = mumble_ns.class_(
-    "MumbleSendTextMessageAction", automation.Action
-)
+MumbleSendTextMessageAction = mumble_ns.class_("MumbleSendTextMessageAction", automation.Action)
 
 
 @automation.register_action(
     "mumble.send_text_message",
     MumbleSendTextMessageAction,
     MUMBLE_SEND_TEXT_MESSAGE_SCHEMA,
+    synchronous=True,
 )
 async def mumble_send_text_message_to_code(config, action_id, template_arg, args):
     var = await cg.get_variable(config[CONF_ID])
@@ -366,6 +356,7 @@ MUMBLE_SELF_MUTE_SCHEMA = cv.Schema(
     "mumble.self_mute",
     MumbleSelfMuteAction,
     MUMBLE_SELF_MUTE_SCHEMA,
+    synchronous=True,
 )
 async def mumble_self_mute_to_code(config, action_id, template_arg, args):
     var = await cg.get_variable(config[CONF_ID])
@@ -387,6 +378,7 @@ MUMBLE_SELF_DEAF_SCHEMA = cv.Schema(
     "mumble.self_deaf",
     MumbleSelfDeafAction,
     MUMBLE_SELF_DEAF_SCHEMA,
+    synchronous=True,
 )
 async def mumble_self_deaf_to_code(config, action_id, template_arg, args):
     var = await cg.get_variable(config[CONF_ID])
@@ -409,6 +401,7 @@ MUMBLE_KICK_USER_SCHEMA = cv.Schema(
     "mumble.kick_user",
     MumbleKickUserAction,
     MUMBLE_KICK_USER_SCHEMA,
+    synchronous=True,
 )
 async def mumble_kick_user_to_code(config, action_id, template_arg, args):
     var = await cg.get_variable(config[CONF_ID])

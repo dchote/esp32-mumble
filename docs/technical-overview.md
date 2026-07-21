@@ -269,11 +269,17 @@ select:
 # When HA connects, if server is empty it is set to client_address (HA IP) for addon use.
 # Production configs also log via ESP_LOGI when setting server from client_address.
 api:
+  encryption:
+    key: !secret api_encryption_key
   on_client_connected:
     - lambda: |-
         if (id(mumble_server_host).state.empty()) {
           id(mumble_server_host).make_call().set_value(client_address).perform();
         }
+
+ota:
+  - platform: esphome
+    password: !secret ota_password
 
 # Physical button: on_press -> mumble.microphone_enable, on_release -> mumble.microphone_disable
 mumble:
@@ -378,7 +384,7 @@ Board-specific details (pin assignments, codec I2C addresses, I2S parameters) ar
 ### Board Profiles
 
 **ESP32-S3 Box 3** (**ESP-IDF framework**)
-- Framework: `type: esp-idf`; lwIP netconn for UDP; min ESPHome 2025.5.0
+- Framework: `type: esp-idf`; lwIP netconn for UDP; min ESPHome 2026.7.0
 - I2S: LRCLK=GPIO45, BCLK=GPIO17, MCLK=GPIO2, DIN=GPIO16, DOUT=GPIO15
 - I2C: SCL=GPIO18, SDA=GPIO8
 - ADC: ES7210 (4-ch, 16 kHz, 16-bit)
@@ -386,7 +392,7 @@ Board-specific details (pin assignments, codec I2C addresses, I2S parameters) ar
 - Speaker Power (PA enable): GPIO46
 
 **ESP32-S3 Box** (older revision, **ESP-IDF framework**)
-- Framework: `type: esp-idf`; lwIP netconn for UDP; min ESPHome 2025.5.0
+- Framework: `type: esp-idf`; lwIP netconn for UDP; min ESPHome 2026.7.0
 - I2S: LRCLK=GPIO47, BCLK=GPIO17, MCLK=GPIO2, DIN=GPIO16, DOUT=GPIO15
 - I2C: SCL=GPIO18, SDA=GPIO8
 - ADC: ES7210 (4-ch, 16 kHz, 16-bit)
@@ -414,14 +420,14 @@ Board-specific details (pin assignments, codec I2C addresses, I2S parameters) ar
 
 | Dependency | Version | Purpose |
 |------------|---------|---------|
-| ESP-IDF | 5.x | SoC framework (Box/Box-3 use esp-idf + lwIP netconn; others use Arduino on ESP-IDF base) |
-| ESPHome | 2024.x or later (2025.5.0+ for Box) | Component framework, HA integration, OTA |
-| micro-opus | (local, `lib/micro-opus/`) | Opus audio codec; heap pseudostack, PSRAM, Xtensa DSP; based on esphome-libs/micro-opus |
+| ESP-IDF | 5.x (via ESPHome) | SoC framework (Box/Box-3 use esp-idf + lwIP netconn; others use Arduino on ESP-IDF base) |
+| ESPHome | 2026.7.0+ (`requirements.txt` pins 2026.7.1) | Component framework, HA integration, OTA |
+| micro-opus | local `lib/micro-opus/` **0.4.1** | Opus audio codec; heap pseudostack, PSRAM, Xtensa DSP; based on esphome-libs/micro-opus |
 | mbedTLS | (bundled with ESP-IDF) | TLS for Mumble control channel; OCB2-AES128 for Legacy; AES-256-GCM for Secure |
 | ESP-ADF | optional | ADF pipeline for full-duplex I2S |
 | ESP-SR | optional | AEC, noise suppression, beamforming |
 
-The build uses ESPHome/PlatformIO. The Opus library is **vendored locally** in `lib/micro-opus/` — a pre-patched copy of [esphome-libs/micro-opus](https://github.com/esphome-libs/micro-opus) with heap-based pseudostack (avoids stack overflow from alloca-based builds), PSRAM-aware allocation, and Xtensa LX7 optimizations for ESP32-S3.
+The build uses ESPHome/PlatformIO. The Opus library is **vendored locally** in `lib/micro-opus/` — a pre-patched copy of [esphome-libs/micro-opus](https://github.com/esphome-libs/micro-opus) v0.4.1 with heap-based pseudostack (avoids stack overflow from alloca-based builds), PSRAM-aware allocation, and Xtensa LX7 optimizations for ESP32-S3. Install the host toolchain with `pip install -r requirements.txt` (Python 3.12+).
 
 ## Key Technical Risks
 

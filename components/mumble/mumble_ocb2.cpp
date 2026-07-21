@@ -46,8 +46,7 @@ MumbleCryptState::~MumbleCryptState() {
   mbedtls_aes_free(&aes_dec_);
 }
 
-bool MumbleCryptState::set_key(const uint8_t *key, size_t key_len,
-                               const uint8_t *client_nonce, size_t cn_len,
+bool MumbleCryptState::set_key(const uint8_t *key, size_t key_len, const uint8_t *client_nonce, size_t cn_len,
                                const uint8_t *server_nonce, size_t sn_len) {
   if (key_len != AES_KEY_LEN || cn_len != AES_BLOCK || sn_len != AES_BLOCK)
     return false;
@@ -67,30 +66,30 @@ bool MumbleCryptState::set_key(const uint8_t *key, size_t key_len,
 }
 
 bool MumbleCryptState::set_decrypt_iv(const uint8_t *iv, size_t len) {
-  if (len != AES_BLOCK) return false;
+  if (len != AES_BLOCK)
+    return false;
   memcpy(decrypt_iv_, iv, AES_BLOCK);
   return true;
 }
 
 void MumbleCryptState::aes_encrypt_block(const void *src, void *dst) {
-  mbedtls_aes_crypt_ecb(&aes_enc_, MBEDTLS_AES_ENCRYPT,
-                         reinterpret_cast<const unsigned char *>(src),
-                         reinterpret_cast<unsigned char *>(dst));
+  mbedtls_aes_crypt_ecb(&aes_enc_, MBEDTLS_AES_ENCRYPT, reinterpret_cast<const unsigned char *>(src),
+                        reinterpret_cast<unsigned char *>(dst));
 }
 
 void MumbleCryptState::aes_decrypt_block(const void *src, void *dst) {
-  mbedtls_aes_crypt_ecb(&aes_dec_, MBEDTLS_AES_DECRYPT,
-                         reinterpret_cast<const unsigned char *>(src),
-                         reinterpret_cast<unsigned char *>(dst));
+  mbedtls_aes_crypt_ecb(&aes_dec_, MBEDTLS_AES_DECRYPT, reinterpret_cast<const unsigned char *>(src),
+                        reinterpret_cast<unsigned char *>(dst));
 }
 
 bool MumbleCryptState::encrypt(const uint8_t *source, uint8_t *dst, size_t plain_length) {
-  if (!initialized_) return false;
+  if (!initialized_)
+    return false;
 
   uint8_t tag[AES_BLOCK];
 
   // Increment encrypt_iv (little-endian counter)
-  for (int i = 0; i < (int) AES_BLOCK; i++)
+  for (int i = 0; i < (int)AES_BLOCK; i++)
     if (++encrypt_iv_[i])
       break;
 
@@ -105,8 +104,10 @@ bool MumbleCryptState::encrypt(const uint8_t *source, uint8_t *dst, size_t plain
 }
 
 bool MumbleCryptState::decrypt(const uint8_t *source, uint8_t *dst, size_t cipher_length) {
-  if (!initialized_) return false;
-  if (cipher_length < OCB2_OVERHEAD) return false;
+  if (!initialized_)
+    return false;
+  if (cipher_length < OCB2_OVERHEAD)
+    return false;
 
   unsigned int plain_length = static_cast<unsigned int>(cipher_length - OCB2_OVERHEAD);
 
@@ -127,7 +128,7 @@ bool MumbleCryptState::decrypt(const uint8_t *source, uint8_t *dst, size_t ciphe
     } else if (ivbyte < decrypt_iv_[0]) {
       // Wraparound (e.g. 0xFF -> 0x00)
       decrypt_iv_[0] = ivbyte;
-      for (int i = 1; i < (int) AES_BLOCK; i++)
+      for (int i = 1; i < (int)AES_BLOCK; i++)
         if (++decrypt_iv_[i])
           break;
     } else {
@@ -151,7 +152,7 @@ bool MumbleCryptState::decrypt(const uint8_t *source, uint8_t *dst, size_t ciphe
       late = 1;
       lost = -1;
       decrypt_iv_[0] = ivbyte;
-      for (int i = 1; i < (int) AES_BLOCK; i++)
+      for (int i = 1; i < (int)AES_BLOCK; i++)
         if (decrypt_iv_[i]--)
           break;
       restore = true;
@@ -163,7 +164,7 @@ bool MumbleCryptState::decrypt(const uint8_t *source, uint8_t *dst, size_t ciphe
       // Lost packets with wraparound
       lost = 256 - decrypt_iv_[0] + ivbyte - 1;
       decrypt_iv_[0] = ivbyte;
-      for (int i = 1; i < (int) AES_BLOCK; i++)
+      for (int i = 1; i < (int)AES_BLOCK; i++)
         if (++decrypt_iv_[i])
           break;
     } else {
@@ -197,8 +198,8 @@ bool MumbleCryptState::decrypt(const uint8_t *source, uint8_t *dst, size_t ciphe
   return true;
 }
 
-bool MumbleCryptState::ocb_encrypt(const uint8_t *plain, uint8_t *encrypted, unsigned int len,
-                                   const uint8_t *nonce, uint8_t *tag) {
+bool MumbleCryptState::ocb_encrypt(const uint8_t *plain, uint8_t *encrypted, unsigned int len, const uint8_t *nonce,
+                                   uint8_t *tag) {
   uint8_t checksum[16], delta[16], tmp[16], pad[16];
   memset(checksum, 0, 16);
 
@@ -209,7 +210,7 @@ bool MumbleCryptState::ocb_encrypt(const uint8_t *plain, uint8_t *encrypted, uns
     bool flip_a_bit = false;
     if (len - AES_BLOCK <= AES_BLOCK) {
       uint8_t sum = 0;
-      for (int i = 0; i < (int) AES_BLOCK - 1; ++i)
+      for (int i = 0; i < (int)AES_BLOCK - 1; ++i)
         sum |= plain[i];
       if (sum == 0)
         flip_a_bit = true;
@@ -243,7 +244,7 @@ bool MumbleCryptState::ocb_encrypt(const uint8_t *plain, uint8_t *encrypted, uns
   memcpy(tmp + len, pad + len, AES_BLOCK - len);
   for (int i = 0; i < 16; i++)
     checksum[i] ^= tmp[i];
-  for (int i = 0; i < (int) len; i++)
+  for (int i = 0; i < (int)len; i++)
     tmp[i] = pad[i] ^ tmp[i];
   memcpy(encrypted, tmp, len);
 
@@ -255,8 +256,8 @@ bool MumbleCryptState::ocb_encrypt(const uint8_t *plain, uint8_t *encrypted, uns
   return true;
 }
 
-bool MumbleCryptState::ocb_decrypt(const uint8_t *encrypted, uint8_t *plain, unsigned int len,
-                                   const uint8_t *nonce, uint8_t *tag) {
+bool MumbleCryptState::ocb_decrypt(const uint8_t *encrypted, uint8_t *plain, unsigned int len, const uint8_t *nonce,
+                                   uint8_t *tag) {
   uint8_t checksum[16], delta[16], tmp[16], pad[16];
   memset(checksum, 0, 16);
 
@@ -299,8 +300,7 @@ bool MumbleCryptState::ocb_decrypt(const uint8_t *encrypted, uint8_t *plain, uns
   return success;
 }
 
-bool mumble_ocb2_selftest(const uint8_t *key, const uint8_t *client_nonce,
-                          const uint8_t *server_nonce) {
+bool mumble_ocb2_selftest(const uint8_t *key, const uint8_t *client_nonce, const uint8_t *server_nonce) {
   if (key == nullptr || client_nonce == nullptr || server_nonce == nullptr)
     return false;
 
@@ -308,17 +308,15 @@ bool mumble_ocb2_selftest(const uint8_t *key, const uint8_t *client_nonce,
   MumbleCryptState server_crypt;
 
   // Client: encrypt_iv=client_nonce, decrypt_iv=server_nonce (we send to server)
-  if (!client_crypt.set_key(key, AES_KEY_LEN, client_nonce, AES_BLOCK,
-                            server_nonce, AES_BLOCK))
+  if (!client_crypt.set_key(key, AES_KEY_LEN, client_nonce, AES_BLOCK, server_nonce, AES_BLOCK))
     return false;
 
   // Server: encrypt_iv=server_nonce, decrypt_iv=client_nonce (receives from client)
-  if (!server_crypt.set_key(key, AES_KEY_LEN, server_nonce, AES_BLOCK,
-                            client_nonce, AES_BLOCK))
+  if (!server_crypt.set_key(key, AES_KEY_LEN, server_nonce, AES_BLOCK, client_nonce, AES_BLOCK))
     return false;
 
   // Ping-like plaintext: 0x20 + varint(timestamp)
-  uint8_t plain[] = {0x20, 0x80, 0x00};  // header + 2-byte varint for 0
+  uint8_t plain[] = {0x20, 0x80, 0x00}; // header + 2-byte varint for 0
   size_t plain_len = sizeof(plain);
 
   uint8_t cipher[64];
@@ -330,11 +328,10 @@ bool mumble_ocb2_selftest(const uint8_t *key, const uint8_t *client_nonce,
 
   uint8_t decrypted[64];
   if (!server_crypt.decrypt(cipher, decrypted, cipher_len)) {
-    ESP_LOGE(TAG, "selftest: decrypt failed (cipher_len=%u)", (unsigned) cipher_len);
+    ESP_LOGE(TAG, "selftest: decrypt failed (cipher_len=%u)", (unsigned)cipher_len);
     return false;
   }
-  if (plain_len != cipher_len - OCB2_OVERHEAD ||
-      memcmp(plain, decrypted, plain_len) != 0) {
+  if (plain_len != cipher_len - OCB2_OVERHEAD || memcmp(plain, decrypted, plain_len) != 0) {
     ESP_LOGE(TAG, "selftest: round-trip mismatch");
     return false;
   }
@@ -342,5 +339,5 @@ bool mumble_ocb2_selftest(const uint8_t *key, const uint8_t *client_nonce,
   return true;
 }
 
-}  // namespace mumble
-}  // namespace esphome
+} // namespace mumble
+} // namespace esphome

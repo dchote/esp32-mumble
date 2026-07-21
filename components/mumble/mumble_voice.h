@@ -34,9 +34,8 @@ bool parse_voice_packet(const uint8_t *data, size_t len, VoicePacket *out);
 // target: 0 = normal channel, 1-30 = voice target id, 31 = loopback.
 // Writes to out_buf; returns bytes written, or 0 on error.
 // Client packets do not include session (server adds it when relaying).
-size_t build_voice_packet(uint8_t *out_buf, size_t max_len, uint64_t sequence,
-                          const uint8_t *opus_data, size_t opus_len, bool is_terminator,
-                          uint8_t target = 0);
+size_t build_voice_packet(uint8_t *out_buf, size_t max_len, uint64_t sequence, const uint8_t *opus_data,
+                          size_t opus_len, bool is_terminator, uint8_t target = 0);
 
-}  // namespace mumble
-}  // namespace esphome
+} // namespace mumble
+} // namespace esphome
