@@ -44,6 +44,7 @@ Each device appears in Home Assistant as an ESPHome node with configurable entit
 |---|---|---|---|---|
 | **ESP32-S3 Box 3** | ESP-IDF | ES7210 4-ch mic array | ES8311 DAC | lwIP netconn UDP; I2C codec control |
 | **ESP32-S3 Box** | ESP-IDF | ES7210 4-ch mic array | ES8311 DAC | Older revision of Box 3 |
+| **Home Assistant Voice PE** | ESP-IDF | XMOS dual-mic DSP | AIC3204 DAC | Jog wheel volume, mute slider, center PTT/Communicator, LED ring |
 | **Onju Voice** | Arduino | SPH0645 I2S mic | MAX98357A I2S amp | Drop-in Google Nest Mini replacement; touch, LEDs, mute switch |
 | **M5Stack Atom Echo** | Arduino | PDM microphone | External I2S DAC | Compact form factor |
 | **Generic ESP32-S3** | Arduino | Any I2S microphone | Any I2S amplifier/DAC | User-defined pin configuration |
@@ -96,7 +97,7 @@ The following settings are exposed as Home Assistant entities and can be changed
 | Mode | Select | **Always on**, **Push to talk**, or **Communicator** (persisted across reboots) |
 | Crypto | Select | **Legacy** (OCB2-AES128, default) or **Lite** (cleartext UDP for trusted LAN) |
 | Speaker Volume | Number | Playback volume level (0–100, default 80) |
-| Speaker Power | Switch | Hardware amplifier power on/off (Box/Box-3 only, GPIO46) |
+| Speaker Power | Switch | Hardware amplifier power on/off (Box/Box-3 GPIO46; Voice PE GPIO47) |
 
 All settings persist in NVS and are restored on boot — including speaker volume. Changing server, port, username, password, channel, or crypto forces an immediate reconnect.
 
@@ -116,7 +117,7 @@ All settings persist in NVS and are restored on boot — including speaker volum
 |---|---|---|---|
 | Voice Sending | Binary Sensor | Implemented | True while the device is transmitting audio |
 | Speaker Volume | Number | Implemented | Speaker volume level 0–100 (persists across reboots) |
-| Speaker Power | Switch | Implemented | Hardware amplifier on/off, Box/Box-3 only (persists) |
+| Speaker Power | Switch | Implemented | Hardware amplifier on/off (Box/Box-3, Voice PE; persists) |
 | Mumble Connected | Binary Sensor | Implemented | Connection status (Diagnostics) |
 | Voice Received | Binary Sensor | Implemented | True while receiving voice (Sensors) |
 | Channel | Text | Implemented | Channel name to join (config) |

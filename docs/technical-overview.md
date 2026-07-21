@@ -138,7 +138,7 @@ This client uses the **legacy binary format**; the server also supports a modern
 
 ### UDP Ping
 
-UDP connectivity is confirmed by a ping/echo exchange. The client sends a codec-type-1 packet (encrypted in Legacy mode); the server decrypts it, matches the session, and echoes it back. If no echo is received within the timeout, the client falls back to tunneling voice over TCP using UDPTunnel (message type 1). **ESP32-S3 Box and Box-3 (ESP-IDF)**: Use lwIP netconn for UDP. **Other boards (Arduino)**: WiFiUDP.
+UDP connectivity is confirmed by a ping/echo exchange. The client sends a codec-type-1 packet (encrypted in Legacy mode); the server decrypts it, matches the session, and echoes it back. If no echo is received within the timeout, the client falls back to tunneling voice over TCP using UDPTunnel (message type 1). **ESP32-S3 Box, Box-3, and Voice PE (ESP-IDF)**: Use lwIP netconn for UDP. **Other boards (Arduino)**: WiFiUDP.
 
 ### Protocol Reference
 
@@ -223,7 +223,7 @@ components/
     mumble_udp.h/.cpp        # UDP send/recv, ping, voice packet framing
 ```
 
-**Framework backends**: The component uses a socket abstraction (`TlsClient`, `UdpSocket`) with two backends: **Arduino** (WiFiClientSecure, WiFiUDP) and **ESP-IDF** (esp_tls, lwIP **netconn** for UDP, BSD sockets for TCP). **ESP32-S3 Box and Box-3** use ESP-IDF with lwIP netconn (`netconn_sendto`). **Generic, M5Stack Atom Echo, and others** use Arduino.
+**Framework backends**: The component uses a socket abstraction (`TlsClient`, `UdpSocket`) with two backends: **Arduino** (WiFiClientSecure, WiFiUDP) and **ESP-IDF** (esp_tls, lwIP **netconn** for UDP, BSD sockets for TCP). **ESP32-S3 Box, Box-3, and Voice PE** use ESP-IDF with lwIP netconn (`netconn_sendto`). **Generic, M5Stack Atom Echo, and others** use Arduino.
 
 The component is loaded as an ESPHome external component. Connection settings (server, port, username, password, channel) can be inline or referenced from text entities; mode (always_on / push_to_talk) can be set in YAML or via an optional select entity. Username defaults to `esp32-<MAC>` on first run if not set; password has no default. All HA-linked values are editable in the HA UI and persisted to NVS. Changing server, username, password, or channel forces a reconnect. Wire a physical button to `mumble.microphone_enable` and `mumble.microphone_disable` for mic control (press = on, release = off). The `mumble.ptt_press` action toggles mic state. The `mumble.reset_config` action resets all config entities to defaults.
 
@@ -320,7 +320,7 @@ mumble:
 | `on_communicator_end` | automation | none | Fired when communicator sequence ends (timeout or cancel); wire to play close chime (Box/Box-3). |
 | `on_text_message` | automation | none | Fired when a text message is received (e.g. for bot/automation). |
 
-**ESP32-S3 Box / Box-3 (ESP-IDF)** — Both use `framework: type: esp-idf` with lwIP netconn for UDP. First flash must be via USB, not OTA.
+**ESP32-S3 Box / Box-3 / Voice PE (ESP-IDF)** — These use `framework: type: esp-idf` with lwIP netconn for UDP. First flash must be via USB, not OTA.
 
 ### Home Assistant Entities
 
@@ -343,7 +343,7 @@ When server, username, password, or channel is changed in HA, the client disconn
 | Entity ID | Platform | Description |
 |-----------|----------|-------------|
 | `number.mumble_speaker_volume` | `number` | Speaker volume 0–100 (persists via NVS; applied on boot) |
-| `switch.speaker_power` | `switch` | Speaker Power — PA enable GPIO46 (Box/Box-3 only; persists) |
+| `switch.speaker_power` | `switch` | Speaker Power — PA enable (Box/Box-3 GPIO46; Voice PE GPIO47; persists) |
 
 **Diagnostics**:
 
@@ -361,7 +361,7 @@ When server, username, password, or channel is changed in HA, the client disconn
 | Entity ID | Platform | Status | Description |
 |-----------|----------|--------|-------------|
 | `number.mumble_speaker_volume` | `number` | Implemented | Speaker volume 0–100 (NVS restore on boot) |
-| `switch.speaker_power` | `switch` | Implemented | Speaker Power — PA enable (Box/Box-3 only) |
+| `switch.speaker_power` | `switch` | Implemented | Speaker Power — PA enable (Box/Box-3, Voice PE) |
 | `binary_sensor.mumble_connected` | `binary_sensor` | Implemented | Connection status (Diagnostics) |
 | `binary_sensor.mumble_voice_active` | `binary_sensor` | Implemented | Voice Received (Sensors, with Microphone) |
 | `select.mumble_channel` | `select` | Optional | Channel select with server options (`channel_select_id`) |
@@ -393,6 +393,20 @@ Board-specific details (pin assignments, codec I2C addresses, I2S parameters) ar
 - DAC: ES8311 (48 kHz, mono)
 - Speaker Power (PA enable): GPIO46
 
+**Home Assistant Voice Preview Edition** (**ESP-IDF framework**)
+- Framework: `type: esp-idf`; lwIP netconn for UDP; min ESPHome 2026.7.0
+- Board: `esp32-s3-devkitc-1`, 16 MB flash, octal PSRAM 80 MHz
+- I2C: SDA=GPIO5, SCL=GPIO6 (codec + XMOS)
+- Mic I2S (secondary): DIN=GPIO15, BCLK=GPIO13, LRCLK=GPIO14; XMOS Voice Kit (reset GPIO4, I2C 0x42)
+- Speaker I2S (secondary): DOUT=GPIO10, BCLK=GPIO8, LRCLK=GPIO7; AIC3204 DAC @ 48 kHz with `resampler` for 16 kHz Mumble/chime
+- Speaker Power (amp enable): GPIO47
+- Center button (PTT/Communicator): GPIO0 (inverted)
+- Mute slider: GPIO3
+- Jog wheel (volume): GPIO16 / GPIO18
+- LED ring: GPIO21 (WS2812 ×12), power GPIO45
+- Jack detect: GPIO17 (diagnostic sensor)
+- Config: `esphome/home-assistant-voice-pe.yaml`; vendored `components/voice_kit/`
+
 **Onju Voice**
 - I2S: LRCLK=GPIO13, BCLK=GPIO18, DIN=GPIO17, DOUT=GPIO12
 - Mic: SPH0645 (I2S, mono)
@@ -414,7 +428,7 @@ Board-specific details (pin assignments, codec I2C addresses, I2S parameters) ar
 
 | Dependency | Version | Purpose |
 |------------|---------|---------|
-| ESP-IDF | 5.x (via ESPHome) | SoC framework (Box/Box-3 use esp-idf + lwIP netconn; others use Arduino on ESP-IDF base) |
+| ESP-IDF | 5.x (via ESPHome) | SoC framework (Box/Box-3/Voice PE use esp-idf + lwIP netconn; others use Arduino on ESP-IDF base) |
 | ESPHome | 2026.7.0+ (`requirements.txt` pins 2026.7.1) | Component framework, HA integration, OTA |
 | micro-opus | local `lib/micro-opus/` **0.4.1** | Opus audio codec; heap pseudostack, PSRAM, Xtensa DSP; based on esphome-libs/micro-opus |
 | mbedTLS | (bundled with ESP-IDF) | TLS for Mumble control channel; OCB2-AES128 for Legacy; AES-256-GCM for Secure |

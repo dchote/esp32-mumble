@@ -1,4 +1,5 @@
 #include "mumble_audio.h"
+#include "esphome/components/audio/audio.h"
 #include "esphome/core/log.h"
 #include <opus.h>
 #include <algorithm>
@@ -172,6 +173,10 @@ size_t EsphomeSpeakerSink::write(const int16_t *pcm, size_t samples) {
 
 void EsphomeSpeakerSink::start() {
   if (speaker_ != nullptr) {
+    // Opus decode / communicator chime are always 16-bit mono @ 16 kHz. Boards whose
+    // hardware speaker runs at another rate (e.g. Voice PE 48 kHz) should put a
+    // resampler in front and point mumble.speaker_id at it.
+    speaker_->set_audio_stream_info(audio::AudioStreamInfo(16, 1, 16000));
     speaker_->start();
     speaker_->set_volume(speaker_->get_volume());
   }

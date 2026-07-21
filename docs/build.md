@@ -32,6 +32,8 @@ Or use the build script:
 ./scripts/build.sh generic    # generic ESP32-S3 (Arduino)
 ./scripts/build.sh box        # ESP32-S3 Box (ESP-IDF, lwIP netconn, requires 2026.7.0+)
 ./scripts/build.sh box3       # ESP32-S3 Box 3 (ESP-IDF, lwIP netconn)
+./scripts/build.sh echo       # M5Stack Atom Echo (Arduino)
+./scripts/build.sh voice-pe   # Home Assistant Voice PE (ESP-IDF, lwIP netconn)
 ./scripts/build.sh all        # all configs
 ```
 
@@ -41,6 +43,7 @@ Or via Makefile:
 make build                    # default: generic
 make CONFIG=box build         # ESP32-S3 Box (ESP-IDF)
 make CONFIG=box3 build        # ESP32-S3 Box 3 (ESP-IDF)
+make CONFIG=voice-pe build    # Home Assistant Voice PE (ESP-IDF)
 make all
 ```
 
@@ -65,12 +68,12 @@ On macOS the port is typically `/dev/cu.usbmodem*`.
 
 - **Secrets** (required before compile): Add `esphome/secrets.yaml` with Wi‑Fi credentials (see `secrets.example.yaml`). Optionally enable HA API encryption and/or an OTA password by uncommenting those secrets and wiring them in your board YAML.
 - **Mumble TLS**: By default the client skips server certificate verification (trusted LAN). Set the Mumble component `ca_cert` option to a PEM CA to enable verification.
-- **Mumble**: Server, port, username, password, channel, mode (always-on / push-to-talk), and crypto (default: **Legacy**; or **Lite** for trusted LAN) are exposed as config entities. **Server** defaults to empty and is auto-detected from the Home Assistant server IP when the device is adopted by HA (e.g. for go-mumble-server addon); set it manually in YAML or in HA to override. Username defaults to `esp32-<MAC>`. Channel defaults to **Root**. Changing server, username, password, channel, or crypto forces a reconnect. **Speaker Volume** controls output and persists across reboots; microphone is controlled via physical button wiring. On Box/Box-3, **Speaker Power** toggles the hardware amplifier (GPIO46). Diagnostics include WiFi signal, Mumble connected, ping, and **Reset Config**. **Voice Received** appears under Sensors. All values persist in NVS and are restored on boot.
+- **Mumble**: Server, port, username, password, channel, mode (always-on / push-to-talk), and crypto (default: **Legacy**; or **Lite** for trusted LAN) are exposed as config entities. **Server** defaults to empty and is auto-detected from the Home Assistant server IP when the device is adopted by HA (e.g. for go-mumble-server addon); set it manually in YAML or in HA to override. Username defaults to `esp32-<MAC>`. Channel defaults to **Root**. Changing server, username, password, channel, or crypto forces a reconnect. **Speaker Volume** controls output and persists across reboots; microphone is controlled via physical button wiring. On Box/Box-3, **Speaker Power** toggles the hardware amplifier (GPIO46); on Voice PE it is GPIO47. Voice PE also maps the jog wheel to volume, the mute slider to Mute, and the center button to PTT/Communicator. Diagnostics include WiFi signal, Mumble connected, ping, and **Reset Config**. **Voice Received** appears under Sensors. All values persist in NVS and are restored on boot.
 
 ## Dependencies
 
 - **Opus**: The Mumble component uses a **local vendored Opus library** (`lib/micro-opus/`) based on [esphome-libs/micro-opus](https://github.com/esphome-libs/micro-opus) v0.4.1. It uses heap-based pseudostack allocation (PSRAM when available) and Xtensa DSP optimizations. Do not remove or modify `lib/micro-opus/` — it is required for compilation.
-- **ESP32-S3 Box / Box-3 (ESP-IDF)**: Both use `framework: type: esp-idf` with lwIP netconn for UDP. First flash must be via USB, not OTA.
+- **ESP32-S3 Box / Box-3 / Voice PE (ESP-IDF)**: These boards use `framework: type: esp-idf` with lwIP netconn for UDP. First flash must be via USB, not OTA. Voice PE also vendors `components/voice_kit/` for the XMOS mic DSP (may DFU firmware on first boot).
 - **Toolchain**: All board configs set `esp32.toolchain: platformio`. ESPHome 2026.7 defaults to the native ESP-IDF toolchain, which does not support this project's local `symlink://` micro-opus library or the mbedtls PlatformIO pre-script.
 
 ## Troubleshooting

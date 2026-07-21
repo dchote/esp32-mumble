@@ -853,14 +853,44 @@ void MumbleComponent::update_channel_select() {
 }
 
 void MumbleComponent::on_microphone_data(const std::vector<uint8_t> &data) {
-  size_t num_samples = data.size() / sizeof(int16_t);
-  if (num_samples == 0)
+  if (data.empty() || microphone_ == nullptr)
     return;
-  const int16_t *samples = reinterpret_cast<const int16_t *>(data.data());
-  for (size_t i = 0; i < num_samples; i++) {
+
+  // Microphone callbacks deliver raw stream bytes (may be 16/32-bit, mono/stereo).
+  // Opus encode expects 16-bit mono @ 16 kHz — convert here (Voice PE XMOS is 32-bit stereo).
+  const audio::AudioStreamInfo info = microphone_->get_audio_stream_info();
+  const uint8_t bits = info.get_bits_per_sample();
+  const uint8_t channels = info.get_channels();
+  if (bits == 0 || channels == 0)
+    return;
+
+  const size_t bytes_per_sample = (static_cast<size_t>(bits) + 7) / 8;
+  const size_t bytes_per_frame = bytes_per_sample * channels;
+  if (bytes_per_frame == 0 || data.size() < bytes_per_frame)
+    return;
+
+  const size_t frames = data.size() / bytes_per_frame;
+  // Channel 0 = left (Voice PE ch0 has AGC); ignore other channels for mono Opus.
+  constexpr uint8_t kSrcChannel = 0;
+  const uint8_t src_ch = (kSrcChannel < channels) ? kSrcChannel : 0;
+  const uint8_t *p = data.data();
+
+  for (size_t f = 0; f < frames; f++) {
     if (capture_used_ >= CAPTURE_BUF_SAMPLES)
       break;
-    capture_buf_[capture_write_ % CAPTURE_BUF_SAMPLES] = samples[i];
+    const uint8_t *sample_ptr = p + f * bytes_per_frame + src_ch * bytes_per_sample;
+    int16_t s16 = 0;
+    if (bytes_per_sample <= 2) {
+      int16_t raw = 0;
+      std::memcpy(&raw, sample_ptr, bytes_per_sample);
+      s16 = raw;
+    } else {
+      int32_t raw = 0;
+      std::memcpy(&raw, sample_ptr, sizeof(raw) < bytes_per_sample ? sizeof(raw) : bytes_per_sample);
+      // 32-bit I2S PCM is left-aligned; take the high 16 bits.
+      s16 = static_cast<int16_t>(raw >> 16);
+    }
+    capture_buf_[capture_write_ % CAPTURE_BUF_SAMPLES] = s16;
     capture_write_++;
     capture_used_++;
   }

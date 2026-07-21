@@ -37,7 +37,7 @@ Communicator mode turns any supported board into a **Star Trek-style half-duplex
 
 While a communicator session is active, incoming voice is suppressed so the bus stays on the microphone. The chime is embedded directly in the firmware as raw PCM and played through the component's own bus-aware speaker path — no media player needed.
 
-Communicator mode is selectable from the **Mode** entity in Home Assistant (alongside Always On and Push to Talk) and persists across reboots. On boards with a physical button (Box, Box-3, Atom Echo), the same button handles all three modes automatically.
+Communicator mode is selectable from the **Mode** entity in Home Assistant (alongside Always On and Push to Talk) and persists across reboots. On boards with a physical button (Box, Box-3, Atom Echo, Voice PE), the same button handles all three modes automatically.
 
 ---
 
@@ -47,6 +47,7 @@ Communicator mode is selectable from the **Mode** entity in Home Assistant (alon
 |---|---|---|---|---|
 | ESP32-S3 Box | ESP-IDF | ES7210 mic array | ES8311 DAC | lwIP netconn UDP |
 | ESP32-S3 Box 3 | ESP-IDF | ES7210 mic array | ES8311 DAC | Same as Box; pin differences |
+| Home Assistant Voice PE | ESP-IDF | XMOS dual mic | AIC3204 DAC | Jog volume, mute slider, center PTT, LED ring |
 | Onju Voice | Arduino | SPH0645 I2S | MAX98357A I2S | Nest Mini form factor, touch, LEDs |
 | M5Stack Atom Echo | Arduino | PDM mic | External DAC | Compact |
 | Generic ESP32-S3 | Arduino | Any I2S mic | Any I2S DAC/amp | User-defined pins |
