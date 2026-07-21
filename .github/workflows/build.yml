@@ -46,8 +46,6 @@ jobs:
           Path("esphome/secrets.yaml").write_text(
               "wifi_ssid: \"ci-network\"\n"
               "wifi_password: \"ci-password\"\n"
-              "api_encryption_key: \"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=\"\n"
-              "ota_password: \"ci-ota-password\"\n"
           )
           PY
       - name: Build Firmware

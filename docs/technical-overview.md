@@ -269,17 +269,11 @@ select:
 # When HA connects, if server is empty it is set to client_address (HA IP) for addon use.
 # Production configs also log via ESP_LOGI when setting server from client_address.
 api:
-  encryption:
-    key: !secret api_encryption_key
   on_client_connected:
     - lambda: |-
         if (id(mumble_server_host).state.empty()) {
           id(mumble_server_host).make_call().set_value(client_address).perform();
         }
-
-ota:
-  - platform: esphome
-    password: !secret ota_password
 
 # Physical button: on_press -> mumble.microphone_enable, on_release -> mumble.microphone_disable
 mumble:

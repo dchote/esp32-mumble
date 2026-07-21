@@ -282,8 +282,7 @@ speaker:
 # Communicator chime: embedded in Mumble component (bus-aware playback via manage_i2s_bus)
 
 api:
-  encryption:
-    key: !secret api_encryption_key
+  # Optional: encryption: { key: !secret api_encryption_key }
   on_client_connected:
     - lambda: |-
         if (id(mumble_server_host).state.empty()) {
@@ -293,7 +292,7 @@ api:
 
 ota:
   - platform: esphome
-    password: !secret ota_password
+    # Optional: password: !secret ota_password
 
 # Mumble connection and mode settings (Configuration section; persisted to NVS)
 # Entity names use numeric prefixes for display order: server, port, username, password, channel, mode

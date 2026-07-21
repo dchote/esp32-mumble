@@ -22,12 +22,12 @@ Do not use Lite mode on networks you do not trust.
 
 ## Home Assistant API and OTA
 
-Example board configs require:
+Example board configs do **not** require API encryption or an OTA password (to avoid breaking existing deployments). Both are recommended on untrusted LANs:
 
 - `api.encryption.key: !secret api_encryption_key` — encrypts the ESPHome native API
 - `ota.password: !secret ota_password` — password-protects OTA updates
 
-Generate an API key with `openssl rand -base64 32`. Keep `esphome/secrets.yaml` out of version control (ignored by `esphome/.gitignore`).
+Generate an API key with `openssl rand -base64 32`, add the secrets, and uncomment the matching keys in your board YAML. Keep `esphome/secrets.yaml` out of version control (ignored by `esphome/.gitignore`).
 
 ## Credentials at rest
 

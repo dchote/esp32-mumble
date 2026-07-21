@@ -48,8 +48,7 @@ wifi:
 logger:
 
 api:
-  encryption:
-    key: !secret api_encryption_key
+  # Optional: encryption: { key: !secret api_encryption_key }
   on_client_connected:
     - lambda: |-
         if (id(mumble_server_host).state.empty()) {
@@ -59,7 +58,7 @@ api:
 
 ota:
   - platform: esphome
-    password: !secret ota_password
+    # Optional: password: !secret ota_password
 
 # No hardware buttons on generic; Voice Received with config entities
 binary_sensor:

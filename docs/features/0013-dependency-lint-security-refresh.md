@@ -29,9 +29,8 @@ Product constraints: trusted LAN; Legacy default; TLS verify-off when `ca_cert` 
 
 ### Config hardening
 
-- HA API encryption wired via `!secret api_encryption_key`
-- OTA password via `!secret ota_password`
-- `secrets.example.yaml` extended; migration notes in `docs/build.md`
+- HA API encryption and OTA password documented as **optional** (not enabled by default, so existing deployments keep working)
+- `secrets.example.yaml` lists optional keys as comments
 - Short YAML comments pointing at optional `ca_cert` for verified TLS
 - Removed deprecated `bits_per_channel` from Box/Box-3 I2S microphone configs (ESPHome 2026.7)
 

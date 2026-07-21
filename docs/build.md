@@ -6,7 +6,7 @@
 - Python **3.12+**
 - One of the supported ESP32-S3 boards
 
-**Before compiling**: Create `esphome/secrets.yaml` from `secrets.example.yaml` with `wifi_ssid`, `wifi_password`, `api_encryption_key`, and `ota_password`. The board configs reference these via `!secret`.
+**Before compiling**: Create `esphome/secrets.yaml` from `secrets.example.yaml` with `wifi_ssid` and `wifi_password`. The board configs reference these via `!secret`. API encryption and OTA password are optional (see comments in the board YAMLs and `secrets.example.yaml`).
 
 ### Installing ESPHome
 
@@ -17,15 +17,6 @@ pip install -r requirements.txt
 On macOS you can also use Homebrew (`brew install esphome`), then ensure the CLI is at least 2026.7.0 (`esphome version`).
 
 Or use the [ESPHome Dashboard](https://web.esphome.io/) for a browser-based workflow.
-
-**Migrating from older configs**: If you already have `secrets.yaml` without API encryption or an OTA password, add:
-
-```yaml
-api_encryption_key: "..."   # generate: openssl rand -base64 32
-ota_password: "..."         # choose a strong password
-```
-
-Then reflash once so the device picks up encrypted API and password-protected OTA.
 
 ## Build
 
@@ -72,7 +63,7 @@ On macOS the port is typically `/dev/cu.usbmodem*`.
 
 ## Configuration
 
-- **Secrets** (required before compile): Add `esphome/secrets.yaml` with Wi‑Fi, `api_encryption_key`, and `ota_password` (see `secrets.example.yaml`). The example configs enable HA API encryption and OTA password via `!secret`.
+- **Secrets** (required before compile): Add `esphome/secrets.yaml` with Wi‑Fi credentials (see `secrets.example.yaml`). Optionally enable HA API encryption and/or an OTA password by uncommenting those secrets and wiring them in your board YAML.
 - **Mumble TLS**: By default the client skips server certificate verification (trusted LAN). Set the Mumble component `ca_cert` option to a PEM CA to enable verification.
 - **Mumble**: Server, port, username, password, channel, mode (always-on / push-to-talk), and crypto (default: **Legacy**; or **Lite** for trusted LAN) are exposed as config entities. **Server** defaults to empty and is auto-detected from the Home Assistant server IP when the device is adopted by HA (e.g. for go-mumble-server addon); set it manually in YAML or in HA to override. Username defaults to `esp32-<MAC>`. Channel defaults to **Root**. Changing server, username, password, channel, or crypto forces a reconnect. **Speaker Volume** controls output and persists across reboots; microphone is controlled via physical button wiring. On Box/Box-3, **Speaker Power** toggles the hardware amplifier (GPIO46). Diagnostics include WiFi signal, Mumble connected, ping, and **Reset Config**. **Voice Received** appears under Sensors. All values persist in NVS and are restored on boot.
 
