@@ -44,9 +44,12 @@ jobs:
         run: |
           python3 - <<'PY'
           from pathlib import Path
+          # Include optional Voice PE secrets so all matrix boards compile.
           Path("esphome/secrets.yaml").write_text(
               "wifi_ssid: \"ci-network\"\n"
               "wifi_password: \"ci-password\"\n"
+              "api_encryption_key: \"MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=\"\n"
+              "ota_password: \"ci-ota-password\"\n"
           )
           PY
       - name: Build Firmware

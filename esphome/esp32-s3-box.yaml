@@ -13,6 +13,9 @@ esphome:
   name: ${name}
   name_add_mac_suffix: true
   min_version: "2026.7.0"
+  project:
+    name: dchote.esp32-mumble
+    version: "dev"  # rewritten to the git tag by release.yml
   on_boot:
     - priority: 600
       then:
@@ -286,9 +289,22 @@ api:
           id(mumble_server_host).make_call().set_value(client_address).perform();
         }
 
+# Managed OTA from GitHub Pages manifests (see docs/features/0015-ota-releases.md).
+# verify_ssl false matches the project's trusted-LAN TLS posture.
+http_request:
+  verify_ssl: false
+
 ota:
   - platform: esphome
     # Optional: password: !secret ota_password
+  - platform: http_request
+
+update:
+  - platform: http_request
+    name: "Firmware Update"
+    id: firmware_update
+    update_interval: 6h
+    source: https://dchote.github.io/esp32-mumble/esp32-s3-box/manifest.json
 
 # Mumble connection and mode settings (Configuration section; persisted to NVS)
 # Entity names use numeric prefixes for display order: server, port, username, password, channel, mode

@@ -93,6 +93,29 @@ For Box/Box-3 (ESP-IDF): first flash must be via USB, not OTA.
 
 See [docs/build.md](docs/build.md) for full build and flash instructions.
 
+## OTA Updates & Releases
+
+Pre-built firmware is published from SemVer tags (`vX.Y.Z`) via GitHub Actions:
+
+| Channel | URL |
+|---------|-----|
+| Web installer (USB / ESP Web Tools) | https://dchote.github.io/esp32-mumble/ |
+| Per-board OTA manifests | `https://dchote.github.io/esp32-mumble/<board>/manifest.json` |
+| GitHub Release assets | https://github.com/dchote/esp32-mumble/releases |
+
+Board slugs: `esp32-s3-box`, `esp32-s3-box3`, `home-assistant-voice-pe`, `m5stack-atom-echo`, `generic-esp32s3`.
+
+After a device is adopted in Home Assistant, the **Firmware Update** entity checks the board's GitHub Pages manifest (every 6 hours) and can install OTA updates. Manifests and `.ota.bin` files are hosted on Pages (not `releases/latest/download`) to avoid GitHub redirect URL length limits on the device HTTP client.
+
+**One-time maintainer setup:** enable GitHub Pages for this repo with **Source = GitHub Actions** (Settings → Pages). See [docs/features/0015-ota-releases.md](docs/features/0015-ota-releases.md).
+
+**Cut a release:**
+
+```bash
+git tag v1.0.0
+git push origin v1.0.0
+```
+
 Configure Mumble server, port, username, password, channel, mode, and crypto from the Home Assistant UI after adding the device. **Server** defaults to empty and is auto-populated with the Home Assistant server IP when the device is adopted by HA (e.g. for the go-mumble-server addon); set it manually in YAML or HA to override. **Crypto** defaults to Legacy (OCB2-AES128). Values persist in NVS and are restored on boot. Username defaults to `esp32-<MAC>`; you can overwrite it. Changing server, username, password, channel, or crypto forces a reconnect. **Mode** selects between Always On, Push to Talk, and Communicator — switching modes takes effect immediately (mic is disabled when leaving always-on). Use **Speaker Volume** to adjust playback level. On Box/Box-3, **Speaker Power** controls the hardware amplifier. Diagnostics show connection status, ping, and voice activity. The **Reset Config** button restores all settings to defaults (server to empty, re-triggering HA auto-detection). See `esphome/generic-esp32s3.yaml` for the full pattern.
 
 ## Project Structure
@@ -110,10 +133,11 @@ esp32-mumble/
 │   └── patch_mbedtls_requires.py
 ├── docs/
 │   ├── build.md
-│   ├── features/        # Including 0013-dependency-lint-security-refresh.md
+│   ├── features/        # Including 0015-ota-releases.md
 │   ├── product-overview.md
 │   └── technical-overview.md
 ├── esphome/             # Example device configs + secrets.example.yaml
+├── .github/workflows/   # build.yml (PR/main) + release.yml (tags → Pages/Releases)
 ├── requirements.txt     # Pins esphome==2026.7.1
 ├── SECURITY.md
 ├── README.md

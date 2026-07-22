@@ -220,12 +220,12 @@ private:
   static constexpr uint32_t ECHO_SUPPRESS_TAIL_MS = 100;
   // Adaptive VAD: track the ambient noise floor and require speech to rise a margin above it,
   // so constant background noise no longer reads as continuous voice (communicator can auto-close).
-  static constexpr int VAD_CALIB_FRAMES = 12;         // ~240ms ambient estimate at TX start
-  static constexpr int32_t VAD_MIN_THRESHOLD = 120;   // absolute floor so quiet rooms don't trigger
-  static constexpr float VAD_MARGIN_RATIO = 2.5f;     // speech must exceed noise_floor * this (~8dB)
-  static constexpr float VAD_NOISE_DOWN = 0.25f;      // fast decay toward a lower ambient level
-  static constexpr float VAD_NOISE_UP_FAST = 0.05f;   // adapt up while in the noise range (~400ms)
-  static constexpr float VAD_NOISE_UP_SLOW = 0.01f;   // creep up under loud input to recover a bad floor
+  static constexpr int VAD_CALIB_FRAMES = 12;       // ~240ms ambient estimate at TX start
+  static constexpr int32_t VAD_MIN_THRESHOLD = 120; // absolute floor so quiet rooms don't trigger
+  static constexpr float VAD_MARGIN_RATIO = 2.5f;   // speech must exceed noise_floor * this (~8dB)
+  static constexpr float VAD_NOISE_DOWN = 0.25f;    // fast decay toward a lower ambient level
+  static constexpr float VAD_NOISE_UP_FAST = 0.05f; // adapt up while in the noise range (~400ms)
+  static constexpr float VAD_NOISE_UP_SLOW = 0.01f; // creep up under loud input to recover a bad floor
   static constexpr size_t TX_PACKET_BUF_SIZE = 1024;
 
   // Chime playback (bus-aware; uses speaker_sink_ via manage_i2s_bus)

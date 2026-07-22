@@ -1,0 +1,265 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Release version without leading v (e.g. 1.0.0). Ignored for tag pushes."
+        required: true
+        type: string
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+jobs:
+  prepare:
+    name: Prepare
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      tag: ${{ steps.version.outputs.tag }}
+      release_url: ${{ steps.version.outputs.release_url }}
+    steps:
+      - name: Resolve version
+        id: version
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            VERSION="${{ inputs.version }}"
+            VERSION="${VERSION#v}"
+          else
+            VERSION="${GITHUB_REF_NAME#v}"
+          fi
+          TAG="v${VERSION}"
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+          echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
+          echo "release_url=https://github.com/${{ github.repository }}/releases/tag/${TAG}" >> "$GITHUB_OUTPUT"
+          echo "Resolved version=${VERSION} tag=${TAG}"
+
+  build:
+    name: Build ${{ matrix.slug }}
+    needs: [prepare]
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      max-parallel: 3
+      matrix:
+        include:
+          - file: esphome/esp32-s3-box.yaml
+            slug: esp32-s3-box
+          - file: esphome/esp32-s3-box3.yaml
+            slug: esp32-s3-box3
+          - file: esphome/generic-esp32s3.yaml
+            slug: generic-esp32s3
+          - file: esphome/m5stack-atom-echo.yaml
+            slug: m5stack-atom-echo
+          - file: esphome/home-assistant-voice-pe.yaml
+            slug: home-assistant-voice-pe
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Write CI secrets.yaml
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          Path("esphome/secrets.yaml").write_text(
+              "wifi_ssid: \"ci-network\"\n"
+              "wifi_password: \"ci-password\"\n"
+              "api_encryption_key: \"MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=\"\n"
+              "ota_password: \"ci-ota-password\"\n"
+          )
+          PY
+
+      - name: Inject project version
+        run: |
+          # Match esphome.project.version: "dev" placeholder in board YAML.
+          sed -i 's/version: "dev"/version: "${{ needs.prepare.outputs.version }}"/' "${{ matrix.file }}"
+          grep -n 'project:' -A3 "${{ matrix.file }}" | head -20
+
+      - name: Build Firmware
+        id: esphome-build
+        uses: esphome/build-action@v7.4.0
+        with:
+          yaml-file: ${{ matrix.file }}
+          version: "2026.7.1"
+          complete-manifest: true
+          release-summary: "ESP32-Mumble ${{ needs.prepare.outputs.tag }}"
+          release-url: ${{ needs.prepare.outputs.release_url }}
+
+      - name: Stage board artifacts
+        run: |
+          set -euo pipefail
+          SLUG="${{ matrix.slug }}"
+          OUT="${{ steps.esphome-build.outputs.name }}"
+          mkdir -p "staged/${SLUG}" "release-bins"
+          # Preserve build-action filenames so relative paths in manifest.json resolve.
+          cp -a "${OUT}/." "staged/${SLUG}/"
+          # Flatten release assets with board slug prefixes for the GitHub Release.
+          for f in "${OUT}"/*.factory.bin "${OUT}"/*.ota.bin; do
+            [ -f "$f" ] || continue
+            base="$(basename "$f")"
+            cp "$f" "release-bins/${SLUG}-${base}"
+          done
+          ls -la "staged/${SLUG}"
+          ls -la release-bins
+
+      - name: Upload pages staging artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: pages-${{ matrix.slug }}
+          path: staged/${{ matrix.slug }}
+          retention-days: 7
+
+      - name: Upload release bins artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-bins-${{ matrix.slug }}
+          path: release-bins/
+          retention-days: 7
+
+  publish:
+    name: Publish Pages and Release
+    needs: [prepare, build]
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Download pages artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: pages-artifacts
+          pattern: pages-*
+
+      - name: Download release bin artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: bin-artifacts
+          pattern: release-bins-*
+          merge-multiple: true
+
+      - name: Assemble GitHub Pages site
+        env:
+          RELEASE_VERSION: ${{ needs.prepare.outputs.version }}
+          RELEASE_URL: ${{ needs.prepare.outputs.release_url }}
+        run: |
+          set -euo pipefail
+          mkdir -p site
+          # Each pages-* artifact is a directory named pages-<slug> containing the board files.
+          for dir in pages-artifacts/pages-*; do
+            [ -d "$dir" ] || continue
+            slug="${dir#pages-artifacts/pages-}"
+            mkdir -p "site/${slug}"
+            cp -a "${dir}/." "site/${slug}/"
+          done
+
+          python3 - <<'PY'
+          import os
+          from pathlib import Path
+
+          version = os.environ["RELEASE_VERSION"]
+          release_url = os.environ["RELEASE_URL"]
+          boards = [
+              ("ESP32-S3-BOX", "esp32-s3-box",
+               "Original Box (ESP-IDF). First flash after a framework switch must be via USB."),
+              ("ESP32-S3-BOX-3", "esp32-s3-box3",
+               "Box-3 (ESP-IDF). First flash after a framework switch must be via USB."),
+              ("Home Assistant Voice PE", "home-assistant-voice-pe",
+               "Voice Preview Edition (ESP-IDF) with LED ring, mute slider, and jog dial."),
+              ("M5Stack Atom Echo", "m5stack-atom-echo",
+               "Compact Atom Echo (Arduino framework)."),
+              ("Generic ESP32-S3", "generic-esp32s3",
+               "Placeholder pinout for custom boards (Arduino framework). Review pins before flashing."),
+          ]
+          cards = []
+          for title, slug, desc in boards:
+              cards.append(
+                  f"""    <div class="card">
+      <h2>{title}</h2>
+      <p>{desc}</p>
+      <esp-web-install-button manifest="{slug}/manifest.json"></esp-web-install-button>
+    </div>"""
+              )
+          html = f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>ESP32-Mumble Firmware Installer</title>
+  <style>
+    :root {{ color-scheme: light dark; }}
+    body {{
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+      max-width: 720px;
+      margin: 2rem auto;
+      padding: 0 1rem;
+      line-height: 1.5;
+    }}
+    h1 {{ margin-bottom: 0.25rem; }}
+    .muted {{ opacity: 0.75; margin-top: 0; }}
+    .card {{
+      border: 1px solid color-mix(in srgb, currentColor 25%, transparent);
+      border-radius: 12px;
+      padding: 1rem 1.25rem;
+      margin: 1rem 0;
+    }}
+    .card h2 {{ margin: 0 0 0.5rem; font-size: 1.1rem; }}
+    .card p {{ margin: 0.35rem 0 0.75rem; opacity: 0.85; font-size: 0.95rem; }}
+    code {{ font-size: 0.9em; }}
+  </style>
+</head>
+<body>
+  <h1>ESP32-Mumble</h1>
+  <p class="muted">Install or update firmware over USB with ESP Web Tools. Device OTA updates use the same manifests from Home Assistant.</p>
+  <p class="muted">Release: <strong>{version}</strong> · <a href="{release_url}">GitHub Release</a></p>
+{chr(10).join(cards)}
+
+  <p class="muted">Manifests and OTA binaries are published under <code>https://dchote.github.io/esp32-mumble/&lt;board&gt;/</code>.</p>
+  <script type="module" src="https://unpkg.com/esp-web-tools@10/dist/web/install-button.js?module"></script>
+</body>
+</html>
+"""
+          Path("site/index.html").write_text(html)
+          print("Wrote site/index.html")
+          PY
+
+          echo "Site tree:"
+          find site -type f | sort
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ needs.prepare.outputs.tag }}
+          name: ESP32-Mumble ${{ needs.prepare.outputs.tag }}
+          generate_release_notes: true
+          files: bin-artifacts/*
+          fail_on_unmatched_files: true
+          body: |
+            Firmware images for ESP32-Mumble `${{ needs.prepare.outputs.tag }}`.
+
+            ### Install / update
+            - **Web installer (USB):** https://dchote.github.io/esp32-mumble/
+            - **OTA (Home Assistant):** devices check `https://dchote.github.io/esp32-mumble/<board>/manifest.json` via the Firmware Update entity.
+
+            ### Assets
+            - `*-factory.bin` — full flash image (USB / ESP Web Tools)
+            - `*-ota.bin` — OTA payload (also hosted on GitHub Pages next to each board manifest)
+
+            First flash after switching to ESP-IDF (Box / Box-3 / Voice PE) must be via USB, not OTA.
