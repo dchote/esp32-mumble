@@ -18,6 +18,14 @@ esphome:
     - priority: 600
       then:
         - switch.turn_on: speaker_power
+        # Status ring on by default (also restore_mode ALWAYS_ON below).
+        - light.turn_on:
+            id: led_ring
+            red: 100%
+            green: 60%
+            blue: 0%
+            brightness: 40%
+            effect: Connecting
     - priority: -100
       then:
         - speaker.volume_set:
@@ -83,8 +91,8 @@ light:
     default_transition_length: 0ms
     power_supply: led_power
     entity_category: config
-    # Default on for status indication; HA off is respected (interval gated below).
-    restore_mode: RESTORE_DEFAULT_ON
+    # Always enable status LEDs at boot; HA can still turn the ring off until reboot.
+    restore_mode: ALWAYS_ON
     effects:
       - pulse:
           name: Connecting

@@ -215,9 +215,17 @@ private:
   uint8_t voice_target_id_{0};
   static constexpr size_t CAPTURE_BUF_FRAMES = 8;
   static constexpr size_t CAPTURE_BUF_SAMPLES = CAPTURE_BUF_FRAMES * OpusAudioEncoder::FRAME_SAMPLES;
-  static constexpr int VAD_ATTACK_FRAMES = 3;
-  static constexpr int VAD_HANGOVER_FRAMES = 15;
+  static constexpr int VAD_ATTACK_FRAMES = 3;    // ~60ms of voice frames to start TX
+  static constexpr int VAD_HANGOVER_FRAMES = 15; // ~300ms of silence frames to stop TX
   static constexpr uint32_t ECHO_SUPPRESS_TAIL_MS = 100;
+  // Adaptive VAD: track the ambient noise floor and require speech to rise a margin above it,
+  // so constant background noise no longer reads as continuous voice (communicator can auto-close).
+  static constexpr int VAD_CALIB_FRAMES = 12;         // ~240ms ambient estimate at TX start
+  static constexpr int32_t VAD_MIN_THRESHOLD = 120;   // absolute floor so quiet rooms don't trigger
+  static constexpr float VAD_MARGIN_RATIO = 2.5f;     // speech must exceed noise_floor * this (~8dB)
+  static constexpr float VAD_NOISE_DOWN = 0.25f;      // fast decay toward a lower ambient level
+  static constexpr float VAD_NOISE_UP_FAST = 0.05f;   // adapt up while in the noise range (~400ms)
+  static constexpr float VAD_NOISE_UP_SLOW = 0.01f;   // creep up under loud input to recover a bad floor
   static constexpr size_t TX_PACKET_BUF_SIZE = 1024;
 
   // Chime playback (bus-aware; uses speaker_sink_ via manage_i2s_bus)
@@ -243,6 +251,8 @@ private:
   size_t capture_used_{0};
   int vad_voice_frames_{0};
   int vad_silence_frames_{0};
+  float vad_noise_floor_{0.0f}; // adaptive ambient RMS estimate
+  int vad_calib_frames_{0};     // frames seen since TX capture started (calibration window)
   uint64_t tx_sequence_{0};
   bool voice_sending_{false};
   uint32_t last_voice_active_ms_{0};

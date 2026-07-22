@@ -943,19 +943,16 @@ void MumbleComponent::send_voice_packet(const uint8_t *opus_data, size_t opus_le
 void MumbleComponent::audio_capture() {
   if (microphone_ == nullptr || !opus_encoder_.is_initialized())
     return;
-  if (bus_owner_ != BusOwner::MIC || bus_releasing_)
-    return;
-  if (!microphone_->is_running())
-    return;
 
   uint32_t now = mumble_millis();
   bool want_tx = should_transmit();
+  // The mic I2S bus may be owned by the speaker (RX/chime playback) or mid-release.
+  // We must still finalize any in-progress TX below even when the bus is unavailable,
+  // otherwise voice_sending_ gets stuck on and the stream terminator is never sent to
+  // the server (e.g. PTT released while RX arrives, or communicator -> close chime).
+  bool mic_available = (bus_owner_ == BusOwner::MIC && !bus_releasing_ && microphone_->is_running());
 
-  bool echo_suppress = false;
-  if (get_mode() == 0 && (now - last_voice_active_ms_) < ECHO_SUPPRESS_TAIL_MS)
-    echo_suppress = true;
-
-  if (!want_tx) {
+  if (!want_tx || !mic_available) {
     if (tx_state_ != TxState::IDLE) {
       if (tx_state_ == TxState::TRANSMITTING || tx_state_ == TxState::TAIL) {
         send_voice_packet(nullptr, 0, true);
@@ -964,6 +961,8 @@ void MumbleComponent::audio_capture() {
       }
       tx_state_ = TxState::IDLE;
     }
+    if (voice_sending_)
+      voice_sending_ = false; // safety: never leave the sending flag stuck on
     capture_read_ = capture_write_;
     capture_used_ = 0;
     vad_voice_frames_ = 0;
@@ -971,12 +970,18 @@ void MumbleComponent::audio_capture() {
     return;
   }
 
+  bool echo_suppress = false;
+  if (get_mode() == 0 && (now - last_voice_active_ms_) < ECHO_SUPPRESS_TAIL_MS)
+    echo_suppress = true;
+
   if (tx_state_ == TxState::IDLE) {
     tx_state_ = TxState::CAPTURING;
     tx_sequence_ = 0;
+    // Restart ambient calibration each time we begin capturing.
+    vad_noise_floor_ = 0.0f;
+    vad_calib_frames_ = 0;
   }
 
-  static constexpr int32_t VAD_THRESHOLD = 100;
   int16_t frame_buf[OpusAudioEncoder::FRAME_SAMPLES];
 
   while (capture_used_ >= OpusAudioEncoder::FRAME_SAMPLES) {
@@ -987,7 +992,33 @@ void MumbleComponent::audio_capture() {
     capture_used_ -= OpusAudioEncoder::FRAME_SAMPLES;
 
     int32_t rms = frame_rms(frame_buf, OpusAudioEncoder::FRAME_SAMPLES);
-    bool above = (rms >= VAD_THRESHOLD);
+
+    // Calibration window: estimate the ambient noise floor before allowing voice detection.
+    if (vad_calib_frames_ < VAD_CALIB_FRAMES) {
+      if (vad_noise_floor_ <= 0.0f)
+        vad_noise_floor_ = static_cast<float>(rms);
+      else
+        vad_noise_floor_ += (static_cast<float>(rms) - vad_noise_floor_) * 0.3f;
+      vad_calib_frames_++;
+      vad_voice_frames_ = 0;
+      continue; // don't transmit during calibration
+    }
+
+    // Speech must exceed the noise floor by a margin (with an absolute minimum).
+    int32_t threshold = static_cast<int32_t>(vad_noise_floor_ * VAD_MARGIN_RATIO);
+    if (threshold < VAD_MIN_THRESHOLD)
+      threshold = VAD_MIN_THRESHOLD;
+    bool above = (rms > threshold);
+
+    // Adapt the noise floor: fast down toward quieter ambient; slow up when the level is in the
+    // noise range; a very slow creep under loud input so an erroneously low floor can recover.
+    float frms = static_cast<float>(rms);
+    if (frms < vad_noise_floor_)
+      vad_noise_floor_ += (frms - vad_noise_floor_) * VAD_NOISE_DOWN;
+    else if (!above)
+      vad_noise_floor_ += (frms - vad_noise_floor_) * VAD_NOISE_UP_FAST;
+    else
+      vad_noise_floor_ += (frms - vad_noise_floor_) * VAD_NOISE_UP_SLOW;
 
     if (tx_state_ == TxState::CAPTURING) {
       if (above) {
