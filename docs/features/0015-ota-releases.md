@@ -70,4 +70,4 @@ After the workflow finishes:
 - First flash after switching framework to ESP-IDF (Box / Box-3 / Voice PE) must be via USB, not OTA.
 - Native `ota: platform: esphome` remains for local ESPHome dashboard / passworded OTA.
 - Prefer Pages URLs for device update `source:`; do not point devices at `github.com/.../releases/latest/download/...` (redirect buffer issue).
-- CI `build.yml` secrets include dummy `api_encryption_key` / `ota_password` so Voice PE (which still references those secrets) compiles in matrix builds.
+- API encryption and OTA password are optional on every board (commented out by default). Uncomment and set the secrets if you want them enabled.

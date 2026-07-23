@@ -304,8 +304,7 @@ speaker:
 # Communicator chime: embedded in Mumble component (bus-aware playback via manage_i2s_bus)
 
 api:
-  encryption:
-    key: !secret api_encryption_key
+  # Optional: encryption: { key: !secret api_encryption_key }
   on_client_connected:
     - lambda: |-
         if (id(mumble_server_host).state.empty()) {
@@ -320,7 +319,7 @@ http_request:
 
 ota:
   - platform: esphome
-    password: !secret ota_password
+    # Optional: password: !secret ota_password
   - platform: http_request
 
 update:
