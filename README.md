@@ -51,8 +51,9 @@ Communicator mode is selectable from the **Mode** entity in Home Assistant (alon
 | Onju Voice | Arduino | SPH0645 I2S | MAX98357A I2S | Nest Mini form factor, touch, LEDs |
 | M5Stack Atom Echo | Arduino | PDM mic | External DAC | ESP32, no PSRAM; compact |
 | Generic ESP32-S3 | Arduino | Any I2S mic | Any I2S DAC/amp | User-defined pins |
+| Waveshare ESP32-P4-WIFI6-POE-ETH | ESP-IDF | Analog mic via ES8311 | ES8311 DAC | ESP32-P4 (rev3), Ethernet/PoE, native esp-idf toolchain |
 
-Every board needs Wi-Fi. The ESP32-S3 targets use PSRAM. The M5Stack Atom Echo is an ESP32 without PSRAM.
+The ESP32-S3 targets use PSRAM and Wi-Fi. The M5Stack Atom Echo is an ESP32 without PSRAM. The ESP32-P4 board connects over Ethernet and builds with ESPHome's native esp-idf toolchain (see `esphome/waveshare-esp32-p4-poe.yaml`).
 
 ## Architecture
 

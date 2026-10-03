@@ -102,6 +102,7 @@ public:
   void set_bot_mode(bool bot) { bot_mode_ = bot; }
   /** Voice target id for TX (0 = channel, 1-30 = custom target, 31 = loopback). */
   void set_voice_target_id(uint8_t id) { voice_target_id_ = id; }
+  void set_mic_warmup_ms(uint32_t ms) { mic_warmup_ms_ = ms; }
   uint8_t get_voice_target_id() const { return voice_target_id_; }
   /** Register a voice target with the server (delegates to client). */
   bool send_voice_target(uint8_t id, const std::vector<MsgVoiceTargetTarget> &targets);
@@ -240,6 +241,7 @@ private:
   BusOwner bus_owner_{BusOwner::NONE};
   bool bus_releasing_{false};
   uint32_t mic_warmup_until_ms_{0}; // Delay before first mic start (fixes toggle-to-start)
+  uint32_t mic_warmup_ms_{200};     // mic settle time after (re)acquiring the I2S bus (mic_warmup option)
 
   uint8_t opus_payload_buf_[OpusAudioEncoder::MAX_PAYLOAD_BYTES];
   microphone::Microphone *microphone_{nullptr};

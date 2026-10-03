@@ -4,7 +4,7 @@
 #include "mumble_diag.h"
 #include "mumble_socket.h"
 #include "esphome/core/log.h"
-#ifdef USE_ESP_IDF
+#if defined(USE_ESP_IDF) && defined(USE_WIFI)
 #include "esp_wifi.h"
 #endif
 #include <cmath>
@@ -85,7 +85,12 @@ uint16_t MumbleComponent::get_port() const {
 
 std::string MumbleComponent::get_mac_based_username() const {
   uint8_t mac[6];
-  if (esp_read_mac(mac, ESP_MAC_WIFI_STA) != ESP_OK) {
+#ifdef USE_WIFI
+  const esp_mac_type_t mac_type = ESP_MAC_WIFI_STA;
+#else
+  const esp_mac_type_t mac_type = ESP_MAC_ETH; // e.g. ESP32-P4: Ethernet only
+#endif
+  if (esp_read_mac(mac, mac_type) != ESP_OK) {
     return "";
   }
   char buf[32];
@@ -379,7 +384,7 @@ void MumbleComponent::log_connection_config() const {
 
 void MumbleComponent::setup() {
   mumble_diag_run_boot();
-#ifdef USE_ESP_IDF
+#if defined(USE_ESP_IDF) && defined(USE_WIFI)
   // Disable WiFi power save to improve UDP transmission. Modem sleep can cause
   // UDP packets to be lost or delayed (ESP-IDF issue tracker). For plugged-in
   // devices this has negligible impact.
@@ -774,7 +779,7 @@ void MumbleComponent::manage_i2s_bus() {
     if (desired == BusOwner::MIC) {
       uint32_t now = mumble_millis();
       if (mic_warmup_until_ms_ == 0) {
-        mic_warmup_until_ms_ = now + 200; // 200ms warmup for I2S/ES7210 (longer after bus re-acquire)
+        mic_warmup_until_ms_ = now + mic_warmup_ms_; // settle time for I2S/codec (configurable: mic_warmup)
       }
       if (now < mic_warmup_until_ms_) {
         return; // Wait for warmup

@@ -21,7 +21,6 @@
       "-DGLOBAL_STACK_SIZE=120000",
       "-DFIXED_POINT=1",
       "-DDISABLE_FLOAT_API",
-      "-DOPUS_XTENSA_LX7",
       "-Wno-maybe-uninitialized",
       "-Wno-cpp"
     ],

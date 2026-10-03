@@ -22,6 +22,7 @@ CONF_SERVER = "server"
 CONF_USERNAME = "username"
 CONF_MODE = "mode"
 CONF_PTT_PIN = "ptt_pin"
+CONF_MIC_WARMUP = "mic_warmup"
 CONF_MUTE_PIN = "mute_pin"
 CONF_CRYPTO = "crypto"
 CONF_CA_CERT = "ca_cert"
@@ -108,6 +109,8 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_SPEAKER): cv.use_id(speaker.Speaker),
             cv.Optional(CONF_MODE, default=CONF_ALWAYS_ON): cv.enum(MUMBLE_MODE, lower=True),
             cv.Optional(CONF_PTT_PIN): pins.gpio_input_pin_schema,
+            # Mic settle time after acquiring the I2S bus (the S3 boxes' ES7210 needs ~200 ms).
+            cv.Optional(CONF_MIC_WARMUP, default="200ms"): cv.positive_time_period_milliseconds,
             cv.Optional(CONF_MUTE_PIN): pins.gpio_input_pin_schema,
             cv.Optional(CONF_CRYPTO, default=CONF_LEGACY): cv.enum(MUMBLE_CRYPTO, lower=True),
             cv.Optional(CONF_CA_CERT, default=""): cv.string,
@@ -140,7 +143,20 @@ async def to_code(config):
         import os
 
         lib_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "lib", "micro-opus"))
-        cg.add_library("micro-opus", None, "symlink://" + lib_path)
+        if CORE.using_toolchain_esp_idf:
+            # Native esp-idf toolchain: lib/micro-opus/CMakeLists.txt registers it as an
+            # IDF component (and sets OPUS_XTENSA_LX7 on the S3 itself).
+            from esphome.components.esp32 import add_idf_component
+
+            add_idf_component(name="micro-opus", path=lib_path)
+        else:
+            cg.add_library("micro-opus", None, "symlink://" + lib_path)
+            # Xtensa LX7 DSP paths only exist on the ESP32-S3; RISC-V (ESP32-P4)
+            # uses Opus's generic C code.
+            from esphome.components.esp32 import VARIANT_ESP32S3, get_esp32_variant
+
+            if get_esp32_variant() == VARIANT_ESP32S3:
+                cg.add_build_flag("-DOPUS_XTENSA_LX7")
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
 
@@ -193,6 +209,7 @@ async def to_code(config):
         speaker_var = await cg.get_variable(config[CONF_SPEAKER])
         cg.add(var.set_speaker(speaker_var))
 
+    cg.add(var.set_mic_warmup_ms(config[CONF_MIC_WARMUP].total_milliseconds))
     if CONF_PTT_PIN in config:
         pin = await cg.gpio_pin_expression(config[CONF_PTT_PIN])
         cg.add(var.set_ptt_pin(pin))

@@ -1,0 +1,407 @@
+---
+# Waveshare ESP32-P4-WIFI6-POE-ETH board config for Mumble client.
+# ESP32-P4 (RISC-V, rev3 silicon) on Ethernet (IP101 PHY), ES8311 codec with onboard mic,
+# speaker on the MX1.25 header (8 ohm, 2W). Powered by PoE or USB-C.
+# Pins: https://www.waveshare.com/wiki/ESP32-P4-WIFI6-POE-ETH
+# Configure server, port, username, password, channel, and mode in Home Assistant UI (values persist in NVS)
+# First flash must be via USB, not OTA.
+
+substitutions:
+  name: esp32-mumble-p4
+  # PTT button between this header pin and GND. GPIO35 (BOOT) is Ethernet TXD1 on this board.
+  ptt_pin: GPIO20
+  # Mumble server; empty = auto-filled with the Home Assistant IP on adoption.
+  # Override at build time: esphome -s mumble_server 192.168.1.10 run ...
+  mumble_server: ""
+
+esphome:
+  name: ${name}
+  name_add_mac_suffix: true
+  min_version: "2026.7.0"
+  project:
+    name: dchote.esp32-mumble
+    version: "dev"
+  on_boot:
+    - priority: -100
+      then:
+        - lambda: |-
+            id(es8311_dac).write_byte(0x14, 0x10 | (uint8_t)(id(mic_pga).state / 3));
+            id(es8311_dac).write_byte(0x16, (uint8_t)(id(mic_digital).state / 6));
+        - speaker.volume_set:
+            id: p4_speaker
+            volume: !lambda |-
+              float vol = id(mumble_speaker_volume).state;
+              if (isnan(vol)) vol = 65;
+              return vol / 100.0f;
+
+esp32:
+  # Rev3 silicon. Pre-rev3 (v1.x) boards need `engineering_sample: true` instead of this board.
+  board: esp32-p4_r3
+  flash_size: 16MB
+  # 400MHz is experimental in ESPHome (esphome/esphome#13425).
+  cpu_frequency: 360MHz
+  # ESPHome's native ESP-IDF toolchain. PlatformIO's (pioarduino 55.03.39) can't link
+  # rev3 P4 builds: it wants sections.rev3.ld.in, which its ESP-IDF 5.5.5 doesn't ship.
+  framework:
+    type: esp-idf
+    advanced:
+      # Same warnings the Box configs silence via platformio_options.
+      compiler_optimization: SIZE
+    sdkconfig_options:
+      CONFIG_MBEDTLS_AES_C: "y"
+      CONFIG_MBEDTLS_GCM_C: "y"
+      CONFIG_ESP_TLS_INSECURE: "y"
+      CONFIG_ESP_TLS_SKIP_SERVER_CERT_VERIFY: "y"
+
+psram:
+
+ethernet:
+  type: IP101
+  mdc_pin: GPIO31
+  mdio_pin: GPIO52
+  power_pin: GPIO51
+  clk:
+    mode: CLK_EXT_IN
+    pin: GPIO50
+  phy_addr: 1
+
+logger:
+  # USB-C is a CH343 UART bridge; ESPHome's P4 default (USB-Serial-JTAG) would be silent there.
+  hardware_uart: UART0
+
+i2c:
+  sda: GPIO7
+  scl: GPIO8
+
+i2s_audio:
+  - id: i2s_audio_bus
+    i2s_lrclk_pin: GPIO10
+    i2s_bclk_pin: GPIO12
+    i2s_mclk_pin: GPIO13
+
+audio_dac:
+  - platform: es8311
+    id: es8311_dac
+    bits_per_sample: 16bit
+    sample_rate: 16000
+    # Leave use_microphone off: in ESPHome's es8311 driver it selects a PDM *digital* mic.
+    # This board has an analog mic, which the driver enables (max PGA) without it.
+    mic_gain: 0DB  # overridden at boot by the "Mic Digital Gain" setting
+
+microphone:
+  - platform: i2s_audio
+    id: p4_mic
+    sample_rate: 16000
+    i2s_din_pin: GPIO11
+    i2s_audio_id: i2s_audio_bus
+    bits_per_sample: 16bit
+    channel: left
+    adc_type: external
+    correct_dc_offset: true
+
+speaker:
+  - platform: i2s_audio
+    id: p4_speaker
+    i2s_dout_pin: GPIO9
+    i2s_audio_id: i2s_audio_bus
+    dac_type: external
+    sample_rate: 16000
+    bits_per_sample: 16bit
+    channel: left
+    audio_dac: es8311_dac
+    buffer_duration: 500ms
+
+api:
+  # Optional: encryption: { key: !secret api_encryption_key }
+  on_client_connected:
+    - lambda: |-
+        if (id(mumble_server_host).state.empty()) {
+          ESP_LOGI("mumble", "Server not configured; using Home Assistant IP: %s", client_address.c_str());
+          id(mumble_server_host).make_call().set_value(client_address).perform();
+        }
+
+ota:
+  - platform: esphome
+
+binary_sensor:
+  - platform: gpio
+    name: "PTT"
+    id: button_ptt
+    pin:
+      number: ${ptt_pin}
+      mode: INPUT_PULLUP
+      inverted: true
+    filters:
+      - delayed_on_off: 20ms
+    on_press:
+      - if:
+          condition:
+            - binary_sensor.is_on: mumble_connected_sensor
+          then:
+            - if:
+                condition:
+                  - lambda: 'return id(mumble_client).get_mode() == 2;'
+                then:
+                  - mumble.communicator_toggle: mumble_client
+                else:
+                  - mumble.microphone_enable: mumble_client
+    on_release:
+      - if:
+          condition:
+            - lambda: 'return id(mumble_client).get_mode() != 2;'
+          then:
+            - mumble.microphone_disable: mumble_client
+  - platform: template
+    name: "Voice Received"
+    id: mumble_voice_active
+    icon: "mdi:microphone-message"
+    device_class: running
+    lambda: |-
+      return id(mumble_client).get_voice_active();
+  - platform: template
+    name: "Voice Sending"
+    id: mumble_voice_sending
+    icon: "mdi:microphone"
+    device_class: running
+    lambda: |-
+      return id(mumble_client).get_voice_sending();
+# Diagnostics
+  - platform: template
+    name: "Mumble Connected"
+    id: mumble_connected_sensor
+    icon: "mdi:connection"
+    entity_category: diagnostic
+    device_class: connectivity
+    lambda: |-
+      return id(mumble_client).is_connected();
+
+# Mumble connection and mode settings (Configuration section; persisted to NVS)
+# Entity names use numeric prefixes for display order: server, port, username, password, channel, mode
+# Port is text (not number) so it displays as integer in HA, per home-assistant-voice-pe pattern
+text:
+  - platform: template
+    id: mumble_server_host
+    name: "1. Server"
+    icon: "mdi:server-network"
+    entity_category: config
+    mode: text
+    optimistic: true
+    restore_value: true
+    initial_value: ""
+    max_length: 253
+  - platform: template
+    id: mumble_server_port
+    name: "2. Port"
+    icon: "mdi:ethernet"
+    entity_category: config
+    mode: text
+    optimistic: true
+    restore_value: true
+    initial_value: "64738"
+    max_length: 5
+  - platform: template
+    id: mumble_username
+    name: "3. Username"
+    icon: "mdi:account"
+    entity_category: config
+    mode: text
+    optimistic: true
+    restore_value: true
+    initial_value: ""  # Seeded with esp32-<MAC> at setup; user can overwrite
+    max_length: 128
+  - platform: template
+    id: mumble_password
+    name: "4. Password"
+    icon: "mdi:key"
+    entity_category: config
+    mode: password
+    optimistic: true
+    restore_value: true
+    initial_value: ""  # Component publishes empty default at setup (avoids HA "unknown")
+    max_length: 128
+  - platform: template
+    id: mumble_channel
+    name: "5. Channel"
+    icon: "mdi:forum"
+    entity_category: config
+    mode: text
+    optimistic: true
+    restore_value: true
+    initial_value: "Root"  # Default channel; case-insensitive match
+    max_length: 128
+select:
+  - platform: template
+    id: mumble_mode
+    name: "6. Mode"
+    icon: "mdi:microphone-settings"
+    entity_category: config
+    optimistic: true
+    restore_value: true
+    initial_option: "always_on"
+    options:
+      - "always_on"
+      - "push_to_talk"
+      - "communicator"
+  - platform: template
+    id: mumble_crypto
+    name: "7. Crypto"
+    icon: "mdi:lock"
+    entity_category: config
+    optimistic: true
+    restore_value: true
+    initial_option: "legacy"
+    options:
+      - "legacy"
+      - "lite"
+
+# Diagnostics section (HA device page)
+button:
+  - platform: template
+    name: "Reset Config"
+    id: mumble_reset_config
+    icon: "mdi:restore"
+    entity_category: diagnostic
+    on_press:
+      - mumble.reset_config: mumble_client
+      - number.set:
+          id: mumble_speaker_volume
+          value: 65
+  - platform: restart
+    name: "Reboot"
+    id: mumble_reboot
+    icon: "mdi:restart"
+    entity_category: diagnostic
+text_sensor:
+  - platform: template
+    name: "Transport"
+    id: mumble_transport
+    icon: "mdi:protocol"
+    entity_category: diagnostic
+    lambda: |-
+      if (id(mumble_client).get_voice_transport_udp()) {
+        return {"UDP"};
+      } else {
+        return {"TCP"};
+      }
+    update_interval: 5s
+sensor:
+  - platform: template
+    name: "Mumble Ping"
+    id: mumble_ping_sensor
+    icon: "mdi:lan"
+    entity_category: diagnostic
+    unit_of_measurement: "ms"
+    device_class: duration
+    accuracy_decimals: 0
+    lambda: |-
+      return id(mumble_client).get_ping_ms();
+    update_interval: 5s
+
+# Controls: speaker volume and microphone
+number:
+  # ES8311 mic gain, written straight to the codec (ESPHome's es8311 can't change it at runtime).
+  # REG14: analog mic input + PGA gain (0-30dB in 3dB steps); REG16: ADC digital scale (0-42dB, 6dB steps).
+  - platform: template
+    name: "Mic Preamp"
+    id: mic_pga
+    icon: "mdi:microphone-plus"
+    entity_category: config
+    unit_of_measurement: "dB"
+    optimistic: true
+    restore_value: true
+    min_value: 0
+    max_value: 30
+    step: 3
+    initial_value: 30
+    set_action:
+      - lambda: 'id(es8311_dac).write_byte(0x14, 0x10 | (uint8_t)(x / 3));'
+  - platform: template
+    name: "Mic Digital Gain"
+    id: mic_digital
+    icon: "mdi:tune-vertical"
+    entity_category: config
+    unit_of_measurement: "dB"
+    optimistic: true
+    restore_value: true
+    min_value: 0
+    max_value: 42
+    step: 6
+    initial_value: 24  # measured best with tools/voicetest (2026-10-03)
+    set_action:
+      - lambda: 'id(es8311_dac).write_byte(0x16, (uint8_t)(x / 6));'
+  - platform: template
+    name: "Speaker Volume"
+    id: mumble_speaker_volume
+    icon: "mdi:volume-high"
+    entity_category: config
+    optimistic: true
+    restore_value: true
+    min_value: 0
+    max_value: 100
+    step: 5
+    initial_value: 65
+    set_action:
+      - speaker.volume_set:
+          id: p4_speaker
+          volume: !lambda 'return x / 100.0;'
+
+# Speaker amplifier enable (PA_Ctrl)
+switch:
+  - platform: gpio
+    name: "Speaker Power"
+    icon: "mdi:speaker"
+    pin:
+      number: GPIO53
+    restore_mode: RESTORE_DEFAULT_ON
+    entity_category: config
+  # Push-to-talk from Home Assistant (in push_to_talk mode this is the "button").
+  - platform: template
+    name: "Talk"
+    id: talk
+    icon: "mdi:account-voice"
+    optimistic: true
+    restore_mode: ALWAYS_OFF
+    on_turn_on:
+      - mumble.microphone_enable: mumble_client
+    on_turn_off:
+      - mumble.microphone_disable: mumble_client
+  - platform: template
+    name: "Mute"
+    id: mute
+    icon: "mdi:microphone-off"
+    optimistic: true
+    restore_mode: RESTORE_DEFAULT_OFF
+    entity_category: config
+    on_turn_on:
+      - microphone.mute:
+      - mumble.microphone_disable: mumble_client
+    on_turn_off:
+      - microphone.unmute:
+      - mumble.microphone_enable: mumble_client
+
+external_components:
+  - source:
+      type: local
+      path: ../components
+
+mumble:
+  id: mumble_client
+  server: "${mumble_server}"  # Empty by default; auto-filled from HA IP when adopted
+  port: 64738
+  username: ""
+  password: ""
+  channel: "Root"
+  server_text_id: mumble_server_host
+  port_text_id: mumble_server_port
+  username_text_id: mumble_username
+  password_text_id: mumble_password
+  channel_text_id: mumble_channel
+  mode_select_id: mumble_mode
+  crypto_select_id: mumble_crypto
+  microphone_id: p4_mic
+  speaker_id: p4_speaker
+  mode: always_on
+  crypto: legacy
+  mic_warmup: 50ms  # the ES8311 settles faster than the S3 boxes' ES7210 (200 ms default)
+  # Optional: set ca_cert to a PEM CA string to verify the Mumble server TLS cert (default: insecure, trusted LAN).
+  # mute_pin: GPIO38  # Hardware mute switch if available
