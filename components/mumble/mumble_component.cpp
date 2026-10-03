@@ -924,8 +924,13 @@ int32_t MumbleComponent::frame_rms(const int16_t *pcm, size_t samples) {
 void MumbleComponent::send_voice_packet(const uint8_t *opus_data, size_t opus_len, bool is_terminator) {
   if (opus_len > MumbleUdp::MAX_PACKET_SIZE - 32)
     return; // leave room for header/varints
-  size_t n = build_voice_packet(tx_packet_buf_, sizeof(tx_packet_buf_), tx_sequence_++, opus_data, opus_len,
-                                is_terminator, voice_target_id_);
+  // Mumble's voice sequence counts 10 ms frames, so a 20 ms packet advances it by 2. Clients
+  // (Mumla, desktop Mumble) time their jitter buffer by it; stepping by 1 made them drop audio.
+  static constexpr uint64_t SEQ_PER_PACKET = OpusAudioEncoder::FRAME_SAMPLES / (16000 / 100);
+  uint64_t seq = tx_sequence_;
+  tx_sequence_ += SEQ_PER_PACKET;
+  size_t n = build_voice_packet(tx_packet_buf_, sizeof(tx_packet_buf_), seq, opus_data, opus_len, is_terminator,
+                                voice_target_id_);
   if (n == 0) {
     ESP_LOGW(TAG, "build_voice_packet returned 0 (opus_len=%u, term=%d)", (unsigned)opus_len, is_terminator);
     return;
@@ -981,7 +986,8 @@ void MumbleComponent::audio_capture() {
 
   if (tx_state_ == TxState::IDLE) {
     tx_state_ = TxState::CAPTURING;
-    tx_sequence_ = 0;
+    // Keep tx_sequence_ running across utterances (like desktop Mumble): restarting at 0
+    // looks like stale packets to the receiver's jitter buffer.
     // Restart ambient calibration each time we begin capturing.
     vad_noise_floor_ = 0.0f;
     vad_calib_frames_ = 0;
