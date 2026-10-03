@@ -986,6 +986,7 @@ void MumbleComponent::audio_capture() {
 
   if (tx_state_ == TxState::IDLE) {
     tx_state_ = TxState::CAPTURING;
+    preroll_count_ = 0;
     // Keep tx_sequence_ running across utterances (like desktop Mumble): restarting at 0
     // looks like stale packets to the receiver's jitter buffer.
     // Restart ambient calibration each time we begin capturing.
@@ -1005,7 +1006,8 @@ void MumbleComponent::audio_capture() {
     int32_t rms = frame_rms(frame_buf, OpusAudioEncoder::FRAME_SAMPLES);
 
     // Calibration window: estimate the ambient noise floor before allowing voice detection.
-    if (vad_calib_frames_ < VAD_CALIB_FRAMES) {
+    // Push-to-talk doesn't use VAD, so don't swallow the first word while calibrating.
+    if (get_mode() != 1 && vad_calib_frames_ < VAD_CALIB_FRAMES) {
       if (vad_noise_floor_ <= 0.0f)
         vad_noise_floor_ = static_cast<float>(rms);
       else
@@ -1019,14 +1021,17 @@ void MumbleComponent::audio_capture() {
     int32_t threshold = static_cast<int32_t>(vad_noise_floor_ * VAD_MARGIN_RATIO);
     if (threshold < VAD_MIN_THRESHOLD)
       threshold = VAD_MIN_THRESHOLD;
-    bool above = (rms > threshold);
+    // Push-to-talk: the held button is the voice gate, so send everything (no VAD).
+    bool above = (get_mode() == 1) || (rms > threshold);
 
     // Adapt the noise floor: fast down toward quieter ambient; slow up when the level is in the
     // noise range; a very slow creep under loud input so an erroneously low floor can recover.
     float frms = static_cast<float>(rms);
     if (frms < vad_noise_floor_)
       vad_noise_floor_ += (frms - vad_noise_floor_) * VAD_NOISE_DOWN;
-    else if (!above)
+    else if (!above && tx_state_ == TxState::CAPTURING)
+      // Only learn the ambient level between utterances: quiet syllables mid-sentence
+      // would otherwise drag the floor up and cut TX off.
       vad_noise_floor_ += (frms - vad_noise_floor_) * VAD_NOISE_UP_FAST;
     else
       vad_noise_floor_ += (frms - vad_noise_floor_) * VAD_NOISE_UP_SLOW;
@@ -1039,6 +1044,8 @@ void MumbleComponent::audio_capture() {
           tx_state_ = TxState::TRANSMITTING;
           voice_sending_ = true;
           ESP_LOGI(TAG, "Voice TX started");
+          if (!echo_suppress)
+            flush_preroll();
         }
       } else {
         vad_voice_frames_ = 0;
@@ -1063,13 +1070,28 @@ void MumbleComponent::audio_capture() {
     }
 
     if ((tx_state_ == TxState::TRANSMITTING || tx_state_ == TxState::TAIL) && !echo_suppress) {
-      int enc_len = opus_encoder_.encode(frame_buf, OpusAudioEncoder::FRAME_SAMPLES, opus_payload_buf_,
-                                         OpusAudioEncoder::MAX_PAYLOAD_BYTES);
-      if (enc_len > 0) {
-        send_voice_packet(opus_payload_buf_, static_cast<size_t>(enc_len), false);
-      }
+      encode_and_send(frame_buf);
+    } else if (tx_state_ == TxState::CAPTURING) {
+      memcpy(preroll_buf_[preroll_head_], frame_buf, sizeof(frame_buf));
+      preroll_head_ = (preroll_head_ + 1) % PREROLL_FRAMES;
+      if (preroll_count_ < PREROLL_FRAMES)
+        preroll_count_++;
     }
   }
+}
+
+void MumbleComponent::flush_preroll() {
+  size_t start = (preroll_head_ + PREROLL_FRAMES - preroll_count_) % PREROLL_FRAMES;
+  for (size_t i = 0; i < preroll_count_; i++)
+    encode_and_send(preroll_buf_[(start + i) % PREROLL_FRAMES]);
+  preroll_count_ = 0;
+}
+
+void MumbleComponent::encode_and_send(const int16_t *frame) {
+  int enc_len = opus_encoder_.encode(frame, OpusAudioEncoder::FRAME_SAMPLES, opus_payload_buf_,
+                                     OpusAudioEncoder::MAX_PAYLOAD_BYTES);
+  if (enc_len > 0)
+    send_voice_packet(opus_payload_buf_, static_cast<size_t>(enc_len), false);
 }
 
 void MumbleComponent::dump_config() {

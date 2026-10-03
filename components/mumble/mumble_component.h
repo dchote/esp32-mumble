@@ -217,7 +217,7 @@ private:
   static constexpr size_t CAPTURE_BUF_FRAMES = 8;
   static constexpr size_t CAPTURE_BUF_SAMPLES = CAPTURE_BUF_FRAMES * OpusAudioEncoder::FRAME_SAMPLES;
   static constexpr int VAD_ATTACK_FRAMES = 3;    // ~60ms of voice frames to start TX
-  static constexpr int VAD_HANGOVER_FRAMES = 15; // ~300ms of silence frames to stop TX
+  static constexpr int VAD_HANGOVER_FRAMES = 40; // ~800ms of silence frames to stop TX (bridges pauses between words)
   static constexpr uint32_t ECHO_SUPPRESS_TAIL_MS = 100;
   // Adaptive VAD: track the ambient noise floor and require speech to rise a margin above it,
   // so constant background noise no longer reads as continuous voice (communicator can auto-close).
@@ -226,8 +226,18 @@ private:
   static constexpr float VAD_MARGIN_RATIO = 2.5f;   // speech must exceed noise_floor * this (~8dB)
   static constexpr float VAD_NOISE_DOWN = 0.25f;    // fast decay toward a lower ambient level
   static constexpr float VAD_NOISE_UP_FAST = 0.05f; // adapt up while in the noise range (~400ms)
-  static constexpr float VAD_NOISE_UP_SLOW = 0.01f; // creep up under loud input to recover a bad floor
+  // Creep up under loud input to recover a bad floor. Must be far slower than speech: at 0.01 the
+  // floor caught up with continuous speech within ~1s and cut TX mid-sentence.
+  static constexpr float VAD_NOISE_UP_SLOW = 0.0005f;
   static constexpr size_t TX_PACKET_BUF_SIZE = 1024;
+  // Always-on: keep the last 200 ms while waiting for VAD and send it when TX starts,
+  // so the start of the first word isn't lost to the VAD attack time.
+  static constexpr size_t PREROLL_FRAMES = 10;
+  int16_t preroll_buf_[PREROLL_FRAMES][OpusAudioEncoder::FRAME_SAMPLES];
+  size_t preroll_head_{0};  // next slot to write
+  size_t preroll_count_{0}; // valid frames in the ring
+  void flush_preroll();
+  void encode_and_send(const int16_t *frame);
 
   // Chime playback (bus-aware; uses speaker_sink_ via manage_i2s_bus)
   static constexpr float CHIME_VOLUME_SCALE = 0.25f; // reduce level to avoid clipping
