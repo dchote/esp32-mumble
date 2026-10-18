@@ -2,7 +2,7 @@
 
 ## Vision
 
-ESP32-Mumble is an always-on intercom and push-to-talk voice client that runs on ESP32-S3 microcontrollers. It implements the Mumble voice chat protocol, connects to [go-mumble-server](https://github.com/dchote/go-mumble-server), and integrates with Home Assistant through ESPHome.
+ESP32-Mumble is an always-on intercom and push-to-talk voice client that runs on ESP32 and ESP32-S3 microcontrollers. It implements the Mumble voice chat protocol, connects to [go-mumble-server](https://github.com/dchote/go-mumble-server), and integrates with Home Assistant through ESPHome.
 
 The project targets LAN deployments. **Legacy mode** (OCB2-AES128 UDP encryption, standard Mumble protocol) is the default and works with any Mumble server (Murmur, go-mumble-server). **Lite mode** (cleartext UDP) is available for trusted LAN use when the server supports it.
 
@@ -46,10 +46,10 @@ Each device appears in Home Assistant as an ESPHome node with configurable entit
 | **ESP32-S3 Box** | ESP-IDF | ES7210 4-ch mic array | ES8311 DAC | Older revision of Box 3 |
 | **Home Assistant Voice PE** | ESP-IDF | XMOS dual-mic DSP | AIC3204 DAC | Jog wheel volume, mute slider, center PTT/Communicator, LED ring |
 | **Onju Voice** | Arduino | SPH0645 I2S mic | MAX98357A I2S amp | Drop-in Google Nest Mini replacement; touch, LEDs, mute switch |
-| **M5Stack Atom Echo** | Arduino | PDM microphone | External I2S DAC | Compact form factor |
+| **M5Stack Atom Echo** | Arduino | PDM microphone | External I2S DAC | ESP32 (not S3), no PSRAM; compact form factor |
 | **Generic ESP32-S3** | Arduino | Any I2S microphone | Any I2S amplifier/DAC | User-defined pin configuration |
 
-All targets require an ESP32-S3 with PSRAM and Wi-Fi. The S3's dual-core architecture is needed for simultaneous audio encode/decode and network I/O.
+Every board needs Wi-Fi. Box, Box-3, Voice PE, and generic ESP32-S3 use PSRAM for audio and Opus state. The M5Stack Atom Echo is an original ESP32 with no PSRAM; Opus state falls back to internal RAM. Dual-core parts run encode, decode, and network I/O at the same time.
 
 ## Features
 

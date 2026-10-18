@@ -49,10 +49,10 @@ Communicator mode is selectable from the **Mode** entity in Home Assistant (alon
 | ESP32-S3 Box 3 | ESP-IDF | ES7210 mic array | ES8311 DAC | Same as Box; pin differences |
 | Home Assistant Voice PE | ESP-IDF | XMOS dual mic | AIC3204 DAC | Jog volume, mute slider, center PTT, LED ring |
 | Onju Voice | Arduino | SPH0645 I2S | MAX98357A I2S | Nest Mini form factor, touch, LEDs |
-| M5Stack Atom Echo | Arduino | PDM mic | External DAC | Compact |
+| M5Stack Atom Echo | Arduino | PDM mic | External DAC | ESP32, no PSRAM; compact |
 | Generic ESP32-S3 | Arduino | Any I2S mic | Any I2S DAC/amp | User-defined pins |
 
-All boards require an ESP32-S3 with PSRAM and Wi-Fi.
+Every board needs Wi-Fi. The ESP32-S3 targets use PSRAM. The M5Stack Atom Echo is an ESP32 without PSRAM.
 
 ## Architecture
 
@@ -133,7 +133,7 @@ esp32-mumble/
 │   └── patch_mbedtls_requires.py
 ├── docs/
 │   ├── build.md
-│   ├── features/        # Including 0015-ota-releases.md
+│   ├── features/        # Including 0015-ota-releases.md, 0016-arduino-tls-read-disconnect.md
 │   ├── product-overview.md
 │   └── technical-overview.md
 ├── esphome/             # Example device configs + secrets.example.yaml

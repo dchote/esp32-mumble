@@ -356,20 +356,43 @@ public:
   void set_ca_cert(const char *pem) override { client_.setCACert(pem); }
   void set_insecure() override { client_.setInsecure(); }
   bool connect(const char *host, uint16_t port, uint32_t timeout_ms) override {
-    client_.setTimeout(timeout_ms / 1000);
+    // connect(..., timeout) stores milliseconds in NetworkClient::_timeout.
+    // Stream::setTimeout() is a different field and does not affect this socket.
+    // setHandshakeTimeout() takes seconds; the core multiplies by 1000.
     client_.setHandshakeTimeout(timeout_ms / 1000);
-    return client_.connect(host, port, timeout_ms / 1000);
+    return client_.connect(host, port, static_cast<int32_t>(timeout_ms));
   }
   bool connect(uint32_t ip, uint16_t port, uint32_t timeout_ms) override {
-    client_.setTimeout(timeout_ms / 1000);
     client_.setHandshakeTimeout(timeout_ms / 1000);
     IPAddress a((ip >> 24) & 0xFF, (ip >> 16) & 0xFF, (ip >> 8) & 0xFF, ip & 0xFF);
-    return client_.connect(a, port, timeout_ms / 1000);
+    return client_.connect(a, port, static_cast<int32_t>(timeout_ms));
   }
   void stop() override { client_.stop(); }
   bool connected() const override { return client_.connected(); }
   int available() const override { return client_.available(); }
-  int read(uint8_t *buf, size_t len) override { return client_.read(buf, len); }
+  int read(uint8_t *buf, size_t len) override {
+    if (buf == nullptr || len == 0)
+      return -1;
+    // WiFiClientSecure::read() returns -1 when available() == 0. On this core
+    // that is "no application data yet" (non-blocking socket, mbedtls
+    // WANT_READ) and also a fatal error. available() calls stop() on a real
+    // TLS failure. Skip connected() until that check: connected() itself
+    // calls read(), which probes mbedTLS again.
+    int avail = client_.available();
+    if (avail <= 0) {
+      if (!client_.connected())
+        return -1;
+      return 0;
+    }
+    if (static_cast<size_t>(avail) < len)
+      len = static_cast<size_t>(avail);
+    int n = client_.read(buf, len);
+    if (n > 0)
+      return n;
+    if (!client_.connected())
+      return -1;
+    return 0;
+  }
   size_t write(const uint8_t *buf, size_t len) override { return client_.write(buf, len); }
   int last_error(char *buf, size_t buf_len) override { return client_.lastError(buf, buf_len); }
   uint32_t get_peer_ip() const override {

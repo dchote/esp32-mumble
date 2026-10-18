@@ -174,7 +174,7 @@ void MumbleClient::loop() {
       if (n < 0) {
         // Fatal read error (e.g. esp-tls -0x004C on WiFi disconnect). ESP-IDF's
         // connected() can lag; disconnect immediately to stop TLS error spam.
-        ESP_LOGW(TAG, "TLS read error, disconnecting");
+        ESP_LOGW(TAG, "TLS read error, disconnecting (%d)", n);
         disconnect();
         return;
       }
@@ -396,8 +396,9 @@ void MumbleClient::send_ping() {
 void MumbleClient::join_channel(const std::string &name) {
   if (channel_join_sent_)
     return;
-  uint32_t ch_id = find_channel_by_name(name);
-  if (ch_id == 0 && !name.empty()) {
+  bool found = false;
+  uint32_t ch_id = find_channel_by_name(name, &found);
+  if (!found) {
     ESP_LOGW(TAG, "Channel not found: %s", name.c_str());
     return;
   }
@@ -978,13 +979,21 @@ static bool str_iequals(const std::string &a, const std::string &b) {
   return true;
 }
 
-uint32_t MumbleClient::find_channel_by_name(const std::string &name) const {
-  if (name.empty())
+uint32_t MumbleClient::find_channel_by_name(const std::string &name, bool *found) const {
+  if (name.empty()) {
+    if (found != nullptr)
+      *found = true;
     return 0;
-  for (const auto &c : channels_) {
-    if (str_iequals(c.name, name))
-      return c.id;
   }
+  for (const auto &c : channels_) {
+    if (str_iequals(c.name, name)) {
+      if (found != nullptr)
+        *found = true;
+      return c.id;
+    }
+  }
+  if (found != nullptr)
+    *found = false;
   return 0;
 }
 

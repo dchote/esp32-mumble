@@ -22,13 +22,13 @@ Implement the Mumble TCP/TLS control channel on ESP32: protobuf wire encoder/dec
 
 ### 3. MumbleClient (mumble_client.h/.cpp)
 
-- **TLS**: WiFiClientSecure with setInsecure() for trusted LAN
+- **TLS**: WiFiClientSecure with setInsecure() for trusted LAN. On Arduino 3.x, `WiFiClientSecure::read()` returns `-1` both when no plaintext is buffered yet and when the session has failed. `TlsClientArduino::read()` returns `0` for the idle case and `-1` only after `available()` has closed the client. See [0016-arduino-tls-read-disconnect.md](0016-arduino-tls-read-disconnect.md).
 - **State machine**: DISCONNECTED → CONNECTING → AUTHENTICATING → CONNECTED
 - **Handshake**: Server sends Version → client sends Version + Authenticate → server sends CryptSetup, CodecVersion, ChannelState[], UserState[], ServerSync, ServerConfig
 - **Channel/User tracking**: ChannelInfo, UserInfo structs; update_channel, remove_channel, update_user, remove_user
 - **Ping keepalive**: TCP Ping every 15s, RTT measurement, 45s timeout
 - **Reconnection**: Exponential backoff 1s–30s, config re-read on each attempt
-- **Channel join**: find_channel_by_name, send UserState with channel_id after ServerSync
+- **Channel join**: find_channel_by_name, send UserState with channel_id after ServerSync. Root's channel id is 0, which is also what a missed lookup used to return, so a configured channel named Root is matched via the `found` flag rather than by a non-zero id.
 
 ### 4. MumbleComponent Integration
 

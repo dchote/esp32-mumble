@@ -81,7 +81,9 @@ public:
   }
   const std::vector<ChannelInfo> &get_channels() const { return channels_; }
   const std::vector<UserInfo> &get_users() const { return users_; }
-  uint32_t find_channel_by_name(const std::string &name) const;
+  /** Case-insensitive name lookup. Empty name selects root (id 0).
+   *  Root's id is 0, so a miss is reported via found, not via the return value. */
+  uint32_t find_channel_by_name(const std::string &name, bool *found = nullptr) const;
   void join_channel_by_id(uint32_t channel_id);
   uint32_t get_current_channel_id() const; // Our user's channel, or 0 if unknown
   // Build channel options for select: "id:Name" (flat list). Fills out_strings and out_ids.
