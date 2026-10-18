@@ -4,7 +4,7 @@
 
 - [ESPHome](https://esphome.io/) **2026.7.0+** (this repo pins **2026.7.1** in `requirements.txt`)
 - Python **3.12+**
-- One of the supported ESP32-S3 boards
+- One of the supported boards (ESP32-S3, ESP32-P4, or Atom Echo)
 
 **Before compiling**: Create `esphome/secrets.yaml` from `secrets.example.yaml` with `wifi_ssid` and `wifi_password`. The board configs reference these via `!secret`. API encryption and OTA password are optional (see comments in the board YAMLs and `secrets.example.yaml`).
 
@@ -34,6 +34,7 @@ Or use the build script:
 ./scripts/build.sh box3       # ESP32-S3 Box 3 (ESP-IDF, lwIP netconn)
 ./scripts/build.sh echo       # M5Stack Atom Echo (Arduino)
 ./scripts/build.sh voice-pe   # Home Assistant Voice PE (ESP-IDF, lwIP netconn)
+./scripts/build.sh p4         # Waveshare ESP32-P4 (native esp-idf toolchain, Ethernet)
 ./scripts/build.sh all        # all configs
 ```
 
@@ -44,6 +45,7 @@ make build                    # default: generic
 make CONFIG=box build         # ESP32-S3 Box (ESP-IDF)
 make CONFIG=box3 build        # ESP32-S3 Box 3 (ESP-IDF)
 make CONFIG=voice-pe build    # Home Assistant Voice PE (ESP-IDF)
+make CONFIG=p4 build          # Waveshare ESP32-P4 (native esp-idf, Ethernet)
 make all
 ```
 
@@ -68,13 +70,14 @@ On macOS the port is typically `/dev/cu.usbmodem*`.
 
 - **Secrets** (required before compile): Add `esphome/secrets.yaml` with Wi‑Fi credentials (see `secrets.example.yaml`). Optionally enable HA API encryption and/or an OTA password by uncommenting those secrets and wiring them in your board YAML.
 - **Mumble TLS**: By default the client skips server certificate verification (trusted LAN). Set the Mumble component `ca_cert` option to a PEM CA to enable verification.
-- **Mumble**: Server, port, username, password, channel, mode (always-on / push-to-talk), and crypto (default: **Legacy**; or **Lite** for trusted LAN) are exposed as config entities. **Server** defaults to empty and is auto-detected from the Home Assistant server IP when the device is adopted by HA (e.g. for go-mumble-server addon); set it manually in YAML or in HA to override. Username defaults to `esp32-<MAC>`. Channel defaults to **Root**. Changing server, username, password, channel, or crypto forces a reconnect. **Speaker Volume** controls output and persists across reboots; microphone is controlled via physical button wiring. On Box/Box-3, **Speaker Power** toggles the hardware amplifier (GPIO46); on Voice PE it is GPIO47. Voice PE also maps the jog wheel to volume, the mute slider to Mute, and the center button to PTT/Communicator. Diagnostics include WiFi signal, Mumble connected, ping, and **Reset Config**. **Voice Received** appears under Sensors. All values persist in NVS and are restored on boot.
+- **Mumble**: Server, port, username, password, channel, mode (always-on / push-to-talk), and crypto (default: **Legacy**; or **Lite** for trusted LAN) are exposed as config entities. **Server** defaults to empty and is auto-detected from the Home Assistant server IP when the device is adopted by HA (e.g. for go-mumble-server addon); set it manually in YAML or in HA to override. Username defaults to `esp32-<MAC>` (Ethernet MAC when the build has no Wi-Fi). Channel defaults to **Root**. Changing server, username, password, channel, or crypto forces a reconnect. **Speaker Volume** controls output and persists across reboots; microphone is controlled via physical button wiring. On Box/Box-3, **Speaker Power** toggles the hardware amplifier (GPIO46); on Voice PE it is GPIO47; on the ESP32-P4 it is GPIO53. Voice PE also maps the jog wheel to volume, the mute slider to Mute, and the center button to PTT/Communicator. The ESP32-P4 uses a header PTT button (GPIO20) and a **Talk** switch that enables the mic only in push-to-talk mode, plus **Mic Preamp** and **Mic Digital Gain** for the ES8311. Diagnostics include WiFi signal (or **Ethernet IP** on the P4), Mumble connected, ping, and **Reset Config**. **Voice Received** appears under Sensors. All values persist in NVS and are restored on boot.
 
 ## Dependencies
 
-- **Opus**: The Mumble component uses a **local vendored Opus library** (`lib/micro-opus/`) based on [esphome-libs/micro-opus](https://github.com/esphome-libs/micro-opus) v0.4.1. It uses heap-based pseudostack allocation (PSRAM when available) and Xtensa DSP optimizations. Do not remove or modify `lib/micro-opus/` — it is required for compilation.
+- **Opus**: The Mumble component uses a **local vendored Opus library** (`lib/micro-opus/`) based on [esphome-libs/micro-opus](https://github.com/esphome-libs/micro-opus) v0.4.1. It uses heap-based pseudostack allocation (PSRAM when available) and Xtensa DSP optimizations on the ESP32-S3. Do not remove or modify `lib/micro-opus/` — it is required for compilation.
 - **ESP32-S3 Box / Box-3 / Voice PE (ESP-IDF)**: These boards use `framework: type: esp-idf` with lwIP netconn for UDP. First flash must be via USB, not OTA. Voice PE also vendors `components/voice_kit/` for the XMOS mic DSP (may DFU firmware on first boot).
-- **Toolchain**: All board configs set `esp32.toolchain: platformio`. ESPHome 2026.7 defaults to the native ESP-IDF toolchain, which does not support this project's local `symlink://` micro-opus library or the mbedtls PlatformIO pre-script.
+- **ESP32-P4**: `esphome/waveshare-esp32-p4-poe.yaml` uses Ethernet and the native esp-idf toolchain. It does not reference `!secret`, so it compiles without `secrets.yaml`. First flash must be via USB, not OTA.
+- **Toolchain**: S3 and Arduino configs set `esp32.toolchain: platformio` because the native toolchain does not use the PlatformIO `symlink://` micro-opus library or the mbedtls pre-script. The ESP32-P4 config sets `toolchain: esp-idf` and builds micro-opus from `lib/micro-opus/CMakeLists.txt`. ESPHome 2026.7 defaults to that native toolchain.
 
 ## Troubleshooting
 

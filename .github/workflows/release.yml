@@ -63,6 +63,8 @@ jobs:
             slug: m5stack-atom-echo
           - file: esphome/home-assistant-voice-pe.yaml
             slug: home-assistant-voice-pe
+          - file: esphome/waveshare-esp32-p4-poe.yaml
+            slug: waveshare-esp32-p4-poe
     steps:
       - uses: actions/checkout@v4
 
@@ -196,4 +198,4 @@ jobs:
             - `*-factory.bin` — full flash image (USB / ESP Web Tools)
             - `*-ota.bin` — OTA payload (also hosted on GitHub Pages next to each board manifest)
 
-            First flash after switching to ESP-IDF (Box / Box-3 / Voice PE) must be via USB, not OTA.
+            First flash after switching to ESP-IDF (Box / Box-3 / Voice PE / ESP32-P4) must be via USB, not OTA.

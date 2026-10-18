@@ -1,7 +1,9 @@
 ---
 # Waveshare ESP32-P4-WIFI6-POE-ETH board config for Mumble client.
-# ESP32-P4 (RISC-V, rev3 silicon) on Ethernet (IP101 PHY), ES8311 codec with onboard mic,
-# speaker on the MX1.25 header (8 ohm, 2W). Powered by PoE or USB-C.
+# ESP32-P4 (RISC-V, rev3 silicon) on Ethernet (IP101 PHY), ES8311 codec with onboard analog mic,
+# speaker on the MX1.25 header (8 ohm, 2W). Powered by PoE or USB-C. Native esp-idf toolchain.
+# Keep functionally in sync with esp32-s3-box.yaml (same entities/features; Ethernet, codec gain,
+# and pins differ). No Wi-Fi in this config, so there is no WiFi Signal sensor.
 # Pins: https://www.waveshare.com/wiki/ESP32-P4-WIFI6-POE-ETH
 # Configure server, port, username, password, channel, and mode in Home Assistant UI (values persist in NVS)
 # First flash must be via USB, not OTA.
@@ -20,13 +22,17 @@ esphome:
   min_version: "2026.7.0"
   project:
     name: dchote.esp32-mumble
-    version: "dev"
+    version: "dev"  # rewritten to the git tag by release.yml
   on_boot:
     - priority: -100
       then:
         - lambda: |-
-            id(es8311_dac).write_byte(0x14, 0x10 | (uint8_t)(id(mic_pga).state / 3));
-            id(es8311_dac).write_byte(0x16, (uint8_t)(id(mic_digital).state / 6));
+            float pga = id(mic_pga).state;
+            float dig = id(mic_digital).state;
+            if (isnan(pga)) pga = 30;
+            if (isnan(dig)) dig = 24;
+            id(es8311_dac).write_byte(0x14, 0x10 | (uint8_t)(pga / 3));
+            id(es8311_dac).write_byte(0x16, (uint8_t)(dig / 6));
         - speaker.volume_set:
             id: p4_speaker
             volume: !lambda |-
@@ -40,12 +46,13 @@ esp32:
   flash_size: 16MB
   # 400MHz is experimental in ESPHome (esphome/esphome#13425).
   cpu_frequency: 360MHz
-  # ESPHome's native ESP-IDF toolchain. PlatformIO's (pioarduino 55.03.39) can't link
-  # rev3 P4 builds: it wants sections.rev3.ld.in, which its ESP-IDF 5.5.5 doesn't ship.
+  # Native esp-idf toolchain. PlatformIO (pioarduino 55.03.39) cannot link rev3 P4 builds:
+  # it expects sections.rev3.ld.in, which its ESP-IDF 5.5.5 does not ship. S3 boards stay
+  # on toolchain: platformio. micro-opus is an IDF component via lib/micro-opus/CMakeLists.txt.
+  toolchain: esp-idf
   framework:
     type: esp-idf
     advanced:
-      # Same warnings the Box configs silence via platformio_options.
       compiler_optimization: SIZE
     sdkconfig_options:
       CONFIG_MBEDTLS_AES_C: "y"
@@ -120,8 +127,22 @@ api:
           id(mumble_server_host).make_call().set_value(client_address).perform();
         }
 
+# Managed OTA from GitHub Pages manifests (see docs/features/0015-ota-releases.md).
+# verify_ssl false matches the project's trusted-LAN TLS posture.
+http_request:
+  verify_ssl: false
+
 ota:
   - platform: esphome
+    # Optional: password: !secret ota_password
+  - platform: http_request
+
+update:
+  - platform: http_request
+    name: "Firmware Update"
+    id: firmware_update
+    update_interval: 6h
+    source: https://dchote.github.io/esp32-mumble/waveshare-esp32-p4-poe/manifest.json
 
 binary_sensor:
   - platform: gpio
@@ -266,12 +287,23 @@ button:
       - number.set:
           id: mumble_speaker_volume
           value: 65
+      - number.set:
+          id: mic_pga
+          value: 30
+      - number.set:
+          id: mic_digital
+          value: 24
   - platform: restart
     name: "Reboot"
     id: mumble_reboot
     icon: "mdi:restart"
     entity_category: diagnostic
 text_sensor:
+  # Ethernet stand-in for the WiFi Signal sensor on the other boards.
+  - platform: ethernet_info
+    ip_address:
+      name: "Ethernet IP"
+      icon: "mdi:ip-network"
   - platform: template
     name: "Transport"
     id: mumble_transport
@@ -354,7 +386,8 @@ switch:
       number: GPIO53
     restore_mode: RESTORE_DEFAULT_ON
     entity_category: config
-  # Push-to-talk from Home Assistant (in push_to_talk mode this is the "button").
+  # Home Assistant push-to-talk. Only push_to_talk mode treats this as the button.
+  # always_on and communicator keep their own mic control (a boot turn-off must not mute them).
   - platform: template
     name: "Talk"
     id: talk
@@ -362,9 +395,17 @@ switch:
     optimistic: true
     restore_mode: ALWAYS_OFF
     on_turn_on:
-      - mumble.microphone_enable: mumble_client
+      - if:
+          condition:
+            lambda: 'return id(mumble_client).get_mode() == 1;'
+          then:
+            - mumble.microphone_enable: mumble_client
     on_turn_off:
-      - mumble.microphone_disable: mumble_client
+      - if:
+          condition:
+            lambda: 'return id(mumble_client).get_mode() == 1;'
+          then:
+            - mumble.microphone_disable: mumble_client
   - platform: template
     name: "Mute"
     id: mute
@@ -386,7 +427,7 @@ external_components:
 
 mumble:
   id: mumble_client
-  server: "${mumble_server}"  # Empty by default; auto-filled from HA IP when adopted
+  server: "${mumble_server}"  # Empty by default; auto-filled from HA IP when adopted, or set manually
   port: 64738
   username: ""
   password: ""

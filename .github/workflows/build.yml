@@ -38,6 +38,7 @@ jobs:
           - esphome/esp32-s3-box3.yaml
           - esphome/m5stack-atom-echo.yaml
           - esphome/home-assistant-voice-pe.yaml
+          - esphome/waveshare-esp32-p4-poe.yaml
     steps:
       - uses: actions/checkout@v4
       - name: Write CI secrets.yaml

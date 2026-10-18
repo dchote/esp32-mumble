@@ -37,7 +37,7 @@ Communicator mode turns any supported board into a **Star Trek-style half-duplex
 
 While a communicator session is active, incoming voice is suppressed so the bus stays on the microphone. The chime is embedded directly in the firmware as raw PCM and played through the component's own bus-aware speaker path — no media player needed.
 
-Communicator mode is selectable from the **Mode** entity in Home Assistant (alongside Always On and Push to Talk) and persists across reboots. On boards with a physical button (Box, Box-3, Atom Echo, Voice PE), the same button handles all three modes automatically.
+Communicator mode is selectable from the **Mode** entity in Home Assistant (alongside Always On and Push to Talk) and persists across reboots. On boards with a physical button (Box, Box-3, Atom Echo, Voice PE, ESP32-P4), the same button handles all three modes automatically.
 
 ---
 
@@ -58,7 +58,7 @@ The ESP32-S3 targets use PSRAM and Wi-Fi. The M5Stack Atom Echo is an ESP32 with
 ## Architecture
 
 ```
-ESP32-S3                              go-mumble-server
+ESP32                                 go-mumble-server
 ┌────────────────────┐               ┌──────────────────┐
 │ ESPHome Component  │──TCP/TLS────►│  Control (64738)  │
 │                    │               │                   │
@@ -80,7 +80,7 @@ See the full documentation:
 - [ESPHome](https://esphome.io/) 2026.7.0+ (pin via `pip install -r requirements.txt` → 2026.7.1)
 - Python 3.12+
 - [Home Assistant](https://www.home-assistant.io/) (optional, for configuration and control UI)
-- One of the supported ESP32-S3 boards listed above
+- One of the supported boards listed above (ESP32-S3, ESP32-P4, or Atom Echo)
 
 ## Quick Start
 
@@ -104,7 +104,7 @@ Pre-built firmware is published from SemVer tags (`vX.Y.Z`) via GitHub Actions:
 | Per-board OTA manifests | `https://dchote.github.io/esp32-mumble/<board>/manifest.json` |
 | GitHub Release assets | https://github.com/dchote/esp32-mumble/releases |
 
-Board slugs: `esp32-s3-box`, `esp32-s3-box3`, `home-assistant-voice-pe`, `m5stack-atom-echo`, `generic-esp32s3`.
+Board slugs: `esp32-s3-box`, `esp32-s3-box3`, `home-assistant-voice-pe`, `m5stack-atom-echo`, `generic-esp32s3`, `waveshare-esp32-p4-poe`.
 
 After a device is adopted in Home Assistant, the **Firmware Update** entity checks the board's GitHub Pages manifest (every 6 hours) and can install OTA updates. Manifests and `.ota.bin` files are hosted on Pages (not `releases/latest/download`) to avoid GitHub redirect URL length limits on the device HTTP client.
 
@@ -134,7 +134,7 @@ esp32-mumble/
 │   └── patch_mbedtls_requires.py
 ├── docs/
 │   ├── build.md
-│   ├── features/        # Including 0015-ota-releases.md, 0016-arduino-tls-read-disconnect.md
+│   ├── features/        # Including 0015-ota-releases.md, 0016-arduino-tls-read-disconnect.md, 0017-esp32-p4-voice-tx.md
 │   ├── product-overview.md
 │   └── technical-overview.md
 ├── esphome/             # Example device configs + secrets.example.yaml

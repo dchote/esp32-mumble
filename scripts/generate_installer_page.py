@@ -32,6 +32,11 @@ BOARDS = [
         "generic-esp32s3",
         "Placeholder pinout for custom boards (Arduino framework). Review pins before flashing.",
     ),
+    (
+        "Waveshare ESP32-P4-WIFI6-POE-ETH",
+        "waveshare-esp32-p4-poe",
+        "ESP32-P4 rev3 over Ethernet/PoE (native esp-idf toolchain). First flash must be via USB.",
+    ),
 ]
 
 

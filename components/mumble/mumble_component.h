@@ -230,14 +230,14 @@ private:
   // floor caught up with continuous speech within ~1s and cut TX mid-sentence.
   static constexpr float VAD_NOISE_UP_SLOW = 0.0005f;
   static constexpr size_t TX_PACKET_BUF_SIZE = 1024;
-  // Always-on: keep the last 200 ms while waiting for VAD and send it when TX starts,
-  // so the start of the first word isn't lost to the VAD attack time.
+  // VAD modes keep the last 200 ms while waiting to trigger and send it when TX starts,
+  // so the attack time does not clip the first word. Push-to-talk starts on the first frame.
   static constexpr size_t PREROLL_FRAMES = 10;
   int16_t preroll_buf_[PREROLL_FRAMES][OpusAudioEncoder::FRAME_SAMPLES];
   size_t preroll_head_{0};  // next slot to write
   size_t preroll_count_{0}; // valid frames in the ring
   void flush_preroll();
-  void encode_and_send(const int16_t *frame);
+  void encode_and_send(const int16_t *frame, bool is_terminator = false);
 
   // Chime playback (bus-aware; uses speaker_sink_ via manage_i2s_bus)
   static constexpr float CHIME_VOLUME_SCALE = 0.25f; // reduce level to avoid clipping

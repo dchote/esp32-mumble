@@ -31,7 +31,7 @@ https://dchote.github.io/esp32-mumble/
   <slug>/<name>.ota.bin               # http_request OTA payload
 ```
 
-Board slugs match YAML basenames: `esp32-s3-box`, `esp32-s3-box3`, `generic-esp32s3`, `m5stack-atom-echo`, `home-assistant-voice-pe`.
+Board slugs match YAML basenames: `esp32-s3-box`, `esp32-s3-box3`, `generic-esp32s3`, `m5stack-atom-echo`, `home-assistant-voice-pe`, `waveshare-esp32-p4-poe`.
 
 ### Device config
 
@@ -67,7 +67,7 @@ After the workflow finishes:
 
 ## Notes / caveats
 
-- First flash after switching framework to ESP-IDF (Box / Box-3 / Voice PE) must be via USB, not OTA.
+- First flash after switching framework to ESP-IDF (Box / Box-3 / Voice PE / ESP32-P4) must be via USB, not OTA.
 - Native `ota: platform: esphome` remains for local ESPHome dashboard / passworded OTA.
 - Prefer Pages URLs for device update `source:`; do not point devices at `github.com/.../releases/latest/download/...` (redirect buffer issue).
 - API encryption and OTA password are optional on every board (commented out by default). Uncomment and set the secrets if you want them enabled.

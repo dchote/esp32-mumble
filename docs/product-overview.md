@@ -2,7 +2,7 @@
 
 ## Vision
 
-ESP32-Mumble is an always-on intercom and push-to-talk voice client that runs on ESP32 and ESP32-S3 microcontrollers. It implements the Mumble voice chat protocol, connects to [go-mumble-server](https://github.com/dchote/go-mumble-server), and integrates with Home Assistant through ESPHome.
+ESP32-Mumble is an always-on intercom and push-to-talk voice client that runs on ESP32, ESP32-S3, and ESP32-P4 microcontrollers. It implements the Mumble voice chat protocol, connects to [go-mumble-server](https://github.com/dchote/go-mumble-server), and integrates with Home Assistant through ESPHome.
 
 The project targets LAN deployments. **Legacy mode** (OCB2-AES128 UDP encryption, standard Mumble protocol) is the default and works with any Mumble server (Murmur, go-mumble-server). **Lite mode** (cleartext UDP) is available for trusted LAN use when the server supports it.
 
@@ -48,8 +48,9 @@ Each device appears in Home Assistant as an ESPHome node with configurable entit
 | **Onju Voice** | Arduino | SPH0645 I2S mic | MAX98357A I2S amp | Drop-in Google Nest Mini replacement; touch, LEDs, mute switch |
 | **M5Stack Atom Echo** | Arduino | PDM microphone | External I2S DAC | ESP32 (not S3), no PSRAM; compact form factor |
 | **Generic ESP32-S3** | Arduino | Any I2S microphone | Any I2S amplifier/DAC | User-defined pin configuration |
+| **Waveshare ESP32-P4-WIFI6-POE-ETH** | ESP-IDF (native toolchain) | Analog mic via ES8311 | ES8311 DAC | Rev3 silicon, Ethernet/PoE, header PTT |
 
-Every board needs Wi-Fi. Box, Box-3, Voice PE, and generic ESP32-S3 use PSRAM for audio and Opus state. The M5Stack Atom Echo is an original ESP32 with no PSRAM; Opus state falls back to internal RAM. Dual-core parts run encode, decode, and network I/O at the same time.
+The ESP32-S3 targets and the ESP32-P4 use PSRAM for audio and Opus state. The M5Stack Atom Echo is an original ESP32 with no PSRAM; Opus state falls back to internal RAM. Wi-Fi boards need Wi-Fi. The ESP32-P4 config is Ethernet-only. Dual-core parts run encode, decode, and network I/O at the same time.
 
 ## Features
 

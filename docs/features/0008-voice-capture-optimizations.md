@@ -27,7 +27,8 @@ Combines the voice capture pipeline, ESP-IDF migration, and network/socket stand
 ### 1.4 Transmit Pipeline (mumble_component.h/.cpp)
 
 - **Capture**: `on_microphone_data()` → ring buffer (8 frames = 2560 samples).
-- **VAD**: Energy-based RMS per 20 ms frame; threshold 200; 3 frames above = voice start, 15 frames below = voice stop (terminator sent).
+- **VAD**: Adaptive RMS per 20 ms frame. Ambient floor is learned in a 240 ms calibration window and between utterances (not during speech). Speech must exceed `max(floor × 2.5, 120)`. 3 frames above starts TX (push-to-talk starts on the first frame); 40 frames below (800 ms) stops TX. The stopping frame is sent with the terminator bit. A 200 ms preroll is sent when VAD triggers, unless echo suppression is active (that PCM is discarded).
+- **Sequence**: Counts 10 ms frames. Each 20 ms packet advances it by 2. It is not reset per utterance. An empty terminator (PTT release, bus taken) occupies its own sequence number.
 - **Echo suppression**: In always_on mode, TX suppressed while receiving or within 100 ms after.
 - **Half-duplex I2S**: `manage_i2s_bus()` coordinates mic/speaker handoff to avoid "Parent I2S bus not free".
 - **State machine**: IDLE → CAPTURING → TRANSMITTING → CAPTURING.
@@ -36,12 +37,12 @@ Combines the voice capture pipeline, ESP-IDF migration, and network/socket stand
 
 ### 1.5 Mic Warmup
 
-- When transitioning bus from NONE to MIC, add 80 ms delay before `microphone_->start()` for I2S/ES7210 stability.
+- When transitioning bus from NONE to MIC, wait `mic_warmup` (default 200 ms; 50 ms on the ESP32-P4) before `microphone_->start()`.
 
 ### 1.6 Constants
 
 - Sample rate: 16 kHz; frame: 320 samples (20 ms).
-- VAD threshold: 200 RMS; attack 3 frames; hangover 15 frames.
+- VAD: minimum RMS 120; margin 2.5×; attack 3 frames (1 in push-to-talk); hangover 40 frames; calibration 12 frames; preroll 10 frames.
 - Echo suppress tail: 100 ms.
 - Capture buffer: 8 frames. Opus: 16 kbps, complexity 1, VOIP, DTX on.
 

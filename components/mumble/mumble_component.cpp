@@ -924,17 +924,22 @@ int32_t MumbleComponent::frame_rms(const int16_t *pcm, size_t samples) {
 void MumbleComponent::send_voice_packet(const uint8_t *opus_data, size_t opus_len, bool is_terminator) {
   if (opus_len > MumbleUdp::MAX_PACKET_SIZE - 32)
     return; // leave room for header/varints
-  // Mumble's voice sequence counts 10 ms frames, so a 20 ms packet advances it by 2. Clients
-  // (Mumla, desktop Mumble) time their jitter buffer by it; stepping by 1 made them drop audio.
+  // The voice sequence counts 10 ms frames, so a 20 ms Opus packet advances it by 2. Mumla and
+  // desktop Mumble time their jitter buffer by it; stepping by 1 made them drop audio. The counter
+  // keeps running across utterances. Resetting it to 0 looks like already-played audio.
+  // An empty terminator still occupies the sequence number it is sent with. Leaving the counter
+  // there would make the next utterance reuse it. Desktop Mumble sets the terminator bit on the
+  // last audio frame instead of a separate end packet; hangover does that, and this empty packet
+  // is the abrupt stop (PTT release, bus taken) which has no further audio frame.
   static constexpr uint64_t SEQ_PER_PACKET = OpusAudioEncoder::FRAME_SAMPLES / (16000 / 100);
   uint64_t seq = tx_sequence_;
-  tx_sequence_ += SEQ_PER_PACKET;
   size_t n = build_voice_packet(tx_packet_buf_, sizeof(tx_packet_buf_), seq, opus_data, opus_len, is_terminator,
                                 voice_target_id_);
   if (n == 0) {
     ESP_LOGW(TAG, "build_voice_packet returned 0 (opus_len=%u, term=%d)", (unsigned)opus_len, is_terminator);
     return;
   }
+  tx_sequence_ += SEQ_PER_PACKET;
   // Only use UDP once we've received a ping echo (server has our UDP address).
   // Until then, use TCP tunnel so voice always reaches the server.
   bool ok;
@@ -944,8 +949,8 @@ void MumbleComponent::send_voice_packet(const uint8_t *opus_data, size_t opus_le
   } else {
     ok = client_.send_udp_tunnel(tx_packet_buf_, n);
   }
-  if (tx_sequence_ <= 5 || (tx_sequence_ % 50 == 0)) {
-    ESP_LOGD(TAG, "Voice pkt seq=%llu len=%u opus=%u term=%d via=%s ok=%d hdr=0x%02x", (unsigned long long)tx_sequence_,
+  if (seq <= 4 || (seq % 50 == 0)) {
+    ESP_LOGD(TAG, "Voice pkt seq=%llu len=%u opus=%u term=%d via=%s ok=%d hdr=0x%02x", (unsigned long long)seq,
              (unsigned)n, (unsigned)opus_len, is_terminator, udp_.is_active() ? "UDP" : "TCP", ok, tx_packet_buf_[0]);
   }
 }
@@ -995,6 +1000,9 @@ void MumbleComponent::audio_capture() {
   }
 
   int16_t frame_buf[OpusAudioEncoder::FRAME_SAMPLES];
+  // Push-to-talk: the held button is the gate, so the first frame is sent. VAD modes wait
+  // VAD_ATTACK_FRAMES, then flush the preroll so the attack time does not clip the word.
+  const int attack_frames = (get_mode() == 1) ? 1 : VAD_ATTACK_FRAMES;
 
   while (capture_used_ >= OpusAudioEncoder::FRAME_SAMPLES) {
     for (size_t i = 0; i < OpusAudioEncoder::FRAME_SAMPLES; i++) {
@@ -1040,12 +1048,14 @@ void MumbleComponent::audio_capture() {
       if (above) {
         vad_voice_frames_++;
         vad_silence_frames_ = 0;
-        if (vad_voice_frames_ >= VAD_ATTACK_FRAMES) {
+        if (vad_voice_frames_ >= attack_frames) {
           tx_state_ = TxState::TRANSMITTING;
           voice_sending_ = true;
           ESP_LOGI(TAG, "Voice TX started");
           if (!echo_suppress)
             flush_preroll();
+          else
+            preroll_count_ = 0; // drop the ring; a later utterance must not send this PCM
         }
       } else {
         vad_voice_frames_ = 0;
@@ -1057,7 +1067,12 @@ void MumbleComponent::audio_capture() {
         vad_silence_frames_++;
         vad_voice_frames_ = 0;
         if (vad_silence_frames_ >= VAD_HANGOVER_FRAMES) {
-          send_voice_packet(nullptr, 0, true);
+          // The last 20 ms frame carries the terminator bit, matching desktop Mumble. Echo
+          // suppression must not send that PCM; close the stream with an empty terminator.
+          if (echo_suppress)
+            send_voice_packet(nullptr, 0, true);
+          else
+            encode_and_send(frame_buf, true);
           voice_sending_ = false;
           ESP_LOGI(TAG, "Voice TX stopped");
           tx_state_ = TxState::CAPTURING;
@@ -1087,11 +1102,13 @@ void MumbleComponent::flush_preroll() {
   preroll_count_ = 0;
 }
 
-void MumbleComponent::encode_and_send(const int16_t *frame) {
+void MumbleComponent::encode_and_send(const int16_t *frame, bool is_terminator) {
   int enc_len = opus_encoder_.encode(frame, OpusAudioEncoder::FRAME_SAMPLES, opus_payload_buf_,
                                      OpusAudioEncoder::MAX_PAYLOAD_BYTES);
   if (enc_len > 0)
-    send_voice_packet(opus_payload_buf_, static_cast<size_t>(enc_len), false);
+    send_voice_packet(opus_payload_buf_, static_cast<size_t>(enc_len), is_terminator);
+  else if (is_terminator)
+    send_voice_packet(nullptr, 0, true);
 }
 
 void MumbleComponent::dump_config() {

@@ -138,7 +138,7 @@ This client uses the **legacy binary format**; the server also supports a modern
 
 ### UDP Ping
 
-UDP connectivity is confirmed by a ping/echo exchange. The client sends a codec-type-1 packet (encrypted in Legacy mode); the server decrypts it, matches the session, and echoes it back. If no echo is received within the timeout, the client falls back to tunneling voice over TCP using UDPTunnel (message type 1). **ESP32-S3 Box, Box-3, and Voice PE (ESP-IDF)**: Use lwIP netconn for UDP. **Other boards (Arduino)**: WiFiUDP.
+UDP connectivity is confirmed by a ping/echo exchange. The client sends a codec-type-1 packet (encrypted in Legacy mode); the server decrypts it, matches the session, and echoes it back. If no echo is received within the timeout, the client falls back to tunneling voice over TCP using UDPTunnel (message type 1). **ESP32-S3 Box, Box-3, Voice PE, and ESP32-P4 (ESP-IDF)**: Use lwIP netconn for UDP. **Other boards (Arduino)**: WiFiUDP. The ESP32-P4 config has no Wi-Fi; the default username uses the Ethernet MAC.
 
 ### Protocol Reference
 
@@ -149,10 +149,10 @@ For protocol details (TCP message catalog, UDP voice format, varint encoding, cr
 ### Capture Path (Microphone to Network) — *Implemented*
 
 ```
-I2S Mic ──► Ring Buffer ──► VAD ──► Echo Suppress ──► Opus Encoder ──► Voice Packet ──► UDP/TCP ──► WiFi TX
+I2S Mic ──► Ring Buffer ──► VAD ──► Echo Suppress ──► Opus Encoder ──► Voice Packet ──► UDP/TCP ──► Network TX
 ```
 
-Implemented pipeline: ESPHome microphone component → ring buffer → energy-based VAD (threshold 200, 3-frame attack, 15-frame hangover) → echo suppression (TX suppressed while receiving or 100 ms after) → Opus encode (16 kHz mono, 16 kbps) → Mumble UDP voice packet → send via UDP or TCP tunnel fallback. Half-duplex I2S bus management: mic and speaker share the bus; `manage_i2s_bus()` coordinates handoff using `is_stopped()` to avoid "Parent I2S bus not free" errors. A short warmup delay (80 ms) is applied before starting the microphone when transitioning from speaker to mic, to ensure the I2S/ES7210 codec is ready.
+Implemented pipeline: ESPHome microphone component → ring buffer → adaptive energy VAD (noise floor × 2.5, minimum RMS 120, 3-frame attack, 40-frame / 800 ms hangover, 240 ms calibration, 200 ms preroll) → echo suppression (TX suppressed while receiving or 100 ms after, always-on only) → Opus encode (16 kHz mono, 16 kbps) → Mumble UDP voice packet → send via UDP or TCP tunnel fallback. The voice sequence counts 10 ms frames, so each 20 ms packet advances it by 2, and it is not reset between utterances. Push-to-talk skips VAD and calibration and sends from the first frame. Half-duplex I2S bus management: mic and speaker share the bus; `manage_i2s_bus()` coordinates handoff using `is_stopped()` to avoid "Parent I2S bus not free" errors. `mic_warmup` (default 200 ms, 50 ms on the ESP32-P4) delays the microphone start after the bus is acquired.
 
 ### Playback Path (Network to Speaker) — *Implemented*
 
@@ -316,6 +316,7 @@ mumble:
 | `speaker_id` | id | none | ESPHome speaker component for playback |
 | `ptt_pin` | pin | none | GPIO for push-to-talk button (optional; wire button to mumble.microphone_enable/disable in YAML) |
 | `mute_pin` | pin | none | GPIO for hardware mute switch (LOW = muted; syncs self_mute and mic). Not used on Box/Box-3 (mute circuit is hardware-isolated). |
+| `mic_warmup` | time | `200ms` | Settle time after acquiring the I2S bus before the microphone starts. The ESP32-P4 config uses `50ms`. |
 | `crypto` | enum | `legacy` | Crypto mode: `legacy` (default, OCB2-AES128) or `lite` (cleartext UDP). Use `crypto_select_id` for HA entity. Changing crypto forces reconnect. |
 | `ca_cert` | string | (empty) | Optional PEM of CA certificate for server verification. When set, TLS verification is enabled; when empty, insecure mode (trusted LAN only). |
 | `bot_mode` | bool | false | When true, Authenticate sends `client_type=1` (bot). |
@@ -426,18 +427,30 @@ Board-specific details (pin assignments, codec I2C addresses, I2S parameters) ar
 - All pins user-defined in YAML
 - Assumes single I2S mic + single I2S speaker
 
+**Waveshare ESP32-P4-WIFI6-POE-ETH** (**ESP-IDF, native toolchain**)
+- Framework: `type: esp-idf` with `toolchain: esp-idf` (PlatformIO cannot link rev3 P4 images). lwIP netconn for UDP. min ESPHome 2026.7.0
+- Board: `esp32-p4_r3`, 16 MB flash, 360 MHz, PSRAM
+- Ethernet: IP101, MDC GPIO31, MDIO GPIO52, power GPIO51, external clock GPIO50, PHY address 1
+- I2C: SDA GPIO7, SCL GPIO8
+- I2S: LRCLK GPIO10, BCLK GPIO12, MCLK GPIO13, DIN GPIO11, DOUT GPIO9
+- Codec: ES8311 analog mic (PGA and digital gain are HA numbers; `use_microphone` stays off). `mic_warmup: 50ms`
+- Speaker Power (PA enable): GPIO53
+- PTT header button: GPIO20 (GPIO35 is Ethernet TXD1)
+- Talk switch: Home Assistant push-to-talk, active only in push-to-talk mode
+- Config: `esphome/waveshare-esp32-p4-poe.yaml`
+
 ## Dependencies
 
 | Dependency | Version | Purpose |
 |------------|---------|---------|
-| ESP-IDF | 5.x (via ESPHome) | SoC framework (Box/Box-3/Voice PE use esp-idf + lwIP netconn; others use Arduino on ESP-IDF base) |
+| ESP-IDF | 5.x (via ESPHome) | SoC framework (Box/Box-3/Voice PE/ESP32-P4 use esp-idf + lwIP netconn; others use Arduino on ESP-IDF base) |
 | ESPHome | 2026.7.0+ (`requirements.txt` pins 2026.7.1) | Component framework, HA integration, OTA |
-| micro-opus | local `lib/micro-opus/` **0.4.1** | Opus audio codec; heap pseudostack, PSRAM, Xtensa DSP; based on esphome-libs/micro-opus |
+| micro-opus | local `lib/micro-opus/` **0.4.1** | Opus audio codec; heap pseudostack, PSRAM; Xtensa LX7 on ESP32-S3 only; IDF component for the native toolchain |
 | mbedTLS | (bundled with ESP-IDF) | TLS for Mumble control channel; OCB2-AES128 for Legacy; AES-256-GCM for Secure |
 | ESP-ADF | optional | ADF pipeline for full-duplex I2S |
 | ESP-SR | optional | AEC, noise suppression, beamforming |
 
-The build uses ESPHome/PlatformIO. The Opus library is **vendored locally** in `lib/micro-opus/` — a pre-patched copy of [esphome-libs/micro-opus](https://github.com/esphome-libs/micro-opus) v0.4.1 with heap-based pseudostack (avoids stack overflow from alloca-based builds), PSRAM-aware allocation, and Xtensa LX7 optimizations for ESP32-S3. Install the host toolchain with `pip install -r requirements.txt` (Python 3.12+).
+S3 and Arduino boards build with the PlatformIO toolchain. The ESP32-P4 board builds with ESPHome's native esp-idf toolchain. The Opus library is **vendored locally** in `lib/micro-opus/` — a pre-patched copy of [esphome-libs/micro-opus](https://github.com/esphome-libs/micro-opus) v0.4.1 with heap-based pseudostack (avoids stack overflow from alloca-based builds), PSRAM-aware allocation, and Xtensa LX7 optimizations on the ESP32-S3 only. `lib/micro-opus/CMakeLists.txt` registers it as an IDF component for the native toolchain. Install the host toolchain with `pip install -r requirements.txt` (Python 3.12+).
 
 ## Key Technical Risks
 
