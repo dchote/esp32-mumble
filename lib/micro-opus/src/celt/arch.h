@@ -392,11 +392,9 @@ static OPUS_INLINE int celt_isnan(float x)
 #endif /* !FIXED_POINT */
 
 #ifndef GLOBAL_STACK_SIZE
-#ifdef FIXED_POINT
-#define GLOBAL_STACK_SIZE 120000
-#else
-#define GLOBAL_STACK_SIZE 120000
-#endif
+/* 16 kHz mono encode plus decode of a 60 ms 48 kHz frame peaks at 25504 bytes.
+ * 32 KB covers that with margin and fits in internal RAM (no PSRAM required). */
+#define GLOBAL_STACK_SIZE 32768
 #endif
 
 #endif /* ARCH_H */

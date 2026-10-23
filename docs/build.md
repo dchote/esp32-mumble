@@ -74,7 +74,7 @@ On macOS the port is typically `/dev/cu.usbmodem*`.
 
 ## Dependencies
 
-- **Opus**: The Mumble component uses a **local vendored Opus library** (`lib/micro-opus/`) based on [esphome-libs/micro-opus](https://github.com/esphome-libs/micro-opus) v0.4.1. It uses heap-based pseudostack allocation (PSRAM when available) and Xtensa DSP optimizations on the ESP32-S3. Do not remove or modify `lib/micro-opus/` — it is required for compilation.
+- **Opus**: The Mumble component uses a **local vendored Opus library** (`lib/micro-opus/`) based on [esphome-libs/micro-opus](https://github.com/esphome-libs/micro-opus) v0.4.1. It uses a 32 KB static pseudostack and Xtensa DSP optimizations on the ESP32-S3. Encoder state prefers PSRAM when the board has it. Do not remove or modify `lib/micro-opus/` — it is required for compilation.
 - **ESP32-S3 Box / Box-3 / Voice PE (ESP-IDF)**: These boards use `framework: type: esp-idf` with lwIP netconn for UDP. First flash must be via USB, not OTA. Voice PE also vendors `components/voice_kit/` for the XMOS mic DSP (may DFU firmware on first boot).
 - **ESP32-P4**: `esphome/waveshare-esp32-p4-poe.yaml` uses Ethernet and the native esp-idf toolchain. It does not reference `!secret`, so it compiles without `secrets.yaml`. First flash must be via USB, not OTA.
 - **Toolchain**: S3 and Arduino configs set `esp32.toolchain: platformio` because the native toolchain does not use the PlatformIO `symlink://` micro-opus library or the mbedtls pre-script. The ESP32-P4 config sets `toolchain: esp-idf` and builds micro-opus from `lib/micro-opus/CMakeLists.txt`. ESPHome 2026.7 defaults to that native toolchain.

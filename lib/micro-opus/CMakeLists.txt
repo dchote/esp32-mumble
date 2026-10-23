@@ -18,6 +18,7 @@ idf_component_register(
     "src/opus_src/mlp_data.c"
     "src/celt/bands.c"
     "src/celt/celt.c"
+    "src/opus_scratch.c"
     "src/celt/cwrs.c"
     "src/celt/entcode.c"
     "src/celt/entdec.c"
@@ -152,7 +153,7 @@ target_compile_definitions(${COMPONENT_LIB} PRIVATE
   CUSTOM_SUPPORT
   ESP_PLATFORM
   NONTHREADSAFE_PSEUDOSTACK
-  GLOBAL_STACK_SIZE=120000
+  GLOBAL_STACK_SIZE=32768
   FIXED_POINT=1
   DISABLE_FLOAT_API
 )

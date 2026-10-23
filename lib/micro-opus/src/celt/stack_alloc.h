@@ -162,9 +162,13 @@ extern char *global_stack_top;
 #else
 
 #define ALIGN(stack, size) ((stack) += ((size) - (long)(stack)) & ((size) - 1))
-#ifdef ENABLE_HARDENING
+#if defined(ENABLE_HARDENING)
 #include "arch.h"
 #define PUSH(stack, size, type) (ALIGN((stack),ALIGNOF(type)),(void)(((int)((size)*(sizeof(type)/(sizeof(char)))) <= (scratch_ptr)+GLOBAL_STACK_SIZE-(stack))?0:CELT_FATAL("pseudostack overflow")),(stack)+=(size)*(sizeof(type)/(sizeof(char))),(type*)(void*)((stack)-(size)*(sizeof(type)/(sizeof(char)))))
+#elif defined(CUSTOM_SUPPORT)
+/* Stop a too-small scratch buffer from writing off the end of it. celt_fatal()
+ * is provided by custom_support.h (included via os_support.h below). */
+#define PUSH(stack, size, type) (ALIGN((stack),ALIGNOF(type)),(void)(((size_t)((size)*(sizeof(type)/(sizeof(char)))) <= (size_t)((scratch_ptr)+GLOBAL_STACK_SIZE-(stack)))?0:celt_fatal("pseudostack overflow", __FILE__, __LINE__)),(stack)+=(size)*(sizeof(type)/(sizeof(char))),(type*)(void*)((stack)-(size)*(sizeof(type)/(sizeof(char)))))
 #else
 #define PUSH(stack, size, type) (ALIGN((stack),ALIGNOF(type)),(stack)+=(size)*(sizeof(type)/(sizeof(char))),(type*)(void*)((stack)-(size)*(sizeof(type)/(sizeof(char)))))
 #endif
@@ -174,7 +178,13 @@ extern char *global_stack_top;
 #else
 #define RESTORE_STACK (global_stack = _saved_stack)
 #endif
+#ifdef CUSTOM_SUPPORT
+/* A failed scratch allocation used to leave global_stack NULL. The next PUSH
+ * then wrote at address 0 (StoreProhibited on the first voice encode). */
+#define ALLOC_STACK char *_saved_stack; (global_stack = (global_stack==0) ? (scratch_ptr=(char*)opus_alloc_scratch(GLOBAL_STACK_SIZE)) : global_stack); if (global_stack==0) celt_fatal("opus scratch alloc failed", __FILE__, __LINE__); _saved_stack = global_stack;
+#else
 #define ALLOC_STACK char *_saved_stack; (global_stack = (global_stack==0) ? (scratch_ptr=(char*)opus_alloc_scratch(GLOBAL_STACK_SIZE)) : global_stack); _saved_stack = global_stack;
+#endif
 
 #endif /* ENABLE_VALGRIND */
 

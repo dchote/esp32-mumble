@@ -126,7 +126,7 @@ esp32-mumble/
 ├── components/          # ESPHome external components
 │   └── mumble/          # Mumble client component
 ├── lib/
-│   └── micro-opus/      # Local Opus codec (v0.4.1; heap pseudostack, PSRAM, Xtensa)
+│   └── micro-opus/      # Local Opus codec (v0.4.1; 32KB static pseudostack, Xtensa)
 ├── scripts/
 │   ├── build.sh
 │   ├── flash.sh

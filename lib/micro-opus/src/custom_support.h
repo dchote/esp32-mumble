@@ -69,33 +69,13 @@ static inline void opus_free(void* ptr) {
     heap_caps_free(ptr);
 }
 
-/* Override opus_alloc_scratch to allocate the pseudostack with configurable memory preference.
- * This function is called by stack_alloc.h to allocate the pseudostack buffer.
- * For THREADSAFE_PSEUDOSTACK mode, each thread gets its own buffer.
- * For NONTHREADSAFE_PSEUDOSTACK mode, there is one global buffer. */
+/* Scratch comes from a single static buffer (see opus_scratch.c), not the heap.
+ * The old heap request was GLOBAL_STACK_SIZE bytes at the first encode, which
+ * is after Wi-Fi and TLS have fragmented internal RAM. On an ESP32 with no
+ * PSRAM that returned NULL and the codec wrote through it. */
 #define OVERRIDE_OPUS_ALLOC_SCRATCH
 
-static inline void* opus_alloc_scratch(size_t size) {
-#if defined(CONFIG_OPUS_PSEUDOSTACK_PREFER_PSRAM)
-    /* Try PSRAM first, fall back to internal RAM - must be 8-bit accessible (not IRAM) */
-    return heap_caps_malloc_prefer(size, 2, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT,
-                                   MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
-#elif defined(CONFIG_OPUS_PSEUDOSTACK_PREFER_INTERNAL)
-    /* Try internal RAM first, fall back to PSRAM - must be 8-bit accessible (not IRAM) */
-    return heap_caps_malloc_prefer(size, 2, MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT,
-                                   MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
-#elif defined(CONFIG_OPUS_PSEUDOSTACK_PSRAM_ONLY)
-    /* PSRAM only - fail if unavailable - must be 8-bit accessible */
-    return heap_caps_malloc(size, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
-#elif defined(CONFIG_OPUS_PSEUDOSTACK_INTERNAL_ONLY)
-    /* Internal RAM only - must be 8-bit accessible (not IRAM) */
-    return heap_caps_malloc(size, MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
-#else
-    /* Default: prefer PSRAM, fall back to internal - must be 8-bit accessible (not IRAM) */
-    return heap_caps_malloc_prefer(size, 2, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT,
-                                   MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
-#endif
-}
+void *opus_alloc_scratch(size_t size);
 
 #endif /* ESP_PLATFORM */
 
@@ -103,6 +83,9 @@ static inline void* opus_alloc_scratch(size_t size) {
 
 /* Function called on pseudostack overflow - required for pseudostack modes.
  * Called by the PUSH() macro when allocation exceeds GLOBAL_STACK_SIZE. */
+#ifdef __GNUC__
+__attribute__((noreturn))
+#endif
 static inline void celt_fatal(const char* str, const char* file, int line) {
     printf("FATAL ERROR: %s at %s:%d\n", str, file, line);
     abort();

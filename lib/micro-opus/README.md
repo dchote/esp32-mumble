@@ -5,8 +5,8 @@ Local vendored copy of the Opus audio codec for ESP32, based on [esphome-libs/mi
 ## Why local?
 
 - **No submodules** — All sources are copied and patched in-place
-- **Heap pseudostack** — Uses `NONTHREADSAFE_PSEUDOSTACK` instead of `USE_ALLOCA`, so Opus working memory (~120KB) comes from heap/PSRAM, not the task stack. Avoids loopTask stack overflow during voice decode.
-- **PSRAM-aware** — Uses `heap_caps_malloc_prefer` to allocate from PSRAM when available
+- **Static pseudostack** — Uses `NONTHREADSAFE_PSEUDOSTACK` instead of `USE_ALLOCA`, so Opus working memory is a 32 KB static buffer, not the task stack and not a 120 KB heap block. 16 kHz mono encode/decode peaks at about 25 KB. The old 120 KB heap request failed on the Atom Echo (no PSRAM) once Wi-Fi and TLS were up, and the first voice encode wrote through the resulting NULL.
+- **PSRAM-aware encoder state** — Opus encoder/decoder state still prefers PSRAM when the board has it, and falls back to internal RAM (Atom Echo).
 - **Xtensa optimizations** — Pre-applied Xtensa LX7 patches for faster decode on ESP32-S3
 
 ## Structure

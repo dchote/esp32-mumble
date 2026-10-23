@@ -445,12 +445,12 @@ Board-specific details (pin assignments, codec I2C addresses, I2S parameters) ar
 |------------|---------|---------|
 | ESP-IDF | 5.x (via ESPHome) | SoC framework (Box/Box-3/Voice PE/ESP32-P4 use esp-idf + lwIP netconn; others use Arduino on ESP-IDF base) |
 | ESPHome | 2026.7.0+ (`requirements.txt` pins 2026.7.1) | Component framework, HA integration, OTA |
-| micro-opus | local `lib/micro-opus/` **0.4.1** | Opus audio codec; heap pseudostack, PSRAM; Xtensa LX7 on ESP32-S3 only; IDF component for the native toolchain |
+| micro-opus | local `lib/micro-opus/` **0.4.1** | Opus audio codec; 32 KB static pseudostack; encoder state prefers PSRAM; Xtensa LX7 on ESP32-S3 only; IDF component for the native toolchain |
 | mbedTLS | (bundled with ESP-IDF) | TLS for Mumble control channel; OCB2-AES128 for Legacy; AES-256-GCM for Secure |
 | ESP-ADF | optional | ADF pipeline for full-duplex I2S |
 | ESP-SR | optional | AEC, noise suppression, beamforming |
 
-S3 and Arduino boards build with the PlatformIO toolchain. The ESP32-P4 board builds with ESPHome's native esp-idf toolchain. The Opus library is **vendored locally** in `lib/micro-opus/` — a pre-patched copy of [esphome-libs/micro-opus](https://github.com/esphome-libs/micro-opus) v0.4.1 with heap-based pseudostack (avoids stack overflow from alloca-based builds), PSRAM-aware allocation, and Xtensa LX7 optimizations on the ESP32-S3 only. `lib/micro-opus/CMakeLists.txt` registers it as an IDF component for the native toolchain. Install the host toolchain with `pip install -r requirements.txt` (Python 3.12+).
+S3 and Arduino boards build with the PlatformIO toolchain. The ESP32-P4 board builds with ESPHome's native esp-idf toolchain. The Opus library is **vendored locally** in `lib/micro-opus/` — a pre-patched copy of [esphome-libs/micro-opus](https://github.com/esphome-libs/micro-opus) v0.4.1 with a 32 KB static pseudostack (avoids both alloca stack overflow and a 120 KB heap allocation the Atom Echo cannot satisfy), PSRAM-aware encoder state, and Xtensa LX7 optimizations on the ESP32-S3 only. `lib/micro-opus/CMakeLists.txt` registers it as an IDF component for the native toolchain. Install the host toolchain with `pip install -r requirements.txt` (Python 3.12+).
 
 ## Key Technical Risks
 

@@ -40,7 +40,7 @@ Default crypto is **Legacy** (OCB2-AES128); **Lite** (cleartext UDP) is optional
 
 - `OpusAudioDecoder`: wraps `opus_decoder_create` / `opus_decode` from vendored micro-opus library.
 - 16 kHz mono, decodes 20ms frames (320 samples).
-- Uses heap-based pseudostack via micro-opus (PSRAM when available), avoiding stack overflow.
+- Uses a 32 KB static pseudostack via micro-opus, avoiding both task-stack overflow and a large heap allocation.
 
 ### 6. Jitter Buffer (mumble_audio.h/.cpp)
 
